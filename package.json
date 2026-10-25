@@ -1011,6 +1011,41 @@
           "default": "",
           "description": "Reasoning effort for new sessions opened here. You can change it per session from the effort picker in the chat."
         },
+        "claudeProjects.chat.promptPresets": {
+          "type": "array",
+          "markdownDescription": "Prompts you can insert from the presets button in the chat composer. The preset goes in front of what you have typed; write your task after it.",
+          "items": {
+            "type": "object",
+            "required": [
+              "label",
+              "prompt"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Name shown in the menu."
+              },
+              "prompt": {
+                "type": "string",
+                "description": "Text inserted into the message box."
+              }
+            }
+          },
+          "default": [
+            {
+              "label": "Worktree",
+              "prompt": "Create a new worktree Commit as you go. Dont push. \n\n"
+            },
+            {
+              "label": "PR",
+              "prompt": "Open a PR and cleanup \n\n"
+            },
+            {
+              "label": "Branch",
+              "prompt": "Create a new branch and work on it. Commit as you go. Dont push. \n\n"
+            }
+          ]
+        },
         "claudeProjects.chat.allowBypassPermissions": {
           "type": "boolean",
           "default": false,

@@ -27,6 +27,11 @@
         effort: 'high',
         availableEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
         bookmarks: [],
+        promptPresets: [
+          { label: 'Worktree', prompt: 'Create a new worktree Commit as you go. Dont push. \n\n' },
+          { label: 'PR', prompt: 'Open a PR and cleanup \n\n' },
+          { label: 'Branch', prompt: 'Create a new branch and work on it. Commit as you go. Dont push. \n\n' },
+        ],
         availableModes: ['default', 'acceptEdits', 'plan', 'auto'],
         availableModels: [
           { value: 'default', displayName: 'Default (recommended)', description: 'Sonnet 5.5 · Efficient for routine tasks' },

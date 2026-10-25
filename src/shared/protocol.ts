@@ -66,6 +66,12 @@ export interface ModelOption {
   efforts?: EffortLevel[];
 }
 
+/** A reusable prompt the user can insert from the composer. */
+export interface PromptPreset {
+  label: string;
+  prompt: string;
+}
+
 /** A bookmarked message in a chat. */
 export interface BookmarkView {
   /** Id of the bookmarked ChatItem. */
@@ -346,6 +352,8 @@ export interface ChatState {
   pending: PendingRequestView[];
   /** Bookmarked messages, oldest first. */
   bookmarks: BookmarkView[];
+  /** Prompt presets for the composer's presets menu (from settings). */
+  promptPresets?: PromptPreset[];
   todos?: TodoItem[];
   contextUsage?: ContextUsageView;
   /** Set when this session is currently running in another Claude process (another window, a terminal…). */

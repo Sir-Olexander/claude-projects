@@ -5,7 +5,7 @@ import type { LiveRegistry } from '../claude/LiveRegistry';
 import type { SessionIndex } from '../claude/SessionIndex';
 import type { InitializeResponse, ModelInfo, SdkRateLimitEvent, SlashCommand } from '../claude/sdkTypes';
 import { transcriptPathFor } from '../claude/paths';
-import type { PermissionMode } from '../shared/protocol';
+import type { PermissionMode, PromptPreset } from '../shared/protocol';
 import { Emitter } from '../util/events';
 import type { Logger } from '../util/log';
 import { ImageCache } from './imageCache';
@@ -71,6 +71,7 @@ export class SessionManager implements vscode.Disposable {
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('claudeProjects.claudePath')) this.cliPath = undefined;
+        if (e.affectsConfiguration('claudeProjects.chat')) for (const s of this.sessions.values()) s.settingsChanged();
       }),
     );
     this.disposables.push({ dispose: index.onDidChange(() => this.syncTitles()).dispose });
@@ -192,6 +193,8 @@ export function readSettings(): SessionSettings {
     allowBypass: c.get<boolean>('chat.allowBypassPermissions', false),
     showThinking: c.get<boolean>('chat.showThinking', true),
     defaultEffort: asEffort(c.get<string>('chat.defaultEffort', '')) ?? '',
+    promptPresets: (c.get<unknown[]>('chat.promptPresets', []) ?? [])
+      .filter((p): p is PromptPreset => !!p && typeof (p as PromptPreset).label === 'string' && typeof (p as PromptPreset).prompt === 'string' && !!(p as PromptPreset).label.trim()),
   };
 }
 

@@ -105,7 +105,7 @@ function services(overrides: Partial<SessionServices> = {}): SessionServices {
     log: silentLogger,
     getCliPath: async () => FAKE,
     getPathEnv: async () => process.env.PATH ?? '',
-    settings: () => ({ defaultPermissionMode: 'default', defaultModel: '', allowBypass: false, showThinking: false, defaultEffort: '' }),
+    settings: () => ({ defaultPermissionMode: 'default', defaultModel: '', allowBypass: false, showThinking: false, defaultEffort: '', promptPresets: [] }),
     imageSink: (i) => i,
     sharedInit: {},
     onInitialized: () => {},

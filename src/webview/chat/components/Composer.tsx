@@ -18,10 +18,10 @@ export const MODE_ICONS: Record<PermissionMode, string> = {
   dontAsk: 'circle-slash',
 };
 
-type MenuKind = 'slash' | 'mention' | 'mode' | 'model' | 'effort';
+type MenuKind = 'slash' | 'mention' | 'mode' | 'model' | 'effort' | 'presets';
 
 /** Menus opened from a toolbar button (not from typing). */
-const isButtonMenu = (m: MenuKind | null) => m === 'mode' || m === 'model' || m === 'effort';
+const isButtonMenu = (m: MenuKind | null) => m === 'mode' || m === 'model' || m === 'effort' || m === 'presets';
 
 const EFFORT_ORDER: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 const EFFORT_HINTS: Record<EffortLevel, string> = {
@@ -167,7 +167,7 @@ export function Composer({ state }: { state: ChatState }) {
     if (!isButtonMenu(menu)) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (!t.closest('.popup') && !t.closest('.mode-btn') && !t.closest('.model-btn') && !t.closest('.effort-btn')) setMenu(null);
+      if (!t.closest('.popup') && !t.closest('.mode-btn') && !t.closest('.model-btn') && !t.closest('.effort-btn') && !t.closest('.presets-btn')) setMenu(null);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -216,6 +216,8 @@ export function Composer({ state }: { state: ChatState }) {
         return state.availableModes.map((m) => ({ key: m, label: PERMISSION_MODE_LABELS[m], description: PERMISSION_MODE_DESCRIPTIONS[m], icon: MODE_ICONS[m], checked: m === state.permissionMode }));
       case 'model':
         return state.availableModels.map((m) => ({ key: m.value, label: m.displayName, description: m.description, checked: m.value === state.modelValue }));
+      case 'presets':
+        return (state.promptPresets ?? []).map((p, i) => ({ key: String(i), label: p.label, description: p.prompt.replace(/\s+/g, ' ').trim(), icon: 'symbol-snippet' }));
       case 'effort':
         return [
           { key: 'default', label: 'Default', description: "The model's default effort", checked: !state.effort },
@@ -224,7 +226,7 @@ export function Composer({ state }: { state: ChatState }) {
       default:
         return [];
     }
-  }, [menu, slashItems, mentions, state.availableModes, state.availableModels, state.permissionMode, state.modelValue, state.cwd, state.effort, state.availableEfforts]);
+  }, [menu, slashItems, mentions, state.availableModes, state.availableModels, state.permissionMode, state.modelValue, state.cwd, state.effort, state.availableEfforts, state.promptPresets]);
 
   const replaceRange = (start: number, end: number, insert: string) => {
     const next = text.slice(0, start) + insert + text.slice(end);
@@ -260,6 +262,21 @@ export function Composer({ state }: { state: ChatState }) {
       send({ type: 'set-model', model: item.key });
       setMenu(null);
       ta.current?.focus();
+    } else if (menu === 'presets') {
+      const preset = state.promptPresets?.[Number(item.key)];
+      setMenu(null);
+      if (preset) {
+        // The preset goes in front of whatever is already typed; the cursor ends after everything.
+        const next = text.startsWith(preset.prompt) ? text : preset.prompt + text;
+        setText(next);
+        saveDraft(next);
+        setTimeout(() => {
+          const el = ta.current;
+          if (!el) return;
+          el.focus();
+          el.selectionStart = el.selectionEnd = next.length;
+        }, 0);
+      }
     } else if (menu === 'effort') {
       send({ type: 'set-effort', effort: item.key as EffortLevel | 'default' });
       setMenu(null);
@@ -380,14 +397,14 @@ export function Composer({ state }: { state: ChatState }) {
     <div class="composer-wrap">
       {menu && (isButtonMenu(menu) || trigger) ? (
         <Popup
-          title={menu === 'slash' ? 'Commands' : menu === 'mention' ? 'Files' : menu === 'mode' ? 'Mode' : menu === 'effort' ? 'Effort' : 'Model'}
+          title={menu === 'slash' ? 'Commands' : menu === 'mention' ? 'Files' : menu === 'mode' ? 'Mode' : menu === 'effort' ? 'Effort' : menu === 'presets' ? 'Prompt presets' : 'Model'}
           items={popupItems}
           active={active}
           onSelect={choose}
           onHover={setActive}
-          align={menu === 'model' || menu === 'effort' ? 'right' : menu === 'mode' ? 'left' : 'full'}
+          align={menu === 'model' || menu === 'effort' ? 'right' : menu === 'mode' || menu === 'presets' ? 'left' : 'full'}
           empty={menu === 'mention' ? (mentionLoading ? 'Searching…' : 'No matching files') : menu === 'slash' ? 'No matching commands' : 'Nothing to choose'}
-          footer={menu === 'mode' ? <span><kbd>⇧</kbd><kbd>Tab</kbd> to switch modes</span> : menu === 'effort' ? <span>Applies from Claude's next reply</span> : undefined}
+          footer={menu === 'mode' ? <span><kbd>⇧</kbd><kbd>Tab</kbd> to switch modes</span> : menu === 'effort' ? <span>Applies from Claude's next reply</span> : menu === 'presets' ? <span>Edit presets in Settings › Claude Projects › Prompt Presets</span> : undefined}
         />
       ) : null}
       <div
@@ -477,6 +494,20 @@ export function Composer({ state }: { state: ChatState }) {
           >
             <span class="slash-glyph">/</span>
           </button>
+          {state.promptPresets?.length ? (
+            <button
+              type="button"
+              class="bar-btn bar-icon presets-btn"
+              title="Prompt presets"
+              aria-label="Prompt presets"
+              onClick={() => {
+                setActive(0);
+                setMenu(menu === 'presets' ? null : 'presets');
+              }}
+            >
+              <Icon name="symbol-snippet" />
+            </button>
+          ) : null}
           <span class="bar-spacer" />
           {state.contextUsage?.percent !== undefined ? <ContextRing percent={state.contextUsage.percent} used={state.contextUsage.usedTokens} max={state.contextUsage.maxTokens} /> : null}
           {state.availableModels.length ? (

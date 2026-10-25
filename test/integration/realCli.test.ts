@@ -44,7 +44,7 @@ const services = (): SessionServices => ({
   log: process.env.VERBOSE ? consoleLogger : { ...consoleLogger, info: () => {} },
   getCliPath: async () => CLI,
   getPathEnv: async () => process.env.PATH ?? '',
-  settings: () => ({ defaultPermissionMode: 'default', defaultModel: 'haiku', allowBypass: false, showThinking: true, defaultEffort: '' }),
+  settings: () => ({ defaultPermissionMode: 'default', defaultModel: 'haiku', allowBypass: false, showThinking: true, defaultEffort: '', promptPresets: [] }),
   imageSink: (i) => i,
   sharedInit: {},
   onInitialized: () => {},

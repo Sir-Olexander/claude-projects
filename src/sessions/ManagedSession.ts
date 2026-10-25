@@ -27,6 +27,7 @@ import type {
   EffortLevel,
   ElicitationRequestView,
   ExtToChatMessage,
+  PromptPreset,
   ImageAttachment,
   ModelOption,
   PendingRequestView,
@@ -52,6 +53,8 @@ export interface SessionSettings {
   showThinking: boolean;
   /** Effort for new sessions ('' = the model's default). */
   defaultEffort: EffortLevel | '';
+  /** Prompt presets shown in the composer. */
+  promptPresets: PromptPreset[];
 }
 
 const EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -299,6 +302,7 @@ export class ManagedSession {
       items: snap.items,
       pending: this.pendingRequests,
       bookmarks: toViews(this.bookmarks),
+      promptPresets: settings.promptPresets,
       todos: this.builder.todos,
       contextUsage: this.contextUsage,
       liveElsewhere: this.liveElsewhere,
@@ -446,6 +450,13 @@ export class ManagedSession {
         this.flush();
       }
     }
+  }
+
+  /** Settings changed: refresh what the panel shows from them. */
+  settingsChanged(): void {
+    const settings = this.services.settings();
+    this.patchUi({ promptPresets: settings.promptPresets, allowBypass: settings.allowBypass, availableModes: this.availableModes(settings.allowBypass) });
+    this.flush();
   }
 
   /** Changes the reasoning effort ('default' = the model's default). Applies from the next request. */
