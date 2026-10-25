@@ -595,6 +595,15 @@
   transition: opacity 120ms ease;
 }
 
+/* Copy sits just left of the bookmark button. */
+.bm-toggle.bm-copy {
+  right: 22px;
+}
+.bm-toggle.bm-copy.is-copied {
+  opacity: 1;
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+
 .bm-frame:hover > .bm-toggle,
 .bm-toggle:focus-visible {
   opacity: 1;
@@ -605,7 +614,7 @@
   background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.15));
 }
 
-.bm-frame.is-marked > .bm-toggle {
+.bm-frame.is-marked > .bm-toggle:not(.bm-copy) {
   opacity: 1;
   color: var(--vscode-charts-orange, #d18616);
 }
