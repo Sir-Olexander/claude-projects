@@ -76,6 +76,11 @@ export class ChatPanelManager implements vscode.Disposable {
     return this.panels.has(key);
   }
 
+  /** Closes a session's tab, if it has one. */
+  closeTab(key: string): void {
+    this.panels.get(key)?.panel.dispose();
+  }
+
   /** Shows a session in its tab (creating the tab if needed). */
   show(session: ManagedSession, opts: { preserveFocus?: boolean; viewColumn?: vscode.ViewColumn } = {}): ChatPanel {
     const existing = this.panels.get(session.key);

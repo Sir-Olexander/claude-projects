@@ -389,6 +389,12 @@
         "title": "Open Project in Terminal",
         "category": "Claude Projects: Files",
         "icon": "$(terminal)"
+      },
+      {
+        "command": "claudeProjects.deleteSession",
+        "title": "Delete Session…",
+        "category": "Claude Projects",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -495,6 +501,10 @@
         },
         {
           "command": "claudeProjects.files.delete",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.deleteSession",
           "when": "false"
         }
       ],
@@ -925,6 +935,11 @@
           "command": "claudeProjects.openTerminal",
           "when": "view == claudeProjects.files && viewItem == files.folder",
           "group": "0_terminal@1"
+        },
+        {
+          "command": "claudeProjects.deleteSession",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session/",
+          "group": "4_delete@1"
         }
       ],
       "editor/title": [

@@ -236,6 +236,21 @@ export async function run(): Promise<void> {
     for (const t of vscode.window.terminals.slice(before)) t.dispose();
   });
 
+  await check('delete session moves the transcript to the Trash and drops it from the list', async () => {
+    const { existsSync, mkdirSync: mk } = await import('node:fs');
+    const id = '66666666-6666-6666-6666-666666666666';
+    const dir = join(claudeHome, 'projects', repo.replace(/[^a-zA-Z0-9]/g, '-'));
+    const file = join(dir, `${id}.jsonl`);
+    const t = new Date().toISOString();
+    writeFileSync(file, JSON.stringify({ type: 'user', uuid: 'x1', parentUuid: null, sessionId: id, cwd: repo, timestamp: t, message: { role: 'user', content: 'Throwaway session' } }) + '\n');
+    mk(join(dir, id, 'subagents'), { recursive: true });
+    await waitFor('new session indexed', () => api.index.get(id), 10_000);
+    await vscode.commands.executeCommand('claudeProjects.deleteSession', { sessionId: id, cwd: repo }, { skipConfirm: true });
+    assert.ok(!existsSync(file), 'transcript removed');
+    assert.ok(!existsSync(join(dir, id)), 'side folder removed');
+    await waitFor('session gone from the index', () => !api.index.get(id), 10_000);
+  });
+
   await check('refresh and next-attention commands run', async () => {
     await vscode.commands.executeCommand('claudeProjects.refresh');
     await vscode.commands.executeCommand('claudeProjects.focusNextAttention');

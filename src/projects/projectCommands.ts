@@ -250,6 +250,44 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
       index.touch(path);
     }),
 
+    // `skipConfirm` is for tests only (the dialog is modal).
+    reg('claudeProjects.deleteSession', async (arg?: SessionArg, opts?: { skipConfirm?: boolean }) => {
+      const s = resolveSession(arg);
+      if (!s) return;
+      const managed = sessions.findBySessionId(s.sessionId);
+      const title = managed?.title ?? index.get(s.sessionId)?.title ?? s.title ?? 'this session';
+      // Another app still has it open: it would keep writing to the file we removed.
+      const elsewhere = attention.bySessionId(s.sessionId);
+      if (elsewhere && !elsewhere.managed) {
+        void vscode.window.showWarningMessage(`"${title}" is open in ${SESSION_SOURCE_LABELS[elsewhere.source]}. Close it there first, then delete it.`);
+        return;
+      }
+      const busy = managed && (managed.status === 'running' || managed.status === 'waiting' || managed.status === 'starting');
+      const pick = opts?.skipConfirm
+        ? 'Delete'
+        : await vscode.window.showWarningMessage(
+        `Delete "${title}"?`,
+        {
+          modal: true,
+          detail: `${busy ? 'Claude is working in this session and will be stopped. ' : ''}The conversation is moved to the Trash, so you can still restore it from there.`,
+        },
+        'Delete',
+      );
+      if (pick !== 'Delete') return;
+      if (managed) {
+        panels.closeTab(managed.key);
+        await sessions.close(managed.key);
+      }
+      const path = index.get(s.sessionId)?.filePath ?? transcriptPathFor(s.cwd, s.sessionId);
+      // The transcript, plus the folder next to it with subagent and tool output.
+      for (const target of [path, path.replace(/\.jsonl$/, '')]) {
+        if (existsSync(target)) await vscode.workspace.fs.delete(vscode.Uri.file(target), { recursive: true, useTrash: true });
+      }
+      sessions.bookmarkStore.save(s.sessionId, []);
+      index.touch(path);
+      log.info(`deleted session ${s.sessionId} (${path})`);
+    }),
+
     reg('claudeProjects.copySessionId', async (arg?: SessionArg) => {
       const s = resolveSession(arg);
       if (s) await vscode.env.clipboard.writeText(s.sessionId);
