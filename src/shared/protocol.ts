@@ -192,7 +192,7 @@ export interface SystemItem {
   level: 'info' | 'warning' | 'error';
   text: string;
   /** Optional tag so the UI can style common notices. */
-  tag?: 'compact' | 'interrupted' | 'retry' | 'command-output' | 'mode' | 'model' | 'resumed' | 'forked';
+  tag?: 'compact' | 'interrupted' | 'retry' | 'command-output' | 'mode' | 'model' | 'resumed' | 'forked' | 'auto-continue';
   timestamp?: number;
 }
 
@@ -356,6 +356,10 @@ export interface ChatState {
   promptPresets?: PromptPreset[];
   todos?: TodoItem[];
   contextUsage?: ContextUsageView;
+  /** Send "continue" by itself once a usage limit that stopped this session resets. */
+  autoContinue: boolean;
+  /** Set while the session is stopped at a usage limit. */
+  limit?: LimitStopView;
   /** Set when this session is currently running in another Claude process (another window, a terminal…). */
   liveElsewhere?: { source: string; pid: number; status?: string };
   /** Error message when status === 'error'. */
@@ -402,6 +406,16 @@ export type ExtToChatMessage =
 // Messages: chat webview -> extension
 // ---------------------------------------------------------------------------
 
+/** A turn that ended because a usage limit was reached. */
+export interface LimitStopView {
+  /** Claude's message, e.g. "You've hit your session limit · resets 7:30am (Europe/Lisbon)". */
+  message: string;
+  /** Epoch ms when the limit resets, when known. */
+  resetsAt?: number;
+  /** Epoch ms when "continue" will be sent (only while auto-continue is on). */
+  continueAt?: number;
+}
+
 export type ChatToExtMessage =
   /** Sent once the webview script has loaded; the extension answers with `state`. */
   | { type: 'ready' }
@@ -416,6 +430,8 @@ export type ChatToExtMessage =
   | { type: 'elicitation-response'; requestId: string; action: 'accept' | 'decline' | 'cancel'; content?: Record<string, string | number | boolean | string[]> }
   /** Add or remove a bookmark on a message. */
   | { type: 'toggle-bookmark'; itemId: string }
+  /** Turn "continue automatically when usage limits reset" on or off for this session. */
+  | { type: 'set-auto-continue'; on: boolean }
   /**
    * Answer a permission request.
    * optionId: one of PermissionRequestView.options[].id for allow, or 'deny'.

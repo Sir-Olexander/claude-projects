@@ -12,6 +12,7 @@ import type { AttentionReason, ManagedSession } from './ManagedSession';
 import type { SessionManager } from './SessionManager';
 import { sourceOf } from './sources';
 import { clip, describeToolTarget } from './toolText';
+import { clockTime, countdown } from '../util/time';
 
 const RECENT_LIMIT = 10;
 
@@ -204,8 +205,9 @@ export class AttentionService implements vscode.Disposable {
     else if (s.status === 'running' || s.status === 'starting') attention = 'running';
     else if (s.unread && !this.dismissed.has(s.key)) attention = 'done';
     else attention = 'idle';
-    // Sessions that are only being read (no process, nothing pending) are not "running".
-    if (attention === 'idle' && !s.processAlive) return undefined;
+    // Sessions that are only being read (no process, nothing pending) are not "running",
+    // unless they're stopped at a usage limit.
+    if (attention === 'idle' && !s.processAlive && !s.limitStop) return undefined;
     if (s.status === 'new' && !s.processAlive) return undefined;
 
     let waitingFor: string | undefined;
@@ -226,6 +228,10 @@ export class AttentionService implements vscode.Disposable {
       detail = pending.message;
     } else if (attention === 'error') {
       detail = s.error;
+    } else if (s.limitStop) {
+      const at = s.limitStop.continueAt ?? s.limitStop.resetsAt;
+      waitingFor = s.limitStop.continueAt ? 'Usage limit · continues automatically' : 'Usage limit';
+      detail = at ? `${s.limitStop.continueAt ? 'Sends "continue" at' : 'Resets at'} ${clockTime(at)} (in ${countdown(at)})` : clip(s.limitStop.message, 140);
     } else if (attention === 'done') {
       waitingFor = 'Finished';
       detail = s.lastAssistantText ? clip(s.lastAssistantText, 140) : undefined;

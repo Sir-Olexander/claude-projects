@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { childPath, locateClaude } from '../claude/cliLocator';
 import type { LiveRegistry } from '../claude/LiveRegistry';
@@ -6,7 +8,7 @@ import type { SessionIndex } from '../claude/SessionIndex';
 import type { InitializeResponse, ModelInfo, SdkRateLimitEvent, SlashCommand } from '../claude/sdkTypes';
 import { transcriptPathFor } from '../claude/paths';
 import type { PermissionMode, PromptPreset } from '../shared/protocol';
-import { Emitter } from '../util/events';
+import { Emitter, debounce } from '../util/events';
 import type { Logger } from '../util/log';
 import { ImageCache } from './imageCache';
 import { ManagedSession, asEffort, type AttentionReason, type ManagedSessionInit, type ProbedDefaults, type SessionServices, type SessionSettings } from './ManagedSession';
@@ -38,6 +40,10 @@ export class SessionManager implements vscode.Disposable {
   private cliPath: Promise<string | undefined> | undefined;
   private pathEnv: Promise<string> | undefined;
   private readonly reaper: ReturnType<typeof setInterval>;
+  /** Identifies this window in the saved auto-continue list. */
+  private readonly windowId = randomUUID();
+  private readonly autoContinueSync: ReturnType<typeof setInterval>;
+  private readonly saveAutoContinueSoon = debounce(() => this.syncAutoContinue(), 500);
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(private readonly deps: SessionManagerDeps) {
@@ -79,6 +85,60 @@ export class SessionManager implements vscode.Disposable {
     this.disposables.push({ dispose: index.onDidChange(() => this.syncTitles()).dispose });
     this.disposables.push({ dispose: deps.registry.onDidChange(() => this.syncLiveElsewhere()).dispose });
     this.reaper = setInterval(() => this.reapIdle(), 60_000);
+    this.autoContinueSync = setInterval(() => this.syncAutoContinue(), 60_000);
+    setTimeout(() => this.syncAutoContinue(), 3000);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Auto-continues waiting for a usage limit to reset, kept across restarts
+  // ---------------------------------------------------------------------------
+
+  private savedAutoContinue(): Record<string, SavedAutoContinue> {
+    return this.deps.context.globalState.get<Record<string, SavedAutoContinue>>(AUTO_CONTINUE_KEY, {});
+  }
+
+  /**
+   * Saves this window's waiting auto-continues (refreshed every minute) and
+   * takes over the ones no window looks after any more, e.g. after VS Code was
+   * restarted, so "continue" is still sent.
+   */
+  private syncAutoContinue(): void {
+    const all = { ...this.savedAutoContinue() };
+    const now = Date.now();
+    for (const s of this.sessions.values()) {
+      const saved = all[s.sessionId];
+      if (s.autoContinue && s.limitStop?.continueAt !== undefined) {
+        all[s.sessionId] = { cwd: s.cwd, projectName: s.projectName, branch: s.branch, isWorktree: s.isWorktree, title: s.title, message: s.limitStop.message, resetsAt: s.limitStop.resetsAt, owner: this.windowId, beat: now };
+      } else if (saved && (!saved.owner || saved.owner === this.windowId)) {
+        delete all[s.sessionId];
+      }
+    }
+    for (const [sessionId, e] of Object.entries(all)) {
+      if (this.findBySessionId(sessionId)) continue;
+      if (e.owner && now - e.beat < 3 * 60_000) continue; // another window has it
+      if (!existsSync(e.cwd)) {
+        delete all[sessionId];
+        continue;
+      }
+      this.deps.log.info(`taking over auto-continue for ${sessionId}`);
+      const s = this.openExisting({ sessionId, cwd: e.cwd, projectName: e.projectName, branch: e.branch, isWorktree: e.isWorktree, title: e.title });
+      s.restoreLimitStop({ message: e.message, resetsAt: e.resetsAt });
+      all[sessionId] = { ...e, owner: this.windowId, beat: now };
+    }
+    void this.deps.context.globalState.update(AUTO_CONTINUE_KEY, all);
+  }
+
+  /** On shutdown: let the next window to start take over this window's auto-continues right away. */
+  private releaseAutoContinue(): void {
+    const all = { ...this.savedAutoContinue() };
+    let changed = false;
+    for (const [id, e] of Object.entries(all)) {
+      if (e.owner === this.windowId) {
+        all[id] = { ...e, owner: undefined };
+        changed = true;
+      }
+    }
+    if (changed) void this.deps.context.globalState.update(AUTO_CONTINUE_KEY, all);
   }
 
   private readonly defaultsCache = new Map<string, { at: number; value: Promise<ProbedDefaults | undefined> }>();
@@ -159,7 +219,10 @@ export class SessionManager implements vscode.Disposable {
   private add(session: ManagedSession): ManagedSession {
     this.sessions.set(session.key, session);
     void session.loadDefaults();
-    session.onDidChange(() => this._onDidChange.fire(session));
+    session.onDidChange(() => {
+      this._onDidChange.fire(session);
+      this.saveAutoContinueSoon();
+    });
     session.onNeedsAttention((a) => this._onNeedsAttention.fire({ session, ...a }));
     this.syncLiveElsewhere();
     this._onDidChange.fire(session);
@@ -173,6 +236,11 @@ export class SessionManager implements vscode.Disposable {
     this.sessions.delete(key);
     await s.stopProcess();
     s.dispose();
+    const saved = this.savedAutoContinue();
+    if (saved[s.sessionId]) {
+      const { [s.sessionId]: _removed, ...rest } = saved;
+      void this.deps.context.globalState.update(AUTO_CONTINUE_KEY, rest);
+    }
     this._onDidChange.fire(undefined);
   }
 
@@ -219,6 +287,9 @@ export class SessionManager implements vscode.Disposable {
 
   dispose(): void {
     clearInterval(this.reaper);
+    clearInterval(this.autoContinueSync);
+    this.saveAutoContinueSoon.cancel();
+    this.releaseAutoContinue();
     for (const d of this.disposables) d.dispose();
     for (const s of this.sessions.values()) s.dispose();
     this.sessions.clear();
@@ -235,12 +306,29 @@ export function readSettings(): SessionSettings {
     allowBypass: c.get<boolean>('chat.allowBypassPermissions', false),
     showThinking: c.get<boolean>('chat.showThinking', true),
     defaultEffort: asEffort(c.get<string>('chat.defaultEffort', '')) ?? '',
+    autoContinue: c.get<boolean>('chat.autoContinueAfterLimit', false),
     promptPresets: (c.get<unknown[]>('chat.promptPresets', []) ?? [])
       .filter((p): p is PromptPreset => !!p && typeof (p as PromptPreset).label === 'string' && typeof (p as PromptPreset).prompt === 'string' && !!(p as PromptPreset).label.trim()),
   };
 }
 
 const BOOKMARKS_KEY = 'claudeProjects.bookmarks.v1';
+const AUTO_CONTINUE_KEY = 'claudeProjects.autoContinue.v1';
+
+/** A chat waiting to send "continue" when a usage limit resets (global state, shared by windows). */
+interface SavedAutoContinue {
+  cwd: string;
+  projectName: string;
+  branch?: string;
+  isWorktree?: boolean;
+  title: string;
+  message: string;
+  resetsAt?: number;
+  /** Window looking after it; unset when that window shut down. */
+  owner?: string;
+  /** Last time the owner confirmed it (epoch ms). */
+  beat: number;
+}
 
 function globalStateBookmarks(context: vscode.ExtensionContext): BookmarkStore & { all(): Record<string, StoredBookmark[]> } {
   const all = () => context.globalState.get<Record<string, StoredBookmark[]>>(BOOKMARKS_KEY, {});

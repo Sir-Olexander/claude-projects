@@ -508,6 +508,20 @@ export function Composer({ state }: { state: ChatState }) {
               <Icon name="symbol-snippet" />
             </button>
           ) : null}
+          <button
+            type="button"
+            class={`bar-btn bar-icon auto-btn${state.autoContinue ? ' is-on' : ''}`}
+            aria-pressed={state.autoContinue}
+            title={
+              state.autoContinue
+                ? 'Continue automatically when usage limits reset: on. If this chat stops at a limit, it sends “continue” once the limit resets. Click to turn off.'
+                : 'Continue automatically when usage limits reset: off. Click to turn on.'
+            }
+            aria-label="Continue automatically when usage limits reset"
+            onClick={() => send({ type: 'set-auto-continue', on: !state.autoContinue })}
+          >
+            <Icon name="debug-continue" />
+          </button>
           <span class="bar-spacer" />
           {state.contextUsage?.percent !== undefined ? <ContextRing percent={state.contextUsage.percent} used={state.contextUsage.usedTokens} max={state.contextUsage.maxTokens} /> : null}
           {state.availableModels.length ? (

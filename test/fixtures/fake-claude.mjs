@@ -74,6 +74,17 @@ async function runTurn(text, uuid) {
     process.exit(3);
   }
 
+  if (text.includes('hit-limit')) {
+    // What Claude Code sends when a usage limit stops a turn.
+    const resetsAt = Math.floor(Date.now() / 1000) + Number(process.env.FAKE_LIMIT_RESET_SECONDS ?? 3600);
+    out({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', resetsAt, rateLimitType: 'five_hour' }, session_id: sessionId, uuid: randomUUID() });
+    const message = "You've hit your session limit · resets 7:30am (Europe/Lisbon)";
+    out({ type: 'assistant', message: { id: msgId, role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: message }] }, parent_tool_use_id: null, error: 'rate_limit', session_id: sessionId, uuid: randomUUID() });
+    out({ type: 'result', subtype: 'success', is_error: true, duration_ms: 50, result: message, errors: [], session_id: sessionId, usage: {}, modelUsage: {}, uuid: randomUUID() });
+    state('idle');
+    return;
+  }
+
   if (text.includes('tool')) {
     const toolId = 'toolu_' + randomUUID().slice(0, 8);
     const input = { command: 'echo hi', description: 'Say hi' };

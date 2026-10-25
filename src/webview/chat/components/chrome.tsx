@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { BookmarkView, ChatState, TodoItem } from '../../../shared/protocol';
+import type { BookmarkView, ChatState, LimitStopView, TodoItem } from '../../../shared/protocol';
+import { clockTime, countdown } from '../../../util/time';
 import { store } from '../store';
 import { formatElapsed } from '../lib/format';
 import { SPINNER_WORDS } from '../lib/tools';
@@ -157,6 +158,45 @@ export function RunningIndicator({ state }: { state: ChatState }) {
         ({state.turnStartedAt ? `${formatElapsed(elapsed)} · ` : ''}
         <kbd>esc</kbd> to interrupt)
       </span>
+    </div>
+  );
+}
+
+/** Shown above the message box while the chat is stopped at a usage limit. */
+export function LimitNotice({ limit, autoContinue }: { limit: LimitStopView; autoContinue: boolean }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 20_000);
+    return () => clearInterval(t);
+  }, []);
+  const resets = limit.resetsAt;
+  const headline = limit.message.replace(/\s*·.*$/, '').replace(/^You['’]ve hit your/i, 'You hit your') || 'Usage limit reached';
+  return (
+    <div class="limit-notice" role="status">
+      <Icon name="watch" class="limit-icon" />
+      <div class="limit-body">
+        <div class="limit-title">
+          {headline}
+          {resets ? (
+            <span class="limit-reset">
+              {' '}
+              · resets {clockTime(resets, now)} (in {countdown(resets, now)})
+            </span>
+          ) : null}
+        </div>
+        <label class="limit-switch">
+          <button type="button" role="switch" aria-checked={autoContinue} class={`switch${autoContinue ? ' is-on' : ''}`} onClick={() => send({ type: 'set-auto-continue', on: !autoContinue })}>
+            <span class="switch-knob" />
+          </button>
+          <span>Continue automatically when limits reset</span>
+        </label>
+        {autoContinue && limit.continueAt ? (
+          <div class="limit-sub">
+            Sends “continue” at {clockTime(limit.continueAt, now)}
+            {limit.resetsAt ? '' : ' (reset time unknown, so it tries then)'}. Keep VS Code open.
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

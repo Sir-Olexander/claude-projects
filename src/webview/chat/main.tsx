@@ -6,7 +6,7 @@ import { classifyHref } from './lib/paths';
 import { store, useStoreVersion } from './store';
 import { saveSession } from './ui';
 import { copyText, openFile, openUrl, send } from './components/actions';
-import { Banners, EmptyState, Header, RunningIndicator, TodoPanel } from './components/chrome';
+import { Banners, EmptyState, Header, LimitNotice, RunningIndicator, TodoPanel } from './components/chrome';
 import { Composer } from './components/Composer';
 import { MessageList } from './components/MessageList';
 import { PendingArea } from './components/PendingCard';
@@ -140,6 +140,7 @@ function App() {
         <div class="bottom-inner">
           {state.todos?.length ? <TodoPanel todos={state.todos} /> : null}
           {busy && state.pending.length === 0 ? <RunningIndicator state={state} /> : null}
+          {state.limit && !busy ? <LimitNotice limit={state.limit} autoContinue={state.autoContinue} /> : null}
           {state.pending.length ? <PendingArea pending={state.pending} cwd={state.cwd} /> : null}
           {/* Kept mounted while a request is pending so the draft and attached images survive. */}
           <div class={state.pending.length ? 'is-hidden' : undefined}>

@@ -106,7 +106,7 @@ function services(overrides: Partial<SessionServices> = {}): SessionServices {
     log: silentLogger,
     getCliPath: async () => FAKE,
     getPathEnv: async () => process.env.PATH ?? '',
-    settings: () => ({ defaultPermissionMode: 'default', defaultModel: '', allowBypass: false, showThinking: false, defaultEffort: '', promptPresets: [] }),
+    settings: () => ({ defaultPermissionMode: 'default', defaultModel: '', allowBypass: false, showThinking: false, defaultEffort: '', promptPresets: [], autoContinue: false }),
     imageSink: (i) => i,
     sharedInit: {},
     onInitialized: () => {},
@@ -448,5 +448,53 @@ describe('ManagedSession: a turn cut off by a reload', () => {
     } finally {
       restore();
     }
+  });
+});
+
+describe('ManagedSession: continue automatically after a usage limit', () => {
+  const timing = { ...ManagedSession.autoContinueTiming };
+  afterEach(() => {
+    ManagedSession.autoContinueTiming = { ...timing };
+    delete process.env.FAKE_LIMIT_RESET_SECONDS;
+  });
+
+  it('shows the limit, and with the toggle on sends "continue" after the reset', async () => {
+    ManagedSession.autoContinueTiming = { ...timing, afterResetMs: 0, checkEveryMs: 50 };
+    process.env.FAKE_LIMIT_RESET_SECONDS = '1';
+    const { s } = newSession();
+    await s.send('please hit-limit now');
+    await waitFor(() => !!s.limitStop);
+    expect(s.getState().limit?.message).toMatch(/hit your session limit/);
+    expect(s.limitStop?.resetsAt).toBeGreaterThan(Date.now());
+    expect(s.limitStop?.continueAt).toBeUndefined();
+
+    s.setAutoContinue(true);
+    expect(s.getState()).toMatchObject({ autoContinue: true, limit: { continueAt: s.limitStop!.resetsAt } });
+    await waitFor(() => s.getState().items.some((i) => i.kind === 'text' && i.text === 'Echo: continue'), 5000);
+    const items = s.getState().items;
+    expect(items.some((i) => i.kind === 'user' && i.text === 'continue')).toBe(true);
+    expect(items.some((i) => i.kind === 'system' && i.tag === 'auto-continue')).toBe(true);
+    expect(s.getState().limit).toBeUndefined();
+  });
+
+  it('does nothing by itself while the toggle is off', async () => {
+    ManagedSession.autoContinueTiming = { ...timing, afterResetMs: 0, checkEveryMs: 50 };
+    process.env.FAKE_LIMIT_RESET_SECONDS = '1';
+    const { s } = newSession();
+    await s.send('please hit-limit now');
+    await waitFor(() => !!s.limitStop);
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(s.getState().items.some((i) => i.kind === 'user' && i.text === 'continue')).toBe(false);
+    expect(s.getState().limit).toBeDefined();
+  });
+
+  it('a message sent by hand clears the limit notice', async () => {
+    const { s } = newSession();
+    s.setAutoContinue(true);
+    await s.send('please hit-limit now');
+    await waitFor(() => !!s.limitStop?.continueAt);
+    await s.send('hello again');
+    expect(s.getState().limit).toBeUndefined();
+    await waitFor(() => s.status === 'idle');
   });
 });

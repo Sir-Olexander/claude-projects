@@ -157,6 +157,9 @@ export class ChatPanel implements vscode.Disposable {
         case 'toggle-bookmark':
           s.toggleBookmark(m.itemId);
           break;
+        case 'set-auto-continue':
+          s.setAutoContinue(m.on);
+          break;
         case 'permission-response':
           s.respondPermission(m.requestId, m.optionId, m.feedback);
           break;

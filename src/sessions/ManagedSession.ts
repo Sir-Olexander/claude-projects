@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { ClaudeProcess, type ControlRequestEvent, type ExitEvent } from '../claude/ClaudeProcess';
 import { transcriptPathFor } from '../claude/paths';
@@ -29,6 +29,7 @@ import type {
   ExtToChatMessage,
   PromptPreset,
   ImageAttachment,
+  LimitStopView,
   ModelOption,
   PendingRequestView,
   PermissionMode,
@@ -45,6 +46,7 @@ import { DENY_MESSAGE, denyWithFeedback, permissionOptions, sanitizeDisplay } fr
 import { fieldsFromSchema, normalizeElicitation, validateElicitation, type ElicitationValue } from './elicitation';
 import { bookmarkFor, resolveBookmarks, toViews, type BookmarkStore, type StoredBookmark } from './bookmarks';
 import { clip, describeToolActivity, prettyModelName } from './toolText';
+import { isLimitMessage, parseLimitReset } from './usageLimit';
 
 export interface SessionSettings {
   defaultPermissionMode: PermissionMode;
@@ -55,6 +57,8 @@ export interface SessionSettings {
   defaultEffort: EffortLevel | '';
   /** Prompt presets shown in the composer. */
   promptPresets: PromptPreset[];
+  /** New sessions start with "continue automatically when usage limits reset" on. */
+  autoContinue: boolean;
 }
 
 const EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -149,6 +153,18 @@ export class ManagedSession {
   liveElsewhere: ChatState['liveElsewhere'];
   error: string | undefined;
 
+  /** Send "continue" by itself once a usage limit resets. */
+  autoContinue: boolean;
+  /** The last turn stopped at a usage limit (cleared by the next message). */
+  limitStop: LimitStopView | undefined;
+  /** Limit message seen in the current turn. */
+  private turnLimit: string | undefined;
+  /** Reset time from a "rejected" rate_limit_event in the current turn. */
+  private rejectedResetAt: number | undefined;
+  private autoTimer: ReturnType<typeof setInterval> | undefined;
+  /** "continue"s sent in a row that hit the limit again. */
+  private autoAttempts = 0;
+
   /** The latest turn finished while the user was not looking. */
   unread = false;
   /** Epoch ms of the last status change (for sorting / "since"). */
@@ -199,6 +215,7 @@ export class ManagedSession {
     this.modelValue = init.model ?? (settings.defaultModel || undefined);
     this.effortChoice = settings.defaultEffort || undefined;
     this.effort = settings.defaultEffort || undefined;
+    this.autoContinue = settings.autoContinue;
     if (init.sessionId) {
       this.sessionId = init.sessionId;
       this.key = init.sessionId;
@@ -284,6 +301,7 @@ export class ManagedSession {
       // Claude records "HEAD" when the folder isn't a git repo (or is detached): not a branch name.
       if (info.gitBranch && info.gitBranch !== 'HEAD' && !this.branch) this.branch = info.gitBranch;
       if (builder.lastModel) this.setResolvedModel(builder.lastModel);
+      this.limitFromHistory();
       if (info.effort && !this.effort) this.effort = asEffort(info.effort);
       this.updateContextUsage();
       this.log.info(`loaded ${builder.size} items for ${this.sessionId} in ${Date.now() - started} ms`);
@@ -322,6 +340,8 @@ export class ManagedSession {
       promptPresets: settings.promptPresets,
       todos: this.builder.todos,
       contextUsage: this.contextUsage,
+      autoContinue: this.autoContinue,
+      limit: this.limitStop,
       liveElsewhere: this.liveElsewhere,
       error: this.error,
       historyTruncated: snap.truncated,
@@ -399,6 +419,7 @@ export class ManagedSession {
     this.lastActivityAt = Date.now();
     this.unread = false;
     this.error = undefined;
+    this.clearLimitStop();
     const uuid = randomUUID();
     const busy = this.status === 'running' || this.status === 'waiting' || this.status === 'starting';
     const command = trimmed.startsWith('/') ? trimmed.slice(1).split(/\s+/)[0] : undefined;
@@ -421,6 +442,118 @@ export class ManagedSession {
       return;
     }
     if (!busy || this.status === 'idle' || this.status === 'starting') this.setStatus('running', 'Thinking');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Continue automatically after a usage limit
+  // ---------------------------------------------------------------------------
+
+  /** How long after the reset time "continue" is sent, and how often the clock is checked. */
+  static autoContinueTiming = { afterResetMs: 60_000, checkEveryMs: 20_000, retryMs: 10 * 60_000, unknownResetMs: 30 * 60_000, maxAttempts: 5 };
+
+  setAutoContinue(on: boolean): void {
+    if (on === this.autoContinue) return;
+    this.autoContinue = on;
+    if (this.limitStop) {
+      if (on) this.armAutoContinue();
+      else {
+        this.stopAutoTimer();
+        this.limitStop = { ...this.limitStop, continueAt: undefined };
+      }
+    }
+    this.patchUi({ autoContinue: on, limit: this.limitStop });
+    this._onDidChange.fire();
+  }
+
+  /** Re-creates a waiting auto-continue after VS Code restarted. */
+  restoreLimitStop(limit: LimitStopView): void {
+    if (this.status === 'running' || this.status === 'starting' || this.status === 'waiting') return;
+    this.autoContinue = true;
+    this.limitStop = { message: limit.message, resetsAt: limit.resetsAt };
+    this.armAutoContinue();
+    this.patchUi({ autoContinue: true, limit: this.limitStop });
+    this._onDidChange.fire();
+  }
+
+  /** A chat that last stopped at a usage limit that hasn't reset yet shows the limit notice again. */
+  private limitFromHistory(): void {
+    if (this.limitStop || this.proc?.alive || this.liveElsewhere) return;
+    const items = this.builder.items;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (it.kind === 'system' || it.kind === 'turn-end' || it.kind === 'thinking') continue;
+      if (it.kind !== 'text' || ('parentToolUseId' in it && it.parentToolUseId) || !isLimitMessage(it.text)) return;
+      let written = Date.now();
+      try {
+        written = statSync(this.transcriptPath).mtimeMs;
+      } catch {
+        // no file: use now
+      }
+      const resetsAt = parseLimitReset(it.text, written);
+      if (resetsAt === undefined || resetsAt <= Date.now()) return;
+      this.limitStop = { message: it.text.trim(), resetsAt };
+      if (this.autoContinue) this.armAutoContinue();
+      return;
+    }
+  }
+
+  private onLimitStop(message: string): void {
+    const now = Date.now();
+    let resetsAt = this.rejectedResetAt ?? parseLimitReset(message, now);
+    // Still limited right after a "continue": the reset time we had was too early.
+    if (resetsAt !== undefined && resetsAt <= now) resetsAt = undefined;
+    this.limitStop = { message, resetsAt };
+    if (this.autoContinue) this.armAutoContinue();
+    this.patchUi({ limit: this.limitStop });
+    this._onDidChange.fire();
+  }
+
+  private armAutoContinue(): void {
+    if (!this.limitStop) return;
+    const t = ManagedSession.autoContinueTiming;
+    const now = Date.now();
+    if (this.autoAttempts >= t.maxAttempts) {
+      this.builder.addSystem('warning', `Still at the usage limit after ${t.maxAttempts} automatic tries, so Claude won't continue by itself. Send a message when you're ready.`);
+      this.flush();
+      this.autoContinue = false;
+      this.limitStop = { ...this.limitStop, continueAt: undefined };
+      this.patchUi({ autoContinue: false });
+      return;
+    }
+    const continueAt = this.limitStop.resetsAt !== undefined ? this.limitStop.resetsAt + t.afterResetMs : now + (this.autoAttempts ? t.retryMs : t.unknownResetMs);
+    this.limitStop = { ...this.limitStop, continueAt };
+    this.stopAutoTimer();
+    // Checking the wall clock (rather than one long timer) keeps the time right across sleep.
+    this.autoTimer = setInterval(() => this.checkAutoContinue(), t.checkEveryMs);
+    this.checkAutoContinue();
+  }
+
+  private checkAutoContinue(): void {
+    const at = this.limitStop?.continueAt;
+    if (at === undefined || !this.autoContinue) return this.stopAutoTimer();
+    if (Date.now() < at) return;
+    this.stopAutoTimer();
+    if (this.status === 'running' || this.status === 'starting' || this.status === 'waiting' || this.pending.size) {
+      this.clearLimitStop();
+      return;
+    }
+    this.autoAttempts++;
+    this.log.info(`usage limit reset: continuing ${this.sessionId} (try ${this.autoAttempts})`);
+    this.builder.addSystem('info', 'Usage limit reset · continuing automatically', 'auto-continue');
+    void this.send('continue');
+  }
+
+  private clearLimitStop(): void {
+    this.stopAutoTimer();
+    if (!this.limitStop) return;
+    this.limitStop = undefined;
+    this.patchUi({ limit: undefined });
+    this._onDidChange.fire();
+  }
+
+  private stopAutoTimer(): void {
+    if (this.autoTimer) clearInterval(this.autoTimer);
+    this.autoTimer = undefined;
   }
 
   async interrupt(): Promise<void> {
@@ -936,6 +1069,8 @@ export class ManagedSession {
             if (b.type === 'tool_use') this.setActivity(describeToolActivity((b as { name: string }).name, (b as { input: Record<string, unknown> }).input, this.cwd));
             if (b.type === 'text' && (b as { text: string }).text.trim()) this.lastAssistantText = (b as { text: string }).text;
           }
+          const text = blocks.map((b) => (b.type === 'text' ? (b as { text: string }).text : '')).join('').trim();
+          if (text && (isLimitMessage(text) || ((am as { error?: string }).error === 'rate_limit' && this.rejectedResetAt))) this.turnLimit = text;
           if (am.message.model && am.message.model !== '<synthetic>' && am.message.model !== this.resolvedModel) this.setResolvedModel(am.message.model);
           this.updateContextUsage();
           if (blocks.some((b) => b.type === 'tool_use' && (b as { name: string }).name === 'TodoWrite')) this.patchUi({ todos: this.builder.todos });
@@ -956,6 +1091,11 @@ export class ManagedSession {
         const interrupted = r.subtype === 'error_during_execution' && !(r.errors?.length);
         const errorText = r.is_error && !interrupted ? (r.errors?.join('\n') || r.result || 'The turn ended with an error.') : undefined;
         this.builder.addTurnEnd({ durationMs: r.duration_ms, isError: !!errorText, errorText });
+        const limitText = this.turnLimit ?? (errorText && isLimitMessage(errorText) ? errorText : undefined);
+        if (limitText) this.onLimitStop(limitText);
+        else if (!interrupted) this.autoAttempts = 0;
+        this.turnLimit = undefined;
+        this.rejectedResetAt = undefined;
         const model = this.resolvedModel ? r.modelUsage?.[this.resolvedModel] : undefined;
         if (model?.contextWindow) this.contextWindow = model.contextWindow;
         this.updateContextUsage();
@@ -963,9 +1103,12 @@ export class ManagedSession {
         this.services.onTranscriptActivity(this.sessionId, this.cwd);
         break;
       }
-      case 'rate_limit_event':
+      case 'rate_limit_event': {
+        const info = (m as SdkRateLimitEvent).rate_limit_info;
+        if (info?.status === 'rejected' && typeof info.resetsAt === 'number') this.rejectedResetAt = info.resetsAt * 1000;
         this.services.onRateLimit(m as SdkRateLimitEvent);
         break;
+      }
       default:
         break;
     }
@@ -1229,6 +1372,7 @@ export class ManagedSession {
   dispose(): void {
     this.disposed = true;
     if (this.flushTimer) clearTimeout(this.flushTimer);
+    this.stopAutoTimer();
     void this.stopProcess();
     this._onDidChange.dispose();
     this._onUiMessage.dispose();

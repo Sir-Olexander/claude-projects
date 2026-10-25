@@ -1061,6 +1061,11 @@
             }
           ]
         },
+        "claudeProjects.chat.autoContinueAfterLimit": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Start new **Open Here** chats with *Continue automatically when limits reset* turned on. When a chat stops at a usage limit, it sends `continue` about a minute after the limit resets. You can switch it per chat with the button under the message box."
+        },
         "claudeProjects.chat.allowBypassPermissions": {
           "type": "boolean",
           "default": false,
