@@ -176,6 +176,7 @@ export class ManagedSession {
 
   private hasTranscript: boolean;
   private historyLoaded = false;
+  private historyLoading: Promise<void> | undefined;
   private historyTruncated = false;
   private wantFullHistory = false;
   private builder: ChatBuilder;
@@ -278,9 +279,16 @@ export class ManagedSession {
   // State for the webview
   // ---------------------------------------------------------------------------
 
-  async ensureHistory(): Promise<void> {
-    if (this.historyLoaded) return;
+  /** Loads the transcript once; callers during the load wait for the same load. */
+  ensureHistory(): Promise<void> {
+    if (this.historyLoading) return this.historyLoading;
+    if (this.historyLoaded) return Promise.resolve(); // new session: nothing to load
     this.historyLoaded = true;
+    this.historyLoading = this.loadHistory();
+    return this.historyLoading;
+  }
+
+  private async loadHistory(): Promise<void> {
     const builder = new ChatBuilder(this.services.imageSink);
     const started = Date.now();
     const info = await loadTranscriptFile(this.transcriptPath, builder);

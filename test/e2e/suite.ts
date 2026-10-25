@@ -101,7 +101,8 @@ export async function run(): Promise<void> {
     const s = await waitFor('managed session', () => api.sessions.findBySessionId(existingId));
     assert.ok(api.panels.hasPanel(s.key), 'chat panel created');
     // historyLoaded flips when the webview script runs and posts {type:'ready'}.
-    await waitFor('webview ready (history loaded)', () => (s as unknown as { historyLoaded: boolean }).historyLoaded, 20_000);
+    await waitFor('webview ready (history loading)', () => (s as unknown as { historyLoaded: boolean }).historyLoaded, 20_000);
+    await s.ensureHistory(); // the same load the panel started
     const items = s.getState().items;
     assert.ok(items.some((i) => i.kind === 'user' && i.text === 'Earlier question'), 'history user message');
     assert.ok(items.some((i) => i.kind === 'text' && i.text === 'Earlier answer'), 'history assistant message');
