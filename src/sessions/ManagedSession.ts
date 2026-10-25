@@ -272,6 +272,11 @@ export class ManagedSession {
       // Keep anything that happened while we were loading.
       for (const it of this.builder.items) builder.upsert(it);
       this.builder = builder;
+      // Tools with no result while no Claude process runs this session anywhere:
+      // the turn was cut off (VS Code reloaded or Claude exited). Don't show them as running.
+      if (!this.proc?.alive && !this.liveElsewhere && builder.settleOpenTools('interrupted') > 0) {
+        builder.addSystem('warning', 'Claude stopped before finishing this turn (VS Code reloaded or Claude exited). Send a message, like "continue", to pick it up.', 'interrupted');
+      }
       if (info.customTitle) {
         this.title = info.customTitle;
         this.titleFromUser = true;

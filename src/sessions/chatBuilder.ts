@@ -339,12 +339,15 @@ export class ChatBuilder {
   }
 
   /** Marks tools that never got a result as interrupted (after an interrupt or crash). */
-  settleOpenTools(status: ToolStatus = 'interrupted'): void {
+  settleOpenTools(status: ToolStatus = 'interrupted'): number {
+    let count = 0;
     for (const item of this.list) {
       if (item.kind === 'tool' && (item.status === 'pending' || item.status === 'running' || item.status === 'streaming' || item.status === 'waiting-permission')) {
         this.patch<ToolItem>(item.id, { status, finishedAt: this.now() });
+        count++;
       }
     }
+    return count;
   }
 
   setToolStatus(toolUseId: string | undefined, status: ToolStatus): void {

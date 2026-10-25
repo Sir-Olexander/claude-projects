@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { transcriptPathFor } from '../../src/claude/paths';
 import { ClaudeProcess } from '../../src/claude/ClaudeProcess';
 import { ManagedSession, type SessionServices } from '../../src/sessions/ManagedSession';
 import type { ExtToChatMessage, ToolItem, UserItem } from '../../src/shared/protocol';
@@ -401,5 +402,51 @@ describe('ManagedSession: full model ids in settings', () => {
     sessions.push(s);
     await s.loadDefaults();
     expect(s.getState().modelLabel).toBe('Opus 4.8');
+  });
+});
+
+describe('ManagedSession: a turn cut off by a reload', () => {
+  function writeTranscript(): { cwd: string; sessionId: string; restore: () => void } {
+    const home = tempDir();
+    const prev = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = home;
+    const cwd = tempDir();
+    const sessionId = '55555555-5555-5555-5555-555555555555';
+    const file = transcriptPathFor(cwd, sessionId);
+    mkdirSync(dirname(file), { recursive: true });
+    const t = '2026-10-25T06:24:00.000Z';
+    const lines = [
+      { type: 'user', uuid: 'u1', parentUuid: null, sessionId, cwd, timestamp: t, message: { role: 'user', content: 'Build it' } },
+      { type: 'assistant', uuid: 'a1', parentUuid: 'u1', sessionId, cwd, timestamp: t, message: { id: 'm1', role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'tool_use', id: 'toolu_cut', name: 'Bash', input: { command: 'npm test' } }] } },
+    ];
+    writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+    return { cwd, sessionId, restore: () => (prev === undefined ? delete process.env.CLAUDE_CONFIG_DIR : (process.env.CLAUDE_CONFIG_DIR = prev)) };
+  }
+
+  it('shows the unfinished tool as interrupted, with a note, when nothing is running it', async () => {
+    const { cwd, sessionId, restore } = writeTranscript();
+    try {
+      const s = new ManagedSession({ cwd, projectName: 'T', sessionId }, services());
+      sessions.push(s);
+      await s.ensureHistory();
+      const items = s.getState().items;
+      expect(items.find((i) => i.kind === 'tool')).toMatchObject({ status: 'interrupted' });
+      expect(items[items.length - 1]).toMatchObject({ kind: 'system', tag: 'interrupted' });
+    } finally {
+      restore();
+    }
+  });
+
+  it('leaves it running when the session is live in another app', async () => {
+    const { cwd, sessionId, restore } = writeTranscript();
+    try {
+      const s = new ManagedSession({ cwd, projectName: 'T', sessionId }, services());
+      sessions.push(s);
+      s.setLiveElsewhere({ source: 'Terminal', pid: 1, status: 'busy' });
+      await s.ensureHistory();
+      expect(s.getState().items.find((i) => i.kind === 'tool')).toMatchObject({ status: 'pending' });
+    } finally {
+      restore();
+    }
   });
 });
