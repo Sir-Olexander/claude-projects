@@ -1,0 +1,487 @@
+/* ------------------------------------------------------------------------
+   Tool rows
+   ------------------------------------------------------------------------ */
+.tool.st-done {
+  --dot-color: var(--dot-ok);
+}
+
+.tool.st-error {
+  --dot-color: var(--dot-err);
+}
+
+.tool.st-waiting {
+  --dot-color: var(--dot-warn);
+}
+
+.tool.st-waiting::before,
+.tool.st-running::before {
+  animation: blink 1s linear infinite;
+}
+
+.tool.st-muted {
+  --dot-color: var(--vscode-disabledForeground, var(--fg-muted));
+}
+
+.tool-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  border-radius: 4px;
+}
+
+.tool-head.clickable {
+  cursor: pointer;
+}
+
+.tool-name {
+  flex: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tool.st-muted .tool-name {
+  color: var(--fg-muted);
+}
+
+.tool-summary {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+}
+
+.tool-summary.mono {
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: var(--mono-size);
+}
+
+.tool.st-muted .tool-summary.mono {
+  color: var(--fg-muted);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--fg-muted) 60%, transparent);
+}
+
+.tool-summary.link {
+  color: var(--link);
+  cursor: pointer;
+}
+
+.tool-summary.link:hover {
+  text-decoration: underline;
+}
+
+.tool-hint {
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 0.88em;
+  white-space: nowrap;
+}
+
+.tool-head .badge {
+  align-self: center;
+}
+
+.tool-head .diff-stats {
+  flex: none;
+}
+
+.tool-chevron {
+  margin-left: auto;
+  align-self: center;
+  flex: none;
+  color: var(--fg-muted);
+  font-size: 14px;
+  opacity: 0;
+  transition: transform 0.15s, opacity 0.12s;
+}
+
+.tool-head:hover .tool-chevron,
+.tool.is-open > .tool-head .tool-chevron,
+.tool-head:focus-visible .tool-chevron {
+  opacity: 1;
+}
+
+.tool.is-open > .tool-head .tool-chevron {
+  transform: rotate(90deg);
+}
+
+.tool-subline,
+.tool-error-line {
+  margin-top: 1px;
+  font-family: var(--mono);
+  font-size: calc(var(--mono-size) - 1px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-subline {
+  color: var(--fg-muted);
+}
+
+.tool-subline::before {
+  content: '⎿ ';
+  opacity: 0.6;
+}
+
+.tool-error-line {
+  color: var(--error);
+}
+
+.tool-body {
+  margin: 6px 0 2px;
+  min-width: 0;
+}
+
+/* Input/output box */
+.io-box {
+  border: 1px solid var(--input-border);
+  border-radius: 5px;
+  background: var(--tool-bg);
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.io-desc {
+  padding: 6px 10px;
+  color: var(--fg-muted);
+  border-bottom: 1px solid color-mix(in srgb, var(--input-border) 70%, transparent);
+}
+
+.io-row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  border-top: 1px solid color-mix(in srgb, var(--input-border) 70%, transparent);
+}
+
+.io-desc + .io-row,
+.io-row:first-child {
+  border-top: 0;
+}
+
+.io-label {
+  padding: 7px 4px 7px 9px;
+  color: var(--fg-muted);
+  opacity: 0.65;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.io-error .io-label {
+  color: var(--error);
+  opacity: 1;
+}
+
+.io-content {
+  min-width: 0;
+  padding: 6px 10px 6px 0;
+}
+
+.io-pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--mono-size);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.io-error .io-pre {
+  color: var(--error);
+}
+
+.running-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.kv-key {
+  color: var(--fg-muted);
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+/* ------------------------------------------------------------------------
+   Diffs
+   ------------------------------------------------------------------------ */
+.file-change {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.file-change-actions {
+  display: flex;
+  gap: 14px;
+}
+
+.diff-box {
+  border: 1px solid var(--input-border);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--tool-bg);
+}
+
+.diff-box.is-failed {
+  opacity: 0.6;
+}
+
+.diff-lines {
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: var(--mono-size);
+  line-height: 1.5;
+}
+
+.diff-inner {
+  display: inline-block;
+  min-width: 100%;
+  padding: 3px 0;
+}
+
+.diff-row {
+  display: flex;
+  min-width: 100%;
+}
+
+.diff-no {
+  flex: none;
+  width: 3.4em;
+  padding-right: 6px;
+  text-align: right;
+  color: var(--fg-muted);
+  opacity: 0.55;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-sign {
+  flex: none;
+  width: 1.5em;
+  text-align: center;
+  color: var(--fg-muted);
+  user-select: none;
+}
+
+.diff-code {
+  flex: 1 0 auto;
+  white-space: pre;
+  padding-right: 12px;
+  tab-size: 4;
+}
+
+.diff-add {
+  background: var(--diff-add-bg);
+}
+
+.diff-add .diff-sign {
+  color: var(--diff-add-fg);
+}
+
+.diff-del {
+  background: var(--diff-del-bg);
+}
+
+.diff-del .diff-sign {
+  color: var(--diff-del-fg);
+}
+
+.diff-hunk {
+  padding: 1px 10px;
+  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--link) 7%, transparent);
+  font-size: 0.92em;
+}
+
+.diff-more {
+  display: block;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--input-border) 70%, transparent);
+  background: transparent;
+  color: var(--link);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.diff-more:hover {
+  background: var(--hover-bg);
+}
+
+.diff-truncated {
+  padding: 4px 10px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+
+.diff-stats {
+  display: inline-flex;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: calc(var(--mono-size) - 1px);
+}
+
+.diff-stats .ins {
+  color: var(--diff-add-fg);
+}
+
+.diff-stats .del {
+  color: var(--diff-del-fg);
+}
+
+/* ------------------------------------------------------------------------
+   Todos
+   ------------------------------------------------------------------------ */
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.todo {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.todo-icon {
+  flex: none;
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.todo-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo-completed .todo-icon {
+  color: var(--dot-ok);
+}
+
+.todo-completed .todo-text {
+  color: var(--fg-muted);
+  text-decoration: line-through;
+}
+
+.todo-in_progress .todo-icon {
+  color: var(--c-orange);
+}
+
+.todo-in_progress .todo-text {
+  font-weight: 600;
+}
+
+.todo-pending .todo-icon {
+  color: var(--fg-muted);
+}
+
+/* ------------------------------------------------------------------------
+   Agents (subagent timeline nested inside the tool row)
+   ------------------------------------------------------------------------ */
+.agent-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-prompt-text {
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--tl-line);
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.subagent {
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--tl-line);
+  font-size: 12.5px;
+}
+
+.subagent .tl {
+  padding-left: 18px;
+  --dot-top: 10px;
+}
+
+.subagent .tl::before {
+  left: 3px;
+  width: 6px;
+  height: 6px;
+}
+
+.subagent .tl::after {
+  left: 5.5px;
+}
+
+.agent-result {
+  padding: 8px 10px;
+  border: 1px solid var(--input-border);
+  border-radius: 5px;
+  background: var(--tool-bg);
+}
+
+/* ------------------------------------------------------------------------
+   Questions and plans in the timeline
+   ------------------------------------------------------------------------ */
+.qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qa-q {
+  font-weight: 500;
+}
+
+.qa-a {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--fg-muted);
+}
+
+.qa-a .codicon {
+  font-size: 12px;
+}
+
+.plan-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-box {
+  padding: 8px 12px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-m);
+  background: var(--tool-bg);
+}
+
+.plan-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

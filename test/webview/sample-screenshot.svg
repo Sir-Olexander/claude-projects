@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+  <rect width="640" height="400" fill="#f6f5f1"/>
+  <rect x="0" y="0" width="640" height="48" fill="#141413"/>
+  <text x="24" y="31" font-family="Helvetica, Arial, sans-serif" font-size="18" fill="#faf9f5">FeBundi · Checkout</text>
+  <rect x="32" y="80" width="360" height="280" rx="10" fill="#ffffff" stroke="#e2e0d8"/>
+  <text x="56" y="120" font-family="Helvetica, Arial, sans-serif" font-size="16" fill="#141413">Order summary</text>
+  <text x="56" y="160" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#555">Subtotal</text>
+  <text x="340" y="160" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#141413">€80.00</text>
+  <text x="56" y="192" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#555">Discount (TEN)</text>
+  <text x="340" y="192" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#c7442b">−€10.00</text>
+  <text x="56" y="224" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#555">Shipping</text>
+  <text x="340" y="224" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#141413">€4.90</text>
+  <line x1="56" y1="246" x2="340" y2="246" stroke="#e2e0d8"/>
+  <text x="56" y="278" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="#141413">Total</text>
+  <text x="340" y="278" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="#141413">€74.90</text>
+  <rect x="56" y="300" width="284" height="40" rx="8" fill="#c6613f"/>
+  <text x="198" y="326" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="15" fill="#faf9f5">Pay now</text>
+  <rect x="420" y="80" width="188" height="120" rx="10" fill="#ffffff" stroke="#e2e0d8"/>
+  <text x="440" y="116" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#141413">Coupon</text>
+  <rect x="440" y="132" width="148" height="36" rx="6" fill="#f6f5f1" stroke="#d8d6cc"/>
+  <text x="452" y="155" font-family="Menlo, monospace" font-size="13" fill="#141413">TEN · 10%</text>
+</svg>

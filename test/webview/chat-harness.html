@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!--
+  Browser harness for the chat webview.
+  Build first (node scripts/build.mjs), then open:
+    file:///…/test/webview/chat-harness.html?fixture=conversation&theme=dark
+  fixture: conversation | empty | running | todos | permission-bash | permission-edit | permission-mcp |
+           question | question-single | plan | error | live | truncated | worktree | long
+  theme:   dark (2026 Dark) | dark-modern | light (2026 Light) | hc
+  Posted messages are recorded on window.__posted; window.__harness drives it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat harness</title>
+    <link rel="stylesheet" href="../../dist/webview/codicon.css" />
+    <link rel="stylesheet" href="../../dist/webview/chat.css" />
+    <script src="themes.js"></script>
+    <script src="fixtures.js"></script>
+    <script>
+      (function () {
+        const params = new URLSearchParams(location.search);
+        const themeName = params.get('theme') || 'dark';
+        const fixtureName = params.get('fixture') || 'conversation';
+        const theme = window.HARNESS_THEMES[themeName] || window.HARNESS_THEMES.dark;
+
+        // Theme variables, like VS Code injects them into webviews.
+        const root = document.documentElement;
+        for (const [k, v] of Object.entries(theme.colors)) root.style.setProperty('--vscode-' + k.replace(/\./g, '-'), v);
+        for (const [k, v] of Object.entries(theme.fonts)) root.style.setProperty('--vscode-' + k, v);
+        document.addEventListener('DOMContentLoaded', () => {
+          document.body.classList.add(theme.kind);
+          if (theme.kind === 'vscode-high-contrast') document.body.classList.add('vscode-high-contrast');
+          document.body.dataset.vscodeThemeKind = theme.kind;
+        });
+
+        window.__posted = [];
+        const fixture = window.HARNESS_FIXTURES[fixtureName]();
+        let state = JSON.parse(JSON.stringify(fixture.state));
+        const deliver = (m) => window.postMessage(JSON.parse(JSON.stringify(m)), '*');
+        const persistKey = 'harness-state:' + fixtureName;
+
+        // A tiny fake extension so interactions behave plausibly.
+        function onPosted(m) {
+          switch (m.type) {
+            case 'ready':
+              deliver({ type: 'state', state });
+              (fixture.script || []).forEach(([delay, msg]) => setTimeout(() => deliver(msg), delay));
+              break;
+            case 'send': {
+              const item = { kind: 'user', id: 'sent-' + Date.now(), text: m.text, images: m.images, queued: state.status === 'running', timestamp: Date.now() };
+              deliver({ type: 'items', items: [item] });
+              break;
+            }
+            case 'set-mode':
+              state.permissionMode = m.mode;
+              deliver({ type: 'patch', patch: { permissionMode: m.mode } });
+              break;
+            case 'set-model': {
+              const mm = state.availableModels.find((x) => x.value === m.model);
+              deliver({ type: 'patch', patch: { modelValue: m.model, modelLabel: mm ? mm.displayName : m.model } });
+              break;
+            }
+            case 'permission-response':
+            case 'question-response':
+            case 'plan-response':
+              state.pending = state.pending.filter((p) => p.requestId !== m.requestId);
+              deliver({ type: 'patch', patch: { pending: state.pending, status: state.pending.length ? 'waiting' : 'running', turnStartedAt: Date.now() - 1000 } });
+              break;
+            case 'set-effort':
+              state.effort = m.effort === 'default' ? undefined : m.effort;
+              deliver({ type: 'patch', patch: { effort: state.effort ?? null } });
+              break;
+            case 'elicitation-response':
+              state.pending = state.pending.filter((p) => p.requestId !== m.requestId);
+              deliver({ type: 'patch', patch: { pending: state.pending, status: 'running', turnStartedAt: Date.now() - 1000 } });
+              break;
+            case 'toggle-bookmark': {
+              const has = state.bookmarks.some((b) => b.itemId === m.itemId);
+              const it = state.items.find((i) => i.id === m.itemId);
+              state.bookmarks = has ? state.bookmarks.filter((b) => b.itemId !== m.itemId) : [...state.bookmarks, { itemId: m.itemId, kind: it.kind, label: (it.text || it.name || '').slice(0, 60), createdAt: Date.now() }];
+              deliver({ type: 'patch', patch: { bookmarks: state.bookmarks } });
+              break;
+            }
+            case 'interrupt':
+              deliver({ type: 'patch', patch: { status: 'idle', activity: null, turnStartedAt: null } });
+              break;
+            case 'file-suggestions': {
+              const all = ['src/cart/total.ts', 'src/cart/total.test.ts', 'src/cart/summary.tsx', 'src/cart/types.ts', 'src/api/orders.ts', 'src/lib/money.ts', 'src/cart', 'package.json', 'README.md'];
+              const q = m.query.toLowerCase();
+              const items = all.filter((p) => p.toLowerCase().includes(q)).map((p) => ({ path: state.cwd + '/' + p, isDirectory: !p.includes('.') }));
+              setTimeout(() => deliver({ type: 'file-suggestions', requestId: m.requestId, items }), 60);
+              break;
+            }
+          }
+        }
+
+        window.acquireVsCodeApi = function () {
+          return {
+            postMessage(m) {
+              window.__posted.push(JSON.parse(JSON.stringify(m)));
+              onPosted(m);
+            },
+            getState() {
+              try {
+                return JSON.parse(sessionStorage.getItem(persistKey) || 'null') || undefined;
+              } catch {
+                return undefined;
+              }
+            },
+            setState(s) {
+              sessionStorage.setItem(persistKey, JSON.stringify(s));
+              window.__persisted = s;
+            },
+          };
+        };
+
+        window.__harness = {
+          deliver,
+          posted: () => window.__posted,
+          clearPosted: () => (window.__posted.length = 0),
+          state: () => state,
+        };
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="../../dist/webview/chat.js"></script>
+  </body>
+</html>

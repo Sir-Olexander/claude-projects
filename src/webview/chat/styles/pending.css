@@ -1,0 +1,457 @@
+/* ------------------------------------------------------------------------
+   Pending requests: permission, question, plan review
+   ------------------------------------------------------------------------ */
+.pending-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: fade-in 0.15s ease-out;
+}
+
+.pending-more {
+  align-self: flex-end;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+.pending-card {
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 10px 12px 9px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-l);
+  background: var(--input-bg);
+  color: var(--input-fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.pending-card:focus-within {
+  border-color: color-mix(in srgb, var(--vscode-inputOption-activeBorder, var(--focus)) 65%, transparent);
+}
+
+.pending-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.pending-sub {
+  margin: -2px 0 6px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.perm-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+  min-width: 0;
+}
+
+.perm-desc {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.perm-code {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border);
+  border-radius: 5px;
+  background: var(--tool-bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: var(--mono-size);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.perm-file {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.perm-file .link {
+  overflow-wrap: anywhere;
+}
+
+.perm-reason {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.perm-reason .codicon {
+  flex: none;
+  font-size: 12px;
+}
+
+.perm-json pre {
+  margin-top: 6px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+/* Numbered choices */
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice:hover {
+  background: var(--hover-bg);
+}
+
+.choice.is-focused:not(.choice-input) {
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.choice:focus-visible {
+  outline: none;
+}
+
+.choice-num {
+  flex: none;
+  min-width: 1em;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.choice-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.choice-input {
+  cursor: text;
+}
+
+.choice-input.is-focused {
+  box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder, var(--focus));
+}
+
+.feedback-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+.feedback-input::placeholder {
+  color: var(--placeholder);
+}
+
+.feedback-send {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--c-clay);
+  color: var(--c-ivory);
+  cursor: pointer;
+}
+
+.choices-hint {
+  margin-top: 1px;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+/* Questions */
+.question {
+  margin: 2px 0 10px;
+}
+
+.question-text {
+  margin-bottom: 6px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.q-options {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.q-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.q-option:hover,
+.q-option:focus-visible {
+  background: var(--hover-bg);
+  outline: none;
+}
+
+.q-option.is-selected {
+  background: color-mix(in srgb, var(--btn-bg) 20%, transparent);
+  box-shadow: inset 0 0 0 1px var(--btn-bg);
+}
+
+.q-option .choice-num {
+  margin-top: 1px;
+}
+
+.q-check {
+  flex: none;
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.q-option.is-selected .q-check {
+  color: var(--btn-bg);
+}
+
+.q-option-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.q-option-label {
+  font-weight: 500;
+}
+
+.q-option-desc {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.q-other {
+  cursor: text;
+  align-items: center;
+}
+
+.q-other-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+.q-other-input::placeholder {
+  color: var(--placeholder);
+}
+
+.q-preview pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--input-border);
+  border-radius: 5px;
+  background: var(--tool-bg);
+  font-family: var(--mono);
+  font-size: var(--mono-size);
+  white-space: pre;
+}
+
+.pending-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Plan review */
+.plan-scroll {
+  max-height: 42vh;
+  overflow-y: auto;
+}
+
+.plan-card .plan-box {
+  margin-bottom: 6px;
+}
+
+/* High contrast: buttons are black on black there, so mark focus/selection with the contrast outline. */
+body.vscode-high-contrast .choice,
+body.vscode-high-contrast .q-option {
+  box-shadow: inset 0 0 0 1px var(--vscode-contrastBorder, var(--input-border));
+}
+
+body.vscode-high-contrast .choice.is-focused:not(.choice-input),
+body.vscode-high-contrast .q-option.is-selected,
+body.vscode-high-contrast .choice-input.is-focused {
+  outline: 2px solid var(--vscode-contrastActiveBorder, var(--focus));
+  outline-offset: -2px;
+}
+
+/* MCP elicitation ---------------------------------------------------------- */
+
+.elicit-message {
+  margin: 4px 0 10px;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.elicit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.elicit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.elicit-label {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.elicit-req {
+  color: var(--vscode-errorForeground);
+}
+
+.elicit-input {
+  font: inherit;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  outline: none;
+}
+
+.elicit-input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.has-error .elicit-input {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.elicit-desc {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.elicit-error {
+  color: var(--vscode-errorForeground);
+  font-size: 12px;
+}
+
+.elicit-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.elicit-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-widget-border, rgba(127, 127, 127, 0.35));
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+
+.elicit-option.is-on {
+  border-color: var(--vscode-focusBorder);
+  background: color-mix(in srgb, var(--vscode-focusBorder) 14%, transparent);
+}
+
+.elicit-option:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.elicit-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.elicit-url {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  background: var(--vscode-textCodeBlock-background, rgba(127, 127, 127, 0.1));
+  min-width: 0;
+}
+
+.elicit-host {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.elicit-full {
+  color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}

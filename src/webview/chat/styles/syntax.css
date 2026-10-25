@@ -1,0 +1,129 @@
+/* highlight.js token colors, close to VS Code's Dark Modern / Light Modern themes. */
+body {
+  --hl-keyword: #569cd6;
+  --hl-control: #c586c0;
+  --hl-string: #ce9178;
+  --hl-number: #b5cea8;
+  --hl-comment: #6a9955;
+  --hl-function: #dcdcaa;
+  --hl-type: #4ec9b0;
+  --hl-variable: #9cdcfe;
+  --hl-attr: #9cdcfe;
+  --hl-tag: #569cd6;
+  --hl-regexp: #d16969;
+  --hl-meta: #9b9b9b;
+  --hl-addition: #81b88b;
+  --hl-deletion: #f48771;
+}
+
+body.vscode-light {
+  --hl-keyword: #0000ff;
+  --hl-control: #af00db;
+  --hl-string: #a31515;
+  --hl-number: #098658;
+  --hl-comment: #008000;
+  --hl-function: #795e26;
+  --hl-type: #267f99;
+  --hl-variable: #001080;
+  --hl-attr: #e50000;
+  --hl-tag: #800000;
+  --hl-regexp: #811f3f;
+  --hl-meta: #616161;
+  --hl-addition: #388a34;
+  --hl-deletion: #ad0707;
+}
+
+body.vscode-high-contrast:not(.vscode-high-contrast-light) {
+  --hl-keyword: #569cd6;
+  --hl-string: #ce9178;
+  --hl-comment: #7ca668;
+  --hl-function: #dcdcaa;
+  --hl-variable: #9cdcfe;
+}
+
+.hljs-keyword,
+.hljs-literal,
+.hljs-selector-tag,
+.hljs-doctag {
+  color: var(--hl-keyword);
+}
+
+.hljs-built_in,
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__ {
+  color: var(--hl-type);
+}
+
+.hljs-string,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-char.escape_ {
+  color: var(--hl-string);
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--hl-number);
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: var(--hl-function);
+}
+
+.hljs-variable,
+.hljs-params,
+.hljs-property,
+.hljs-attr,
+.hljs-variable.language_ {
+  color: var(--hl-variable);
+}
+
+.hljs-attribute,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-selector-pseudo {
+  color: var(--hl-attr);
+}
+
+.hljs-name,
+.hljs-tag {
+  color: var(--hl-tag);
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: var(--hl-regexp);
+}
+
+.hljs-meta,
+.hljs-meta .hljs-keyword {
+  color: var(--hl-meta);
+}
+
+.hljs-addition {
+  color: var(--hl-addition);
+}
+
+.hljs-deletion {
+  color: var(--hl-deletion);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 600;
+}

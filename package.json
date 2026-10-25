@@ -1,0 +1,1100 @@
+{
+  "name": "claude-projects",
+  "displayName": "Claude Projects",
+  "description": "Work on all your projects with Claude Code from one window: projects, worktrees, sessions, per-project source control and files, an attention dashboard and a usage bar.",
+  "version": "0.1.0",
+  "publisher": "febundi",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "AI",
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude code",
+    "projects",
+    "worktrees",
+    "sessions"
+  ],
+  "icon": "media/icon.png",
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onUri",
+    "onWebviewPanel:claudeProjects.chat",
+    "onWebviewPanel:claudeProjects.dashboard"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "Claude Projects works on the projects you add yourself, not on the folder open in the window."
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claudeProjects",
+          "title": "Claude Projects",
+          "icon": "media/icons/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "claudeProjects": [
+        {
+          "id": "claudeProjects.projects",
+          "name": "Projects",
+          "icon": "media/icons/activity.svg",
+          "contextualTitle": "Claude Projects"
+        },
+        {
+          "id": "claudeProjects.scm",
+          "name": "Source Control",
+          "contextualTitle": "Claude Projects"
+        },
+        {
+          "id": "claudeProjects.files",
+          "name": "Files",
+          "contextualTitle": "Claude Projects"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "claudeProjects.projects",
+        "contents": "No projects yet. Add the folders you work on with Claude Code. They stay where they are; only their paths are saved.\n[Add Project](command:claudeProjects.addProject)\n[Import from Claude History](command:claudeProjects.importProjects)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "claudeProjects.addProject",
+        "title": "Add Project…",
+        "category": "Claude Projects",
+        "icon": "$(add)"
+      },
+      {
+        "command": "claudeProjects.importProjects",
+        "title": "Import Projects from Claude History…",
+        "category": "Claude Projects",
+        "icon": "$(history)"
+      },
+      {
+        "command": "claudeProjects.removeProject",
+        "title": "Remove from Projects",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.renameProject",
+        "title": "Rename Project…",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.refresh",
+        "title": "Refresh",
+        "category": "Claude Projects",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claudeProjects.selectProject",
+        "title": "Select Project",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.newSession",
+        "title": "New Session",
+        "category": "Claude Projects",
+        "icon": "$(add)"
+      },
+      {
+        "command": "claudeProjects.newSessionInClaudeExtension",
+        "title": "New Session in Claude Extension",
+        "category": "Claude Projects",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "claudeProjects.openSession",
+        "title": "Open Session",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.openSessionHere",
+        "title": "Open Here",
+        "category": "Claude Projects",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "claudeProjects.openSessionInClaudeExtension",
+        "title": "Open in Claude Extension",
+        "category": "Claude Projects",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "claudeProjects.stopSession",
+        "title": "Stop Session",
+        "category": "Claude Projects",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "claudeProjects.renameSession",
+        "title": "Rename Session…",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.copySessionId",
+        "title": "Copy Session ID",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.revealTranscript",
+        "title": "Reveal Transcript in Finder",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.showMoreSessions",
+        "title": "Show More Sessions",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.openDashboard",
+        "title": "Open Sessions Dashboard",
+        "category": "Claude Projects",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "claudeProjects.focusNextAttention",
+        "title": "Go to Next Session Needing Input",
+        "category": "Claude Projects",
+        "icon": "$(bell)"
+      },
+      {
+        "command": "claudeProjects.openInNewWindow",
+        "title": "Open in New Window",
+        "category": "Claude Projects",
+        "icon": "$(empty-window)"
+      },
+      {
+        "command": "claudeProjects.revealInFinder",
+        "title": "Reveal in Finder",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.openTerminal",
+        "title": "Open in Integrated Terminal",
+        "category": "Claude Projects",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "claudeProjects.copyPath",
+        "title": "Copy Path",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.copyRelativePath",
+        "title": "Copy Relative Path",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.createWorktree",
+        "title": "Create Worktree…",
+        "category": "Claude Projects",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "claudeProjects.removeWorktree",
+        "title": "Remove Worktree…",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.refreshUsage",
+        "title": "Refresh Usage Limits",
+        "category": "Claude Projects",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claudeProjects.showLogs",
+        "title": "Show Logs",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.scm.refresh",
+        "title": "Refresh",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claudeProjects.scm.commit",
+        "title": "Commit…",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(check)"
+      },
+      {
+        "command": "claudeProjects.scm.commitAll",
+        "title": "Commit All…",
+        "category": "Claude Projects: Source Control"
+      },
+      {
+        "command": "claudeProjects.scm.stage",
+        "title": "Stage Changes",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(add)"
+      },
+      {
+        "command": "claudeProjects.scm.unstage",
+        "title": "Unstage Changes",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "claudeProjects.scm.stageAll",
+        "title": "Stage All Changes",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(add)"
+      },
+      {
+        "command": "claudeProjects.scm.unstageAll",
+        "title": "Unstage All Changes",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "claudeProjects.scm.discard",
+        "title": "Discard Changes",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "claudeProjects.scm.discardAll",
+        "title": "Discard All Changes",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "claudeProjects.scm.openChange",
+        "title": "Open Changes",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(compare-changes)"
+      },
+      {
+        "command": "claudeProjects.scm.openFile",
+        "title": "Open File",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "claudeProjects.scm.checkout",
+        "title": "Checkout Branch…",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "claudeProjects.scm.checkoutBranch",
+        "title": "Checkout",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(check)"
+      },
+      {
+        "command": "claudeProjects.scm.createBranch",
+        "title": "Create Branch…",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(git-branch-create)"
+      },
+      {
+        "command": "claudeProjects.scm.deleteBranch",
+        "title": "Delete Branch…",
+        "category": "Claude Projects: Source Control"
+      },
+      {
+        "command": "claudeProjects.scm.pull",
+        "title": "Pull",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "claudeProjects.scm.push",
+        "title": "Push",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "claudeProjects.scm.fetch",
+        "title": "Fetch",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "claudeProjects.scm.copyCommitHash",
+        "title": "Copy Commit Hash",
+        "category": "Claude Projects: Source Control"
+      },
+      {
+        "command": "claudeProjects.scm.selectWorktree",
+        "title": "Show This Worktree",
+        "category": "Claude Projects: Source Control",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "claudeProjects.files.refresh",
+        "title": "Refresh",
+        "category": "Claude Projects: Files",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claudeProjects.files.newFile",
+        "title": "New File…",
+        "category": "Claude Projects: Files",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "claudeProjects.files.newFolder",
+        "title": "New Folder…",
+        "category": "Claude Projects: Files",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "claudeProjects.files.openToSide",
+        "title": "Open to the Side",
+        "category": "Claude Projects: Files"
+      },
+      {
+        "command": "claudeProjects.files.rename",
+        "title": "Rename…",
+        "category": "Claude Projects: Files"
+      },
+      {
+        "command": "claudeProjects.files.delete",
+        "title": "Delete",
+        "category": "Claude Projects: Files"
+      },
+      {
+        "command": "claudeProjects.files.openRootInNewWindow",
+        "title": "Open Project in New Window",
+        "category": "Claude Projects: Files",
+        "icon": "$(empty-window)"
+      },
+      {
+        "command": "claudeProjects.showBookmarks",
+        "title": "Go to Bookmarked Message…",
+        "category": "Claude Projects",
+        "icon": "$(bookmark)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "claudeProjects.selectProject",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.openSession",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.openSessionHere",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.openSessionInClaudeExtension",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.stopSession",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.renameSession",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.copySessionId",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.revealTranscript",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.showMoreSessions",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.removeProject",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.renameProject",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.copyPath",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.copyRelativePath",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.removeWorktree",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.stage",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.unstage",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.discard",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.openChange",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.openFile",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.checkoutBranch",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.deleteBranch",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.copyCommitHash",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.scm.selectWorktree",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.files.openToSide",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.files.rename",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.files.delete",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "claudeProjects.addProject",
+          "when": "view == claudeProjects.projects",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeProjects.openDashboard",
+          "when": "view == claudeProjects.projects",
+          "group": "navigation@2"
+        },
+        {
+          "command": "claudeProjects.refresh",
+          "when": "view == claudeProjects.projects",
+          "group": "navigation@3"
+        },
+        {
+          "command": "claudeProjects.importProjects",
+          "when": "view == claudeProjects.projects",
+          "group": "1_projects@1"
+        },
+        {
+          "command": "claudeProjects.refreshUsage",
+          "when": "view == claudeProjects.projects",
+          "group": "2_usage@1"
+        },
+        {
+          "command": "claudeProjects.showLogs",
+          "when": "view == claudeProjects.projects",
+          "group": "3_misc@1"
+        },
+        {
+          "command": "claudeProjects.scm.commit",
+          "when": "view == claudeProjects.scm",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeProjects.scm.refresh",
+          "when": "view == claudeProjects.scm",
+          "group": "navigation@2"
+        },
+        {
+          "command": "claudeProjects.scm.pull",
+          "when": "view == claudeProjects.scm",
+          "group": "1_sync@1"
+        },
+        {
+          "command": "claudeProjects.scm.push",
+          "when": "view == claudeProjects.scm",
+          "group": "1_sync@2"
+        },
+        {
+          "command": "claudeProjects.scm.fetch",
+          "when": "view == claudeProjects.scm",
+          "group": "1_sync@3"
+        },
+        {
+          "command": "claudeProjects.scm.checkout",
+          "when": "view == claudeProjects.scm",
+          "group": "2_branch@1"
+        },
+        {
+          "command": "claudeProjects.scm.createBranch",
+          "when": "view == claudeProjects.scm",
+          "group": "2_branch@2"
+        },
+        {
+          "command": "claudeProjects.createWorktree",
+          "when": "view == claudeProjects.scm",
+          "group": "2_branch@3"
+        },
+        {
+          "command": "claudeProjects.scm.commitAll",
+          "when": "view == claudeProjects.scm",
+          "group": "3_commit@1"
+        },
+        {
+          "command": "claudeProjects.scm.stageAll",
+          "when": "view == claudeProjects.scm",
+          "group": "4_changes@1"
+        },
+        {
+          "command": "claudeProjects.scm.unstageAll",
+          "when": "view == claudeProjects.scm",
+          "group": "4_changes@2"
+        },
+        {
+          "command": "claudeProjects.scm.discardAll",
+          "when": "view == claudeProjects.scm",
+          "group": "4_changes@3"
+        },
+        {
+          "command": "claudeProjects.files.newFile",
+          "when": "view == claudeProjects.files",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeProjects.files.newFolder",
+          "when": "view == claudeProjects.files",
+          "group": "navigation@2"
+        },
+        {
+          "command": "claudeProjects.files.openRootInNewWindow",
+          "when": "view == claudeProjects.files",
+          "group": "navigation@3"
+        },
+        {
+          "command": "claudeProjects.files.refresh",
+          "when": "view == claudeProjects.files",
+          "group": "navigation@4"
+        },
+        {
+          "command": "claudeProjects.showBookmarks",
+          "when": "view == claudeProjects.projects",
+          "group": "1_projects@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "claudeProjects.newSession",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.openInNewWindow",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "group": "inline@2"
+        },
+        {
+          "command": "claudeProjects.newSession",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "group": "1_session@1"
+        },
+        {
+          "command": "claudeProjects.newSessionInClaudeExtension",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "group": "1_session@2"
+        },
+        {
+          "command": "claudeProjects.openInNewWindow",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "group": "2_open@1"
+        },
+        {
+          "command": "claudeProjects.revealInFinder",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "group": "2_open@2"
+        },
+        {
+          "command": "claudeProjects.openTerminal",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "group": "2_open@3"
+        },
+        {
+          "command": "claudeProjects.copyPath",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "group": "2_open@4"
+        },
+        {
+          "command": "claudeProjects.createWorktree",
+          "when": "view == claudeProjects.projects && viewItem =~ /^project/",
+          "group": "3_git@1"
+        },
+        {
+          "command": "claudeProjects.removeWorktree",
+          "when": "view == claudeProjects.projects && viewItem =~ /^worktree/",
+          "group": "3_git@2"
+        },
+        {
+          "command": "claudeProjects.renameProject",
+          "when": "view == claudeProjects.projects && viewItem =~ /^project/",
+          "group": "4_project@1"
+        },
+        {
+          "command": "claudeProjects.removeProject",
+          "when": "view == claudeProjects.projects && viewItem =~ /^project/",
+          "group": "4_project@2"
+        },
+        {
+          "command": "claudeProjects.openSessionInClaudeExtension",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session/",
+          "group": "inline@2"
+        },
+        {
+          "command": "claudeProjects.stopSession",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session.*\\.live/",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.openSessionHere",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "claudeProjects.openSessionInClaudeExtension",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session/",
+          "group": "1_open@2"
+        },
+        {
+          "command": "claudeProjects.stopSession",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session.*\\.live/",
+          "group": "2_manage@1"
+        },
+        {
+          "command": "claudeProjects.renameSession",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session/",
+          "group": "2_manage@2"
+        },
+        {
+          "command": "claudeProjects.copySessionId",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session/",
+          "group": "3_info@1"
+        },
+        {
+          "command": "claudeProjects.revealTranscript",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session/",
+          "group": "3_info@2"
+        },
+        {
+          "command": "claudeProjects.scm.openFile",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.scm.discard",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change\\.(unstaged|untracked)/",
+          "group": "inline@2"
+        },
+        {
+          "command": "claudeProjects.scm.stage",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change\\.(unstaged|untracked|conflict)/",
+          "group": "inline@3"
+        },
+        {
+          "command": "claudeProjects.scm.unstage",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change\\.staged/",
+          "group": "inline@3"
+        },
+        {
+          "command": "claudeProjects.scm.openChange",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/",
+          "group": "1_open@1"
+        },
+        {
+          "command": "claudeProjects.scm.openFile",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/",
+          "group": "1_open@2"
+        },
+        {
+          "command": "claudeProjects.scm.stage",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change\\.(unstaged|untracked|conflict)/",
+          "group": "2_stage@1"
+        },
+        {
+          "command": "claudeProjects.scm.unstage",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change\\.staged/",
+          "group": "2_stage@1"
+        },
+        {
+          "command": "claudeProjects.scm.discard",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change\\.(unstaged|untracked)/",
+          "group": "2_stage@2"
+        },
+        {
+          "command": "claudeProjects.revealInFinder",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/",
+          "group": "3_path@1"
+        },
+        {
+          "command": "claudeProjects.copyPath",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/",
+          "group": "3_path@2"
+        },
+        {
+          "command": "claudeProjects.copyRelativePath",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/",
+          "group": "3_path@3"
+        },
+        {
+          "command": "claudeProjects.scm.stageAll",
+          "when": "view == claudeProjects.scm && viewItem == scm.group.unstaged",
+          "group": "inline@2"
+        },
+        {
+          "command": "claudeProjects.scm.discardAll",
+          "when": "view == claudeProjects.scm && viewItem == scm.group.unstaged",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.scm.unstageAll",
+          "when": "view == claudeProjects.scm && viewItem == scm.group.staged",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.scm.commit",
+          "when": "view == claudeProjects.scm && viewItem == scm.group.staged",
+          "group": "inline@2"
+        },
+        {
+          "command": "claudeProjects.scm.checkout",
+          "when": "view == claudeProjects.scm && viewItem == scm.head",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.scm.createBranch",
+          "when": "view == claudeProjects.scm && viewItem == scm.group.branches",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.createWorktree",
+          "when": "view == claudeProjects.scm && viewItem == scm.group.worktrees",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.scm.checkoutBranch",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.branch\\.(local|remote)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.scm.checkoutBranch",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.branch\\.(local|remote)$/",
+          "group": "1_branch@1"
+        },
+        {
+          "command": "claudeProjects.scm.deleteBranch",
+          "when": "view == claudeProjects.scm && viewItem == scm.branch.local",
+          "group": "1_branch@2"
+        },
+        {
+          "command": "claudeProjects.scm.selectWorktree",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.worktree/",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.openInNewWindow",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.worktree/",
+          "group": "inline@2"
+        },
+        {
+          "command": "claudeProjects.scm.selectWorktree",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.worktree/",
+          "group": "1_wt@1"
+        },
+        {
+          "command": "claudeProjects.openInNewWindow",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.worktree/",
+          "group": "1_wt@2"
+        },
+        {
+          "command": "claudeProjects.revealInFinder",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.worktree/",
+          "group": "1_wt@3"
+        },
+        {
+          "command": "claudeProjects.removeWorktree",
+          "when": "view == claudeProjects.scm && viewItem == scm.worktree.linked",
+          "group": "2_wt@1"
+        },
+        {
+          "command": "claudeProjects.scm.copyCommitHash",
+          "when": "view == claudeProjects.scm && viewItem == scm.commit",
+          "group": "1_commit@1"
+        },
+        {
+          "command": "claudeProjects.openInNewWindow",
+          "when": "view == claudeProjects.files && viewItem == files.folder",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudeProjects.openInNewWindow",
+          "when": "view == claudeProjects.files && viewItem == files.folder",
+          "group": "1_open@1"
+        },
+        {
+          "command": "claudeProjects.files.openToSide",
+          "when": "view == claudeProjects.files && viewItem == files.file",
+          "group": "1_open@1"
+        },
+        {
+          "command": "claudeProjects.revealInFinder",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "group": "1_open@2"
+        },
+        {
+          "command": "claudeProjects.openTerminal",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "group": "1_open@3"
+        },
+        {
+          "command": "claudeProjects.files.newFile",
+          "when": "view == claudeProjects.files && viewItem == files.folder",
+          "group": "2_new@1"
+        },
+        {
+          "command": "claudeProjects.files.newFolder",
+          "when": "view == claudeProjects.files && viewItem == files.folder",
+          "group": "2_new@2"
+        },
+        {
+          "command": "claudeProjects.copyPath",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "group": "3_path@1"
+        },
+        {
+          "command": "claudeProjects.copyRelativePath",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "group": "3_path@2"
+        },
+        {
+          "command": "claudeProjects.files.rename",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "group": "4_edit@1"
+        },
+        {
+          "command": "claudeProjects.files.delete",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "group": "4_edit@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "claudeProjects.openSessionInClaudeExtension",
+          "when": "activeWebviewPanelId == claudeProjects.chat",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Projects",
+      "properties": {
+        "claudeProjects.claudePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `claude` CLI. Leave empty to find it automatically (`~/.local/bin/claude`, your shell `PATH`, Homebrew, or the binary bundled with the official Claude Code extension)."
+        },
+        "claudeProjects.sessions.defaultOpenMode": {
+          "type": "string",
+          "enum": [
+            "here",
+            "claudeExtension"
+          ],
+          "enumDescriptions": [
+            "Open the session in this window, in the Claude Projects chat panel.",
+            "Open the project in a new window and resume the session in the official Claude Code extension."
+          ],
+          "default": "here",
+          "description": "What clicking a session does."
+        },
+        "claudeProjects.sessions.maxPerProject": {
+          "type": "number",
+          "default": 8,
+          "minimum": 1,
+          "description": "How many recent sessions to list under each project and worktree before \"Show more\"."
+        },
+        "claudeProjects.sessions.idleProcessTimeoutMinutes": {
+          "type": "number",
+          "default": 30,
+          "minimum": 0,
+          "markdownDescription": "Stop a session's Claude process after it has been idle this many minutes with its panel closed. It resumes automatically on your next message. `0` keeps processes until you close VS Code."
+        },
+        "claudeProjects.chat.defaultPermissionMode": {
+          "type": "string",
+          "enum": [
+            "default",
+            "acceptEdits",
+            "plan",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "Manual: Claude asks before each edit and command.",
+            "Edit automatically: file edits are accepted, commands still ask.",
+            "Plan: Claude explores and presents a plan before editing.",
+            "Auto: a safety check approves actions and pauses for anything risky."
+          ],
+          "default": "default",
+          "description": "Permission mode for new sessions opened here."
+        },
+        "claudeProjects.chat.defaultModel": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Model for new sessions opened here (for example `opus`, `sonnet`, `fable`). Leave empty to use your Claude Code default."
+        },
+        "claudeProjects.chat.defaultEffort": {
+          "type": "string",
+          "enum": [
+            "",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "enumDescriptions": [
+            "The model default (or your Claude Code /effort setting).",
+            "Low",
+            "Medium",
+            "High",
+            "Extra high",
+            "Max (session only, highest)"
+          ],
+          "default": "",
+          "description": "Reasoning effort for new sessions opened here. You can change it per session from the effort picker in the chat."
+        },
+        "claudeProjects.chat.allowBypassPermissions": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Offer the **Bypass permissions** mode in the chat mode picker. Claude then runs every command without asking."
+        },
+        "claudeProjects.chat.showThinking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask Claude Code for thinking summaries and show them (collapsed) in the chat."
+        },
+        "claudeProjects.followActiveSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "When you switch to a session's chat tab, show that session's project in the Source Control and Files views."
+        },
+        "claudeProjects.notifications.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a macOS notification when a session needs you."
+        },
+        "claudeProjects.notifications.onlyWhenUnfocused": {
+          "type": "boolean",
+          "default": true,
+          "description": "Only send macOS notifications while VS Code is in the background. Inside VS Code you get the badge and a small toast."
+        },
+        "claudeProjects.notifications.onTurnComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also notify when Claude finishes a turn and is waiting for your next message."
+        },
+        "claudeProjects.notifications.externalSessions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also notify for sessions running outside this window (terminal, other VS Code windows, Claude desktop app) in your projects."
+        },
+        "claudeProjects.notifications.sound": {
+          "type": "boolean",
+          "default": true,
+          "description": "Play a sound with macOS notifications."
+        },
+        "claudeProjects.notifications.inAppToasts": {
+          "type": "boolean",
+          "default": true,
+          "description": "While VS Code is focused, show a toast when a session whose tab you are not looking at needs a permission, an answer or a plan review."
+        },
+        "claudeProjects.dashboard.showAllProjects": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show running Claude sessions from folders that are not in your project list too."
+        },
+        "claudeProjects.usage.refreshIntervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "How often to refresh your plan usage limits."
+        },
+        "claudeProjects.usage.showInStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show 5-hour and weekly usage in the status bar."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "claudeProjects.files.rename",
+        "key": "f2",
+        "mac": "enter",
+        "when": "focusedView == claudeProjects.files && !inputFocus"
+      },
+      {
+        "command": "claudeProjects.files.delete",
+        "key": "delete",
+        "mac": "cmd+backspace",
+        "when": "focusedView == claudeProjects.files && !inputFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "vitest run",
+    "package": "node scripts/build.mjs --production && vsce package --no-dependencies --allow-missing-repository --skip-license -o dist-vsix/claude-projects.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/picomatch": "^4.0.3",
+    "@types/vscode": "1.95.0",
+    "@vscode/codicons": "^0.0.46-24",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "diff": "^9.0.0",
+    "dompurify": "^3.4.17",
+    "esbuild": "^0.28.2",
+    "highlight.js": "^11.12.0",
+    "marked": "^18.1.1",
+    "picomatch": "^4.0.7",
+    "preact": "^11.0.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

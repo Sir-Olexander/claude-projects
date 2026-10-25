@@ -1,0 +1,532 @@
+/* ------------------------------------------------------------------------
+   Composer (message box)
+   ------------------------------------------------------------------------ */
+.composer-wrap {
+  position: relative;
+}
+
+.composer {
+  --ring: var(--c-orange);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-l);
+  background: var(--input-bg);
+  color: var(--input-fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  container-type: inline-size;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.composer:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 13%, transparent), 0 1px 2px color-mix(in srgb, var(--ring) 20%, transparent);
+}
+
+.composer[data-mode='acceptEdits'] {
+  --ring: var(--fg);
+}
+
+.composer[data-mode='plan'] {
+  --ring: var(--focus, var(--btn-bg));
+}
+
+.composer[data-mode='auto'],
+.composer[data-mode='bypassPermissions'] {
+  --ring: var(--error);
+}
+
+.composer.is-drag {
+  border-style: dashed;
+  border-color: var(--focus);
+}
+
+.composer-attachments {
+  padding: 8px 10px 0;
+}
+
+.composer-input {
+  display: block;
+  width: 100%;
+  min-height: 1.5em;
+  max-height: 260px;
+  padding: 10px 14px 4px;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  color: var(--input-fg);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.composer-input::placeholder {
+  color: var(--placeholder);
+}
+
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 6px 6px;
+}
+
+.bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bar-btn:hover {
+  background: var(--hover-bg);
+  color: var(--fg);
+}
+
+.bar-btn .codicon {
+  flex: none;
+  font-size: 14px;
+}
+
+.bar-icon {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
+  flex: none;
+}
+
+.bar-label {
+  min-width: 0;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-caret {
+  font-size: 12px !important;
+  opacity: 0.8;
+}
+
+.bar-static {
+  color: var(--fg-muted);
+  font-size: 12px;
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mode-btn {
+  color: var(--fg);
+  flex: 0 1 auto;
+}
+
+.mode-btn.mode-plan .codicon {
+  color: var(--focus, var(--btn-bg));
+}
+
+.mode-btn.mode-acceptEdits .codicon {
+  color: var(--fg);
+}
+
+.mode-btn.mode-auto,
+.mode-btn.mode-bypassPermissions {
+  color: var(--error);
+}
+
+.model-btn {
+  flex: 0 1 auto;
+}
+
+.slash-glyph {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.bar-spacer {
+  flex: 1;
+  min-width: 4px;
+}
+
+.send-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: var(--c-clay);
+  color: var(--c-ivory);
+  cursor: pointer;
+}
+
+.send-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.send-btn:active:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.send-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.send-btn[data-mode='acceptEdits'] {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.send-btn[data-mode='plan'] {
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+}
+
+.send-btn[data-mode='auto'],
+.send-btn[data-mode='bypassPermissions'] {
+  background: var(--error);
+  color: var(--btn-fg);
+}
+
+.send-btn.is-stop .codicon {
+  font-size: 12px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+/* Context usage ring */
+.ctx-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 0 4px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--fg) 18%, transparent);
+  stroke-width: 2;
+}
+
+.ctx-fill {
+  fill: none;
+  stroke: var(--fg-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.ctx-warn .ctx-fill {
+  stroke: var(--warn);
+}
+
+.ctx-error .ctx-fill {
+  stroke: var(--error);
+}
+
+.ctx-error {
+  color: var(--error);
+}
+
+@container (max-width: 400px) {
+  .mode-btn .bar-label {
+    display: none;
+  }
+  .mode-btn {
+    padding: 0;
+    width: 26px;
+    justify-content: center;
+  }
+  .model-btn .bar-label {
+    max-width: 96px;
+  }
+}
+
+/* ------------------------------------------------------------------------
+   Popups (commands, files, mode, model)
+   ------------------------------------------------------------------------ */
+.popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  max-height: min(320px, 55vh);
+  overflow: hidden;
+  border: 1px solid var(--menu-border);
+  border-radius: var(--radius-l);
+  background: var(--menu-bg);
+  color: var(--menu-fg);
+  box-shadow: 0 4px 18px var(--shadow);
+  animation: popup-in 0.1s ease-out;
+}
+
+.popup-full {
+  left: 0;
+  right: 0;
+}
+
+.popup-left {
+  left: 0;
+  width: min(330px, 100%);
+}
+
+.popup-right {
+  right: 0;
+  width: min(330px, 100%);
+}
+
+.popup-title {
+  padding: 7px 10px 3px;
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.popup-list {
+  overflow-y: auto;
+  padding: 2px 4px 4px;
+}
+
+.popup-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.popup-item.is-active {
+  background: var(--menu-sel-bg);
+  color: var(--menu-sel-fg);
+}
+
+.popup-icon {
+  flex: none;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.popup-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.popup-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.popup-label {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.popup-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+
+.popup-left .popup-desc,
+.popup-right .popup-desc {
+  white-space: normal;
+}
+
+.popup-item.is-active .popup-desc,
+.popup-item.is-active .popup-detail {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.popup-check {
+  flex: none;
+  margin-left: auto;
+  margin-top: 2px;
+}
+
+.popup-empty {
+  padding: 8px 10px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.popup-footer {
+  padding: 5px 10px 6px;
+  border-top: 1px solid var(--menu-border);
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------------
+   Running indicator
+   ------------------------------------------------------------------------ */
+.running {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 4px 1px;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  animation: fade-in 0.2s ease-out;
+}
+
+.spin-glyph {
+  display: inline-block;
+  width: 1em;
+  flex: none;
+  text-align: center;
+  color: var(--c-orange);
+  font-size: 14px;
+}
+
+.spin-text {
+  color: var(--c-orange);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.spin-meta {
+  flex: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------------
+   Todo panel (pinned above the composer)
+   ------------------------------------------------------------------------ */
+.todo-panel {
+  padding: 3px 10px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-l);
+  background: var(--input-bg);
+  font-size: 12.5px;
+}
+
+.todo-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  min-width: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.todo-panel-title {
+  font-weight: 600;
+}
+
+.todo-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+}
+
+.todo-chevron {
+  margin-left: auto;
+  flex: none;
+  transition: transform 0.15s;
+}
+
+.todo-panel.is-open .todo-chevron {
+  transform: rotate(90deg);
+}
+
+.todo-panel .todo-list {
+  padding: 2px 0 6px;
+}
+
+body.vscode-high-contrast .popup-item.is-active {
+  outline: 1px dashed var(--vscode-contrastActiveBorder, var(--focus));
+  outline-offset: -1px;
+}
+
+/* Effort picker ---------------------------------------------------------- */
+
+.effort-btn {
+  gap: 6px;
+}
+
+.effort-gauge {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.effort-gauge > span {
+  width: 3px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
+}
+
+.effort-gauge > span.on {
+  background: var(--vscode-foreground);
+}
+
+.effort-gauge.is-default > span {
+  background: color-mix(in srgb, var(--vscode-foreground) 35%, transparent);
+}
