@@ -53,7 +53,7 @@ export class DashboardPanel implements vscode.Disposable {
     const { context } = this.deps;
     this.panel = panel;
     panel.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview')] };
-    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'activity.svg');
+    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icons', 'dashboard-tab.svg');
     panel.webview.html = webviewHtml(panel.webview, context.extensionUri, 'dashboard', 'Claude Sessions');
     const subs = [
       panel.webview.onDidReceiveMessage((m: DashboardToExtMessage) => void this.onMessage(m)),
