@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ClaudeProjectsApi } from '../../src/extension';
+import { probeSelection } from './probe';
 
 const log = (...a: unknown[]) => console.log('[real]', ...a);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -84,6 +85,7 @@ export async function run(): Promise<void> {
     log('existing session state:', JSON.stringify({ modelLabel: st.modelLabel, modelValue: st.modelValue, effort: st.effort, efforts: st.availableEfforts, models: st.availableModels.length }));
     await sleep(3000);
     await screenshot('r2-real-session');
+    if (process.env.CP_E2E_PROBE_SELECT) await probeSelection(screenshot, log, '.user-text', 4);
   }
   // A brand-new session (nothing sent): the composer should already show the real defaults.
   await vscode.commands.executeCommand('claudeProjects.newSession', { path: projects[0] });

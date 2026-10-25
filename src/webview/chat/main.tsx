@@ -7,6 +7,7 @@ import { store, useStoreVersion } from './store';
 import { saveSession } from './ui';
 import { copyText, openFile, openUrl, send } from './components/actions';
 import { Banners, EmptyState, Header, LimitNotice, RunningIndicator, TodoPanel } from './components/chrome';
+import { CopyMenu } from './components/CopyMenu';
 import { Composer } from './components/Composer';
 import { MessageList } from './components/MessageList';
 import { PendingArea } from './components/PendingCard';
@@ -133,6 +134,7 @@ function App() {
     <div class="app" ref={appRef} data-status={state.status} data-mode={state.permissionMode}>
       <Header state={state} />
       <Banners state={state} />
+      <CopyMenu />
       <div class="main">
         <MessageList state={state} contentVersion={store.contentVersion} empty={showEmpty ? <EmptyState state={state} /> : null} onSeen={onSeen} />
       </div>

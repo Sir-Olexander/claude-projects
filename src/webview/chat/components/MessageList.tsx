@@ -6,35 +6,11 @@ import { getScroll, saveScroll } from '../ui';
 import { ChatContext, type ChatContextValue } from './context';
 import { ItemView } from './items';
 import { Icon } from './ui';
-import { copyText, send } from './actions';
+import { send } from './actions';
+import { CopyButton } from './items';
 import { memo } from 'preact/compat';
 
 const BOOKMARKABLE = new Set(['user', 'text', 'tool']);
-
-/** Copies a message's text, showing a tick for a moment. */
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1200);
-    return () => clearTimeout(t);
-  }, [copied]);
-  return (
-    <button
-      type="button"
-      class={`bm-toggle bm-copy${copied ? ' is-copied' : ''}`}
-      title={copied ? 'Copied' : label}
-      aria-label={label}
-      onClick={(e) => {
-        e.stopPropagation();
-        copyText(text);
-        setCopied(true);
-      }}
-    >
-      <Icon name={copied ? 'check' : 'copy'} />
-    </button>
-  );
-}
 
 /** A top-level item with its hover copy and bookmark buttons. */
 const Frame = memo(function Frame({ item, kids, marked }: { item: ChatItem; kids?: ChatItem[]; marked: boolean }) {
@@ -42,8 +18,7 @@ const Frame = memo(function Frame({ item, kids, marked }: { item: ChatItem; kids
   return (
     <div class={`bm-frame${marked ? ' is-marked' : ''}`} data-item-id={item.id}>
       <ItemView item={item} kids={kids} />
-      {item.kind === 'user' && item.text.trim() ? <CopyButton text={item.text} label="Copy message" /> : null}
-      {item.kind === 'text' && item.text.trim() && !item.streaming ? <CopyButton text={item.text} label="Copy reply (Markdown)" /> : null}
+      {item.kind === 'text' && item.text.trim() && !item.streaming ? <CopyButton text={item.text} label="Copy reply (Markdown)" class="bm-toggle bm-copy" /> : null}
       {can ? (
         <button
           type="button"

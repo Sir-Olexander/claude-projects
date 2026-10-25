@@ -80,6 +80,36 @@
   overflow-wrap: anywhere;
 }
 
+/* Copy button right after your message, shown on hover. */
+.user-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  vertical-align: top;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.msg-user:hover .user-copy,
+.user-copy:focus-visible,
+.user-copy.is-copied {
+  opacity: 1;
+}
+.user-copy:hover {
+  color: var(--fg);
+  background: var(--hover-bg);
+}
+.user-copy.is-copied {
+  color: var(--vscode-testing-iconPassed, #73c991);
+}
+
 .msg-user.is-queued .user-bubble {
   opacity: 0.75;
   border-style: dashed;
@@ -649,4 +679,57 @@
     animation: none;
     outline: 1px solid var(--vscode-charts-orange, #d18616);
   }
+}
+
+/* Right-click copy menu ------------------------------------------------------ */
+
+.copy-menu {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid var(--menu-border);
+  border-radius: var(--radius-m);
+  background: var(--menu-bg);
+  color: var(--menu-fg);
+  box-shadow: 0 4px 18px var(--shadow);
+}
+
+.copy-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.copy-menu-item.is-active {
+  background: var(--menu-sel-bg);
+  color: var(--menu-sel-fg);
+}
+
+.copy-menu-label {
+  flex: 1;
+}
+
+.copy-menu-keys {
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+
+.copy-menu-item.is-active .copy-menu-keys {
+  color: inherit;
+  opacity: 0.8;
+}
+
+body.vscode-high-contrast .copy-menu-item.is-active {
+  outline: 1px solid var(--vscode-contrastActiveBorder, var(--focus));
 }

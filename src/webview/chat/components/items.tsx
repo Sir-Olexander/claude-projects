@@ -1,11 +1,12 @@
 import { memo } from 'preact/compat';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import type { AssistantTextItem, ChatItem, ImageAttachment, SystemItem, ThinkingItem, TurnEndItem, UserItem } from '../../../shared/protocol';
 import { clockTime, formatDuration } from '../lib/format';
 import { attachmentSrc } from '../lib/images';
 import { useExpanded } from '../ui';
 import { Markdown } from './Markdown';
 import { ToolCall } from './ToolCall';
+import { copyText } from './actions';
 import { Icon } from './ui';
 
 export function ImageThumbs({ images, onRemove }: { images: ImageAttachment[]; onRemove?: (index: number) => void }) {
@@ -33,6 +34,31 @@ export function ImageThumbs({ images, onRemove }: { images: ImageAttachment[]; o
   );
 }
 
+/** Copies a message's text, showing a tick for a moment. */
+export function CopyButton({ text, label, class: cls }: { text: string; label: string; class: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1200);
+    return () => clearTimeout(t);
+  }, [copied]);
+  return (
+    <button
+      type="button"
+      class={`${cls}${copied ? ' is-copied' : ''}`}
+      title={copied ? 'Copied' : label}
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        copyText(text);
+        setCopied(true);
+      }}
+    >
+      <Icon name={copied ? 'check' : 'copy'} />
+    </button>
+  );
+}
+
 export const UserMessage = memo(function UserMessage({ item }: { item: UserItem }) {
   let text = item.text;
   let command = item.command;
@@ -56,6 +82,7 @@ export const UserMessage = memo(function UserMessage({ item }: { item: UserItem 
         {text ? <span class="user-text">{text}</span> : null}
         {item.images?.length ? <ImageThumbs images={item.images} /> : null}
       </div>
+      {item.text.trim() ? <CopyButton text={item.text} label="Copy message" class="user-copy" /> : null}
     </div>
   );
 });

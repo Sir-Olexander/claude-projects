@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ClaudeProjectsApi } from '../../src/extension';
+import { probeSelection } from './probe';
 
 const log = (...a: unknown[]) => console.log('[visual]', ...a);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -86,13 +87,13 @@ export async function run(): Promise<void> {
   await screenshot('3-chat-finished');
 
   if (process.env.CP_E2E_PROBE_SELECT) {
-    await probeSelection();
+    await probeSelection(screenshot, log);
     // Again while Claude is writing a long reply.
     void s.send('slow: write a long answer please');
     await waitFor('streaming', () => s.status === 'running');
     await sleep(800);
     log('--- while running ---');
-    await probeSelection();
+    await probeSelection(screenshot, log);
     await waitFor('idle after slow', () => s.status === 'idle', 30_000);
   }
 
@@ -161,57 +162,4 @@ export async function run(): Promise<void> {
   await sleep(2500);
   await screenshot('6-light');
   log('VISUAL DONE');
-}
-
-/** Drags the mouse over user messages in each chat webview, copies, and reports what got selected and copied. */
-async function probeSelection(): Promise<void> {
-  const port = process.env.CP_E2E_CDP_PORT;
-  const targets = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as { type: string; url: string; webSocketDebuggerUrl: string }[];
-  for (const t of targets.filter((x) => x.url.startsWith('vscode-webview://'))) {
-    try {
-      const ws = new WebSocket(t.webSocketDebuggerUrl);
-      await new Promise((r, j) => {
-        ws.onopen = r;
-        ws.onerror = j;
-      });
-      let id = 0;
-      const call = (method: string, params: object = {}) =>
-        new Promise<any>((resolve) => {
-          const my = ++id;
-          ws.onmessage = (ev) => {
-            const m = JSON.parse(String(ev.data));
-            if (m.id === my) resolve(m.result ?? m.error);
-          };
-          ws.send(JSON.stringify({ id: my, method, params }));
-        });
-      const ev = async (expression: string) => (await call('Runtime.evaluate', { expression, returnByValue: true }))?.result?.value;
-      const doc = `(document.querySelector('iframe')?.contentDocument || document)`;
-      const count = await ev(`${doc}.querySelectorAll('.user-text').length`);
-      for (let i = 0; i < Math.min(count ?? 0, 3); i++) {
-        const info = await ev(`(() => { const d = ${doc}; const f = document.querySelector('iframe'); const el = d.querySelectorAll('.user-text')[${i}]; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); const o = f ? f.getBoundingClientRect() : { left: 0, top: 0 }; const hit = d.elementFromPoint(r.left + 3, r.top + 6); return { x: r.left + o.left, y: r.top + o.top, w: Math.min(r.width, 300), h: r.height, text: el.textContent.slice(0, 40), hit: hit ? hit.className || hit.tagName : null }; })()`);
-        // Start from somewhere else, like a user clicking in from the sidebar.
-        await vscode.commands.executeCommand('workbench.action.focusSideBar');
-        await sleep(400);
-        const y = info.y + 6;
-        await call('Input.dispatchMouseEvent', { type: 'mousePressed', x: info.x + 1, y, button: 'left', clickCount: 1 });
-        for (let k = 1; k <= 10; k++) await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: info.x + 1 + ((info.w - 2) * k) / 10, y, button: 'left', buttons: 1 });
-        await call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: info.x + info.w - 1, y, button: 'left', clickCount: 1 });
-        await sleep(300);
-        const selected = await ev(`(${doc}.getSelection() || window.getSelection()).toString()`);
-        await vscode.env.clipboard.writeText('<nothing copied>');
-        await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
-        await sleep(300);
-        log(`probe "${info.text}" hit=${info.hit} selected=${JSON.stringify(selected)} copied=${JSON.stringify(await vscode.env.clipboard.readText())}`);
-        // The hover copy button.
-        await vscode.env.clipboard.writeText('<nothing copied>');
-        await ev(`${doc}.querySelectorAll('.user-text')[${i}].closest('.bm-frame').querySelector('.bm-copy').click()`);
-        await sleep(400);
-        log(`copy button -> ${JSON.stringify(await vscode.env.clipboard.readText())}`);
-      }
-      await screenshot('probe-select');
-      ws.close();
-    } catch (err) {
-      log('probe failed for a target:', String(err));
-    }
-  }
 }
