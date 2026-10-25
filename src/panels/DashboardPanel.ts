@@ -66,7 +66,7 @@ export class DashboardPanel implements vscode.Disposable {
   }
 
   private state(): DashboardState {
-    return { sessions: [...this.deps.attention.sessions], usage: this.deps.usage.current, projectCount: this.deps.store.projects.length };
+    return { sessions: [...this.deps.attention.sessions], recent: [...this.deps.attention.recent], usage: this.deps.usage.current, projectCount: this.deps.store.projects.length };
   }
 
   private updateTitle(): void {
@@ -98,6 +98,12 @@ export class DashboardPanel implements vscode.Disposable {
         case 'open-in-claude-extension': {
           const view = attention.sessions.find((v) => v.key === m.key);
           if (view) await this.deps.handoff.openInClaudeExtension(view.cwd, view.sessionId);
+          break;
+        }
+        case 'open-recent': {
+          const info = attention.recent.find((r) => r.sessionId === m.sessionId);
+          const arg = { sessionId: m.sessionId, cwd: m.cwd, title: info?.title };
+          await vscode.commands.executeCommand(m.inClaudeExtension ? 'claudeProjects.openSessionInClaudeExtension' : 'claudeProjects.openSession', arg);
           break;
         }
         case 'allow':

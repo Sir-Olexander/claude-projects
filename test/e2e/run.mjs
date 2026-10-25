@@ -3,7 +3,7 @@
 // (Build first: npm run build.) Needs VS Code at /Applications/Visual Studio Code.app
 // or $VSCODE_PATH. Uses the fake Claude CLI and a temporary CLAUDE_CONFIG_DIR.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +76,31 @@ if (visual) {
   add({ type: 'system', subtype: 'turn_duration', uuid: 'd8', timestamp: T(5), durationMs: 48200 });
 }
 writeFileSync(join(claudeHome, 'projects', enc, `${sessionId}.jsonl`), lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+
+// Older sessions that aren't running, for the dashboard's Recent list.
+if (visual) {
+  const old = [
+    [repo, 'feature-x', 'Fix flaky login test', 'The login test fails about one run in five, find out why', 3],
+    [repo2, 'main', 'Set up the web app routing', 'Add routes for /settings and /billing', 26],
+    [repo, 'main', 'Explain the release script', 'What does scripts/release.sh do?', 50],
+  ];
+  old.forEach(([cwd, branch, title, prompt, hoursAgo], i) => {
+    const id = `7777777${i}-7777-7777-7777-777777777777`;
+    const dir = join(claudeHome, 'projects', cwd.replace(/[^a-zA-Z0-9]/g, '-'));
+    mkdirSync(dir, { recursive: true });
+    const ts = new Date(Date.now() - hoursAgo * 3600_000).toISOString();
+    const file = join(dir, `${id}.jsonl`);
+    writeFileSync(
+      file,
+      [
+        { type: 'user', uuid: `o${i}`, parentUuid: null, sessionId: id, cwd, gitBranch: branch, timestamp: ts, message: { role: 'user', content: prompt } },
+        { type: 'ai-title', aiTitle: title, sessionId: id },
+      ].map((l) => JSON.stringify(l)).join('\n') + '\n',
+    );
+    const t = new Date(ts);
+    utimesSync(file, t, t);
+  });
+}
 
 // Settings for the throwaway profile.
 const userData = join(base, 'user-data');

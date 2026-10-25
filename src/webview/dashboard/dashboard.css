@@ -337,6 +337,20 @@ h2 {
   color: var(--c-idle);
 }
 
+/* Recent sessions aren't running: quieter than live ones. */
+.card.s-recent {
+  background: transparent;
+}
+.card.s-recent::before {
+  display: none;
+}
+.card.s-recent:hover {
+  background: var(--hover-bg);
+}
+.s-recent .state {
+  color: var(--vscode-descriptionForeground);
+}
+
 .body {
   flex: 1;
   min-width: 0;

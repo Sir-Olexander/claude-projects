@@ -4,7 +4,7 @@ import type { SessionIndex } from '../claude/SessionIndex';
 import type { Notifier } from '../notify/Notifier';
 import type { WindowPresence } from '../notify/WindowPresence';
 import type { ProjectStore } from '../projects/ProjectStore';
-import type { AttentionState, LiveSessionView } from '../shared/protocol';
+import type { AttentionState, LiveSessionView, RecentSessionView } from '../shared/protocol';
 import { Emitter, debounce } from '../util/events';
 import type { Logger } from '../util/log';
 import { folderName, isSameOrInside } from '../util/paths';
@@ -12,6 +12,8 @@ import type { AttentionReason, ManagedSession } from './ManagedSession';
 import type { SessionManager } from './SessionManager';
 import { sourceOf } from './sources';
 import { clip, describeToolTarget } from './toolText';
+
+const RECENT_LIMIT = 10;
 
 const RANK: Record<AttentionState, number> = { 'needs-input': 0, error: 1, done: 2, running: 3, idle: 4 };
 
@@ -44,6 +46,7 @@ interface ExternalTrack {
  */
 export class AttentionService implements vscode.Disposable {
   private views: LiveSessionView[] = [];
+  private recentViews: RecentSessionView[] = [];
   private readonly external = new Map<number, ExternalTrack>();
   private readonly dismissed = new Set<string>();
   private readonly disposables: vscode.Disposable[] = [];
@@ -66,6 +69,11 @@ export class AttentionService implements vscode.Disposable {
 
   get sessions(): readonly LiveSessionView[] {
     return this.views;
+  }
+
+  /** Recently worked-on sessions that aren't running (not part of `sessions`). */
+  get recent(): readonly RecentSessionView[] {
+    return this.recentViews;
   }
 
   /** Sessions that need the user (badge count). */
@@ -162,8 +170,29 @@ export class AttentionService implements vscode.Disposable {
     }
 
     views.sort((a, b) => RANK[a.attention] - RANK[b.attention] || (a.attention === 'needs-input' || a.attention === 'error' ? a.since - b.since : b.since - a.since));
-    const changed = JSON.stringify(views) !== JSON.stringify(this.views);
+
+    const shown = new Set(views.map((v) => v.sessionId).filter(Boolean));
+    const recent = this.deps.index
+      .recent(RECENT_LIMIT, (info) => !!info.cwd && !shown.has(info.sessionId) && !isSameOrInside(info.cwd, this.deps.utilityCwd) && (showAll || !!this.deps.store.findContaining(info.cwd)))
+      .map((info): RecentSessionView => {
+        const managed = this.deps.sessions.findBySessionId(info.sessionId);
+        const title = managed?.title ?? info.title;
+        const branch = info.gitBranch && info.gitBranch !== 'HEAD' ? info.gitBranch : undefined;
+        const last = info.lastPrompt?.replace(/\s+/g, ' ').trim();
+        return {
+          sessionId: info.sessionId,
+          cwd: info.cwd!,
+          projectName: this.place(info.cwd!).projectName,
+          branch,
+          title,
+          lastPrompt: last && last !== title ? clip(last, 140) : undefined,
+          lastActive: info.lastModified,
+        };
+      });
+
+    const changed = JSON.stringify(views) !== JSON.stringify(this.views) || JSON.stringify(recent) !== JSON.stringify(this.recentViews);
     this.views = views;
+    this.recentViews = recent;
     if (changed) this._onDidChange.fire();
   }
 

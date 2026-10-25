@@ -134,6 +134,16 @@ export class SessionIndex {
     return this.byId.get(sessionId);
   }
 
+  /** Most recently active sessions first, keeping those `keep` accepts, up to `limit`. */
+  recent(limit: number, keep: (info: SessionInfo) => boolean): SessionInfo[] {
+    const out: SessionInfo[] = [];
+    for (const info of [...this.byId.values()].sort((a, b) => b.lastModified - a.lastModified)) {
+      if (out.length >= limit) break;
+      if (keep(info)) out.push(info);
+    }
+    return out;
+  }
+
   /** Every known cwd with its session count and latest activity. */
   allCwds(): { cwd: string; count: number; lastModified: number }[] {
     return [...this.byCwd.entries()].map(([cwd, list]) => ({ cwd, count: list.length, lastModified: list[0]?.lastModified ?? 0 }));

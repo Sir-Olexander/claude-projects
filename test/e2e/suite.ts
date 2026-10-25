@@ -217,6 +217,16 @@ export async function run(): Promise<void> {
     await waitFor('process stopped', () => !s.processAlive, 10_000);
   });
 
+  await check('a stopped session moves to the dashboard\'s Recent list', async () => {
+    // A finished turn stays under "Needs you" until it's seen.
+    const live = api.attention.bySessionId(existingId);
+    log('before dismiss:', live?.attention, 'recent:', api.attention.recent.map((r) => r.sessionId).join(','));
+    if (live) api.attention.dismiss(live.key);
+    await waitFor('session in Recent', () => api.attention.recent.some((r) => r.sessionId === existingId), 10_000);
+    assert.ok(!api.attention.sessions.some((v) => v.sessionId === existingId), 'not listed as live too');
+    assert.ok(api.attention.recent.length <= 10);
+  });
+
   await check('terminals open from the Files view as editor tabs, named after the project', async () => {
     const { mkdirSync } = await import('node:fs');
     mkdirSync(join(repo, 'backend', 'api'), { recursive: true });

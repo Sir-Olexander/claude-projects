@@ -1,6 +1,6 @@
 import { render } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import type { AttentionState, DashboardState, DashboardToExtMessage, ExtToDashboardMessage, LiveSessionView, UsageView, UsageWindowView } from '../../shared/protocol';
+import type { AttentionState, DashboardState, DashboardToExtMessage, ExtToDashboardMessage, LiveSessionView, RecentSessionView, UsageView, UsageWindowView } from '../../shared/protocol';
 import { SESSION_SOURCE_LABELS } from '../../shared/protocol';
 import { clockTime, countdown, setTimeLocale, shortAgo } from '../../util/time';
 import { getPersisted, onMessage, post as rawPost, setPersisted } from '../common/vscodeApi';
@@ -105,6 +105,7 @@ function App() {
           <Section title="Idle" items={groups.idle} now={now} accent="idle" collapsible />
         </>
       )}
+      <RecentSection items={state.recent ?? []} now={now} />
     </div>
   );
 }
@@ -152,16 +153,88 @@ interface Persisted {
   collapsed?: Record<string, boolean>;
 }
 
-function Section({ title, items, now, accent, collapsible }: { title: string; items: LiveSessionView[]; now: number; accent: string; collapsible?: boolean }) {
-  // Long idle lists start collapsed; the user's choice is remembered.
-  const [collapsed, setCollapsed] = useState<boolean>(() => getPersisted<Persisted>()?.collapsed?.[accent] ?? (!!collapsible && items.length > 4));
-  if (!items.length) return null;
+function useCollapsed(accent: string, initial: boolean): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState<boolean>(() => getPersisted<Persisted>()?.collapsed?.[accent] ?? initial);
   const toggle = () => {
     const next = !collapsed;
     setCollapsed(next);
     const prev = getPersisted<Persisted>() ?? {};
     setPersisted<Persisted>({ ...prev, collapsed: { ...(prev.collapsed ?? {}), [accent]: next } });
   };
+  return [collapsed, toggle];
+}
+
+/** Sessions worked on lately that aren't running anywhere. */
+function RecentSection({ items, now }: { items: RecentSessionView[]; now: number }) {
+  const [collapsed, toggle] = useCollapsed('recent', false);
+  if (!items.length) return null;
+  return (
+    <section class="group recent">
+      <h2>
+        <button class="section-toggle" aria-expanded={!collapsed} onClick={toggle}>
+          <i class={`codicon codicon-chevron-${collapsed ? 'right' : 'down'}`} />
+          Recent <span class="count">{items.length}</span>
+        </button>
+      </h2>
+      {collapsed ? null : (
+        <ul class="cards">
+          {items.map((r) => (
+            <RecentCard key={r.sessionId} r={r} now={now} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function RecentCard({ r, now }: { r: RecentSessionView; now: number }) {
+  const open = () => post({ type: 'open-recent', sessionId: r.sessionId, cwd: r.cwd });
+  return (
+    <li
+      class="card s-recent"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
+      }}
+      aria-label={`${r.projectName}: ${r.title}, last active ${shortAgo(r.lastActive, now)} ago`}
+    >
+      <i class="state codicon codicon-history" title="Not running" />
+      <div class="body">
+        <div class="meta">
+          <span class="project">{r.projectName}</span>
+          {r.branch ? (
+            <span class="chip branch" title="Branch">
+              <i class="codicon codicon-git-branch" />
+              {r.branch}
+            </span>
+          ) : null}
+          <span class="since" title={new Date(r.lastActive).toLocaleString()}>
+            {shortAgo(r.lastActive, now)}
+          </span>
+        </div>
+        <div class="title">{r.title}</div>
+        {r.lastPrompt ? <div class="detail">{r.lastPrompt}</div> : null}
+      </div>
+      <div class="actions" onClick={(e) => e.stopPropagation()}>
+        <button class="icon-btn" title="Open in the Claude extension" onClick={() => post({ type: 'open-recent', sessionId: r.sessionId, cwd: r.cwd, inClaudeExtension: true })}>
+          <i class="codicon codicon-link-external" />
+        </button>
+        <button class="btn" onClick={open}>
+          Resume
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function Section({ title, items, now, accent, collapsible }: { title: string; items: LiveSessionView[]; now: number; accent: string; collapsible?: boolean }) {
+  // Long idle lists start collapsed; the user's choice is remembered.
+  const [collapsed, toggle] = useCollapsed(accent, !!collapsible && items.length > 4);
+  if (!items.length) return null;
   return (
     <section class={`group ${accent}`}>
       <h2>

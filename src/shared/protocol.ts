@@ -514,8 +514,23 @@ export interface UsageView {
   subscription?: string;
 }
 
+/** A session that isn't running anywhere, for the dashboard's Recent list. */
+export interface RecentSessionView {
+  sessionId: string;
+  cwd: string;
+  projectName: string;
+  branch?: string;
+  title: string;
+  /** The latest prompt, when it says more than the title. */
+  lastPrompt?: string;
+  /** Epoch ms of the last change to the transcript. */
+  lastActive: number;
+}
+
 export interface DashboardState {
   sessions: LiveSessionView[];
+  /** Up to 10 recently worked-on sessions that aren't in `sessions`. */
+  recent: RecentSessionView[];
   usage?: UsageView;
   /** Number of registered projects (for the empty state). */
   projectCount: number;
@@ -528,6 +543,7 @@ export type DashboardToExtMessage =
   | { type: 'ready' }
   | { type: 'open'; key: string }
   | { type: 'open-in-claude-extension'; key: string }
+  | { type: 'open-recent'; sessionId: string; cwd: string; inClaudeExtension?: boolean }
   | { type: 'allow'; key: string; requestId: string; optionId: string }
   | { type: 'deny'; key: string; requestId: string }
   | { type: 'stop'; key: string }
