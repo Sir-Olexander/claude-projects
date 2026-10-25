@@ -988,7 +988,7 @@
         "claudeProjects.chat.defaultModel": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Model for new sessions opened here (for example `opus`, `sonnet`, `fable`). Leave empty to use your Claude Code default."
+          "markdownDescription": "Model for sessions opened here: an alias (`opus`, `sonnet`, `fable`, `haiku`) or a full model id such as `claude-opus-5-5`. Leave empty to use your Claude Code default."
         },
         "claudeProjects.chat.defaultEffort": {
           "type": "string",

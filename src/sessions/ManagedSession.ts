@@ -448,8 +448,8 @@ export class ManagedSession {
   async setModel(model: string): Promise<void> {
     const value = model || undefined;
     this.modelValue = value;
-    const info = this.modelInfos.find((m) => m.value === model);
-    this.modelLabel = info ? info.displayName.replace(/\s*\(recommended\)\s*/i, '') : value ? prettyModelName(value) : this.modelLabel;
+    this.canonicalizeModelValue();
+    this.modelLabel = this.labelFor(value) ?? this.modelLabel;
     this.patchUi({ modelValue: this.modelValue, modelLabel: this.modelLabel, availableEfforts: this.availableEfforts() });
     if (this.proc?.alive && !this.procStarting) {
       try {
@@ -475,8 +475,8 @@ export class ManagedSession {
     if (d.models?.length && !this.modelInfos.length) this.setModels(d.models, false);
     if (!this.modelValue && d.model) this.setResolvedModel(d.model);
     else if (this.modelValue) {
-      const info = this.modelInfos.find((m) => m.value === this.modelValue);
-      if (info) this.modelLabel = info.displayName.replace(/\s*\(recommended\)\s*/i, '');
+      this.modelLabel = this.labelFor(this.modelValue);
+      this.canonicalizeModelValue();
     }
     if (this.effortChoice === undefined && !this.effort) this.effort = d.effort === null ? undefined : asEffort(d.effort);
     this.patchUi({ availableModels: this.models, modelValue: this.modelValue, modelLabel: this.modelLabel, effort: this.effort ?? null, availableEfforts: this.availableEfforts() });
@@ -529,9 +529,35 @@ export class ManagedSession {
     }
   }
 
+  /**
+   * The model-list entry for a value: an alias ("opus") or a full model id
+   * ("claude-opus-5-5", as people often put in settings), matched to the alias
+   * that resolves to it.
+   */
+  private modelInfoFor(value: string | undefined): ModelInfo | undefined {
+    if (!value) return undefined;
+    return (
+      this.modelInfos.find((m) => m.value === value) ??
+      this.modelInfos.find((m) => m.value !== 'default' && m.resolvedModel === value) ??
+      this.modelInfos.find((m) => m.resolvedModel === value)
+    );
+  }
+
+  /** Use the list's own value for the chosen model, so the picker can tick it. */
+  private canonicalizeModelValue(): void {
+    const info = this.modelInfoFor(this.modelValue);
+    if (info && info.value !== this.modelValue) this.modelValue = info.value;
+  }
+
+  private labelFor(value: string | undefined): string | undefined {
+    if (!value) return undefined;
+    const info = this.modelInfoFor(value);
+    return info && !/^Default\b/.test(info.displayName) ? info.displayName.replace(/\s*\(recommended\)\s*/i, '') : prettyModelName(info?.resolvedModel ?? value);
+  }
+
   private currentModelInfo(): ModelInfo | undefined {
     return (
-      (this.modelValue ? this.modelInfos.find((m) => m.value === this.modelValue) : undefined) ??
+      this.modelInfoFor(this.modelValue) ??
       (this.resolvedModel ? this.modelInfos.find((m) => m.value !== 'default' && m.resolvedModel === this.resolvedModel) ?? this.modelInfos.find((m) => m.resolvedModel === this.resolvedModel) : undefined)
     );
   }
@@ -803,10 +829,8 @@ export class ManagedSession {
       efforts: (m.supportedEffortLevels ?? []).map(asEffort).filter((e): e is EffortLevel => !!e),
     }));
     if (this.resolvedModel) this.setResolvedModel(this.resolvedModel);
-    else if (this.modelValue) {
-      const info = models.find((m) => m.value === this.modelValue);
-      if (info) this.modelLabel = info.displayName.replace(/\s*\(recommended\)\s*/i, '');
-    }
+    else if (this.modelValue) this.modelLabel = this.labelFor(this.modelValue);
+    this.canonicalizeModelValue();
     if (patch) this.patchUi({ availableModels: this.models, modelLabel: this.modelLabel, modelValue: this.modelValue, availableEfforts: this.availableEfforts() });
   }
 

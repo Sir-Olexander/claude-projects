@@ -46,6 +46,11 @@ async function screenshot(name: string): Promise<void> {
 
 export async function run(): Promise<void> {
   const projects = (process.env.CP_REAL_PROJECTS ?? '').split(':').filter(Boolean);
+  if (process.env.CP_REAL_DEFAULT_MODEL) {
+    const c = vscode.workspace.getConfiguration('claudeProjects');
+    await c.update('chat.defaultModel', process.env.CP_REAL_DEFAULT_MODEL, vscode.ConfigurationTarget.Global);
+    await c.update('chat.defaultEffort', process.env.CP_REAL_DEFAULT_EFFORT ?? '', vscode.ConfigurationTarget.Global);
+  }
   const ext = vscode.extensions.getExtension('febundi.claude-projects')!;
   const api = (await ext.activate()) as ClaudeProjectsApi;
   await api.store.addMany(projects);
@@ -67,12 +72,16 @@ export async function run(): Promise<void> {
 
   // Open a real session's history (read-only: no message is sent, no process starts).
   const target = process.env.CP_REAL_SESSION_CWD ?? projects[0];
-  const info = api.index.sessionsFor(target).find((s) => !api.registry.bySessionId(s.sessionId).length) ?? api.index.sessionsFor(target)[0];
+  const wanted = process.env.CP_REAL_SESSION_ID;
+  const info = (wanted ? api.index.get(wanted) : undefined) ?? api.index.sessionsFor(target).find((s) => !api.registry.bySessionId(s.sessionId).length) ?? api.index.sessionsFor(target)[0];
   if (info) {
     await vscode.commands.executeCommand('claudeProjects.openSessionHere', { sessionId: info.sessionId, cwd: target, title: info.title });
     const s = await waitFor('session', () => api.sessions.findBySessionId(info.sessionId));
     await waitFor('history', () => (s as unknown as { historyLoaded: boolean }).historyLoaded, 60_000);
     log('history items:', s.getState().items.length, 'process alive:', s.processAlive);
+    await sleep(6000);
+    const st = s.getState();
+    log('existing session state:', JSON.stringify({ modelLabel: st.modelLabel, modelValue: st.modelValue, effort: st.effort, efforts: st.availableEfforts, models: st.availableModels.length }));
     await sleep(3000);
     await screenshot('r2-real-session');
   }

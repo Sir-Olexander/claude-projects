@@ -377,3 +377,29 @@ describe('ManagedSession: defaults before the first message', () => {
     expect(s.getState()).toMatchObject({ modelValue: 'haiku', modelLabel: 'Haiku 5.5', effort: 'low' });
   });
 });
+
+describe('ManagedSession: full model ids in settings', () => {
+  it('treats "claude-opus-5-5" like the opus alias (label, picker tick, effort levels)', async () => {
+    const probe = async () => ({
+      model: 'claude-opus-5-5',
+      effort: 'high',
+      models: [
+        { value: 'default', resolvedModel: 'claude-sonnet-5-5', displayName: 'Default (recommended)', supportedEffortLevels: ['low', 'high'] },
+        { value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus 5.5', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+      ],
+    });
+    const s = new ManagedSession({ cwd: tempDir(), projectName: 'T', model: 'claude-opus-5-5' }, services({ probeDefaults: probe }));
+    sessions.push(s);
+    await s.setEffort('high');
+    await s.loadDefaults();
+    expect(s.getState()).toMatchObject({ modelLabel: 'Opus 5.5', modelValue: 'opus', effort: 'high' });
+    expect(s.getState().availableEfforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
+  });
+
+  it('shows a readable name for a model id that is not in the list', async () => {
+    const s = new ManagedSession({ cwd: tempDir(), projectName: 'T', model: 'claude-opus-4-8' }, services({ probeDefaults: async () => ({ model: 'claude-opus-4-8', effort: null, models: [{ value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus 5.5' }] }) }));
+    sessions.push(s);
+    await s.loadDefaults();
+    expect(s.getState().modelLabel).toBe('Opus 4.8');
+  });
+});
