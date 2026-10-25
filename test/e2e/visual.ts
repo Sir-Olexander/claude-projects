@@ -131,38 +131,19 @@ export async function run(): Promise<void> {
     await api.panels.revealItem(s.sessionId, repo, (img as unknown as { id: string }).id);
     await sleep(1500);
     await screenshot('9-pasted-image');
-    // Diagnose: what src did the webview get, and did it load?
-    const port = process.env.CP_E2E_CDP_PORT;
-    const targets = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as { type: string; url: string; webSocketDebuggerUrl: string }[];
-    for (const t of targets.filter((x) => x.url.startsWith('vscode-webview://'))) {
-      const ws = new WebSocket(t.webSocketDebuggerUrl);
-      await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
-      const logs: string[] = [];
-      let id = 0;
-      const call = (method: string, params: object = {}) =>
-        new Promise<unknown>((resolve) => {
-          const my = ++id;
-          const prev = ws.onmessage;
-          ws.onmessage = (ev) => {
-            const m = JSON.parse(String(ev.data));
-            if (m.method === 'Log.entryAdded') logs.push(`${m.params.entry.level} ${m.params.entry.text} ${m.params.entry.url ?? ''}`);
-            if (m.method === 'Runtime.consoleAPICalled') logs.push(`console ${JSON.stringify(m.params.args.map((x: { value?: unknown }) => x.value))}`);
-            if (m.id === my) { ws.onmessage = prev; resolve(m.result); }
-          };
-          ws.send(JSON.stringify({ id: my, method, params }));
-        });
-      ws.onmessage = (ev) => {
-        const m = JSON.parse(String(ev.data));
-        if (m.method === 'Log.entryAdded') logs.push(`${m.params.entry.level} ${m.params.entry.text} ${m.params.entry.url ?? ''}`);
-      };
-      await call('Log.enable');
-      await call('Runtime.evaluate', { expression: `(() => { const d = document.querySelector('iframe')?.contentDocument || document; const i = d.querySelector('.user-bubble img'); if (!i) return 'none'; const n = new Image(); n.src = i.src + '?retry=1'; d.body.appendChild(n); return i.src; })()` });
-      await new Promise((r) => setTimeout(r, 2500));
-      const res = logs.join('\n');
-      if (logs.length) log('webview log:', res);
-      ws.close();
-    }
   }
+
+  // 8) A usage limit stops the turn; continue automatically is switched on.
+  await s.send('please hit-limit now');
+  await waitFor('limit notice', () => !!s.limitStop);
+  s.setAutoContinue(true);
+  api.panels.show(s);
+  await sleep(1500);
+  await screenshot('10-limit');
+  await vscode.commands.executeCommand('claudeProjects.openDashboard');
+  await sleep(1200);
+  await screenshot('11-limit-dashboard');
+  api.panels.show(s);
 
   // 7) Light theme.
   await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Light Modern', vscode.ConfigurationTarget.Global);
