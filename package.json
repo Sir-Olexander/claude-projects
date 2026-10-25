@@ -1026,6 +1026,19 @@
           "default": true,
           "description": "When you switch to a session's chat tab, show that session's project in the Source Control and Files views."
         },
+        "claudeProjects.terminal.location": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "panel"
+          ],
+          "enumDescriptions": [
+            "Open as a tab in the editor area, next to your Claude sessions.",
+            "Open in the bottom terminal panel."
+          ],
+          "default": "editor",
+          "description": "Where terminals opened from Claude Projects (Files and Projects views) appear."
+        },
         "claudeProjects.notifications.enabled": {
           "type": "boolean",
           "default": true,

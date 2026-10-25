@@ -50,7 +50,14 @@ export function terminalName(cwd: string, store: ProjectStore): string {
 /** Opens an integrated terminal in a folder (or in a file's folder), titled after its project. */
 export function openTerminalAt(path: string, store: ProjectStore): vscode.Terminal {
   const cwd = isDirectory(path) ? path : dirname(path);
-  const t = vscode.window.createTerminal({ name: terminalName(cwd, store), cwd, iconPath: new vscode.ThemeIcon('terminal') });
+  const where = vscode.workspace.getConfiguration('claudeProjects').get<'editor' | 'panel'>('terminal.location', 'editor');
+  const t = vscode.window.createTerminal({
+    name: terminalName(cwd, store),
+    cwd,
+    iconPath: new vscode.ThemeIcon('terminal'),
+    // "editor": a tab next to the Claude sessions; "panel": the bottom terminal panel.
+    location: where === 'panel' ? vscode.TerminalLocation.Panel : { viewColumn: vscode.ViewColumn.Active },
+  });
   t.show();
   return t;
 }

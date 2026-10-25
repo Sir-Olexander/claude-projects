@@ -217,18 +217,19 @@ export async function run(): Promise<void> {
     await waitFor('process stopped', () => !s.processAlive, 10_000);
   });
 
-  await check('terminals open from the Files view, named after the project', async () => {
+  await check('terminals open from the Files view as editor tabs, named after the project', async () => {
     const { mkdirSync } = await import('node:fs');
     mkdirSync(join(repo, 'backend', 'api'), { recursive: true });
+    const terminalTabs = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => t.input instanceof vscode.TabInputTerminal).map((t) => t.label);
     const before = vscode.window.terminals.length;
-    // Right-click a folder → Open in Integrated Terminal (the menu passes the tree node).
+    // Right-click a folder → Open in Integrated Terminal (the first terminal in this window).
     await vscode.commands.executeCommand('claudeProjects.openTerminal', { resourceUri: vscode.Uri.file(join(repo, 'backend', 'api')) });
+    await waitFor(`first tab labelled (have: ${JSON.stringify(terminalTabs())})`, () => terminalTabs().includes(`${project.name} · backend/api`), 10_000);
     // Title bar button → project root.
     api.store.select(project.id);
     await vscode.commands.executeCommand('claudeProjects.files.openRootInTerminal');
-    await waitFor('two terminals', () => vscode.window.terminals.length >= before + 2);
+    await waitFor(`root tab labelled (have: ${JSON.stringify(terminalTabs())})`, () => terminalTabs().includes(project.name), 10_000);
     const names = vscode.window.terminals.slice(before).map((t) => t.name);
-    log('terminal names:', names.join(' | '));
     assert.deepEqual(names, [`${project.name} · backend/api`, project.name]);
     const cwd = (vscode.window.terminals[before].creationOptions as vscode.TerminalOptions).cwd;
     assert.equal(String(cwd), join(repo, 'backend', 'api'));
