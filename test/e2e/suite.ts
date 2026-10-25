@@ -217,6 +217,24 @@ export async function run(): Promise<void> {
     await waitFor('process stopped', () => !s.processAlive, 10_000);
   });
 
+  await check('terminals open from the Files view, named after the project', async () => {
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(join(repo, 'backend', 'api'), { recursive: true });
+    const before = vscode.window.terminals.length;
+    // Right-click a folder → Open in Integrated Terminal (the menu passes the tree node).
+    await vscode.commands.executeCommand('claudeProjects.openTerminal', { resourceUri: vscode.Uri.file(join(repo, 'backend', 'api')) });
+    // Title bar button → project root.
+    api.store.select(project.id);
+    await vscode.commands.executeCommand('claudeProjects.files.openRootInTerminal');
+    await waitFor('two terminals', () => vscode.window.terminals.length >= before + 2);
+    const names = vscode.window.terminals.slice(before).map((t) => t.name);
+    log('terminal names:', names.join(' | '));
+    assert.deepEqual(names, [`${project.name} · backend/api`, project.name]);
+    const cwd = (vscode.window.terminals[before].creationOptions as vscode.TerminalOptions).cwd;
+    assert.equal(String(cwd), join(repo, 'backend', 'api'));
+    for (const t of vscode.window.terminals.slice(before)) t.dispose();
+  });
+
   await check('refresh and next-attention commands run', async () => {
     await vscode.commands.executeCommand('claudeProjects.refresh');
     await vscode.commands.executeCommand('claudeProjects.focusNextAttention');

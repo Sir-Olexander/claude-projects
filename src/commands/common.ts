@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { relative } from 'node:path';
+import { dirname, relative } from 'node:path';
 import { statSync } from 'node:fs';
 import type { ProjectStore } from '../projects/ProjectStore';
 import { folderName } from '../util/paths';
@@ -31,6 +31,30 @@ function isDirectory(p: string): boolean {
   }
 }
 
+/**
+ * Terminal title for a folder: the project's name, plus the folder inside it
+ * ("CVFast", "CVFast · backend", "CVFast · feature-x" for a worktree).
+ */
+export function terminalName(cwd: string, store: ProjectStore): string {
+  const project = store.findContaining(cwd);
+  if (!project) {
+    // A worktree outside the project folder still belongs to the selected project.
+    const sel = store.selection;
+    const owner = sel && sel.path === cwd ? store.get(sel.projectId) : undefined;
+    return owner ? `${owner.name} · ${folderName(cwd)}` : folderName(cwd);
+  }
+  const rel = relative(project.path, cwd);
+  return rel ? `${project.name} · ${rel}` : project.name;
+}
+
+/** Opens an integrated terminal in a folder (or in a file's folder), titled after its project. */
+export function openTerminalAt(path: string, store: ProjectStore): vscode.Terminal {
+  const cwd = isDirectory(path) ? path : dirname(path);
+  const t = vscode.window.createTerminal({ name: terminalName(cwd, store), cwd, iconPath: new vscode.ThemeIcon('terminal') });
+  t.show();
+  return t;
+}
+
 /** Shared commands used by several views (Projects, Source Control, Files). */
 export function registerCommonCommands(store: ProjectStore): vscode.Disposable {
   return vscode.Disposable.from(
@@ -50,10 +74,12 @@ export function registerCommonCommands(store: ProjectStore): vscode.Disposable {
     }),
     vscode.commands.registerCommand('claudeProjects.openTerminal', (arg?: unknown) => {
       const p = resolvePathArg(arg, store);
-      if (!p) return;
-      const cwd = isDirectory(p) ? p : vscode.Uri.file(p).with({ path: vscode.Uri.joinPath(vscode.Uri.file(p), '..').path }).fsPath;
-      const t = vscode.window.createTerminal({ name: folderName(cwd), cwd });
-      t.show();
+      if (p) openTerminalAt(p, store);
+    }),
+    vscode.commands.registerCommand('claudeProjects.files.openRootInTerminal', () => {
+      const p = store.selection?.path;
+      if (p) openTerminalAt(p, store);
+      else void vscode.window.showInformationMessage('Select a project in the Projects view first.');
     }),
     vscode.commands.registerCommand('claudeProjects.copyPath', async (arg?: unknown) => {
       const p = resolvePathArg(arg, store);

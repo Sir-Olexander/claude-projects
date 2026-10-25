@@ -383,6 +383,12 @@
         "title": "Go to Bookmarked Message…",
         "category": "Claude Projects",
         "icon": "$(bookmark)"
+      },
+      {
+        "command": "claudeProjects.files.openRootInTerminal",
+        "title": "Open Project in Terminal",
+        "category": "Claude Projects: Files",
+        "icon": "$(terminal)"
       }
     ],
     "menus": {
@@ -594,14 +600,19 @@
           "group": "navigation@2"
         },
         {
-          "command": "claudeProjects.files.openRootInNewWindow",
+          "command": "claudeProjects.files.openRootInTerminal",
           "when": "view == claudeProjects.files",
           "group": "navigation@3"
         },
         {
-          "command": "claudeProjects.files.refresh",
+          "command": "claudeProjects.files.openRootInNewWindow",
           "when": "view == claudeProjects.files",
           "group": "navigation@4"
+        },
+        {
+          "command": "claudeProjects.files.refresh",
+          "when": "view == claudeProjects.files",
+          "group": "navigation@5"
         },
         {
           "command": "claudeProjects.showBookmarks",
@@ -877,7 +888,7 @@
         },
         {
           "command": "claudeProjects.openTerminal",
-          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "when": "view == claudeProjects.files && viewItem == files.file",
           "group": "1_open@3"
         },
         {
@@ -909,6 +920,11 @@
           "command": "claudeProjects.files.delete",
           "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
           "group": "4_edit@2"
+        },
+        {
+          "command": "claudeProjects.openTerminal",
+          "when": "view == claudeProjects.files && viewItem == files.folder",
+          "group": "0_terminal@1"
         }
       ],
       "editor/title": [
