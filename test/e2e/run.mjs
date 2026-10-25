@@ -128,6 +128,7 @@ try {
       CP_REAL_PROJECTS: process.env.CP_REAL_PROJECTS ?? '',
       CP_REAL_SESSION_CWD: process.env.CP_REAL_SESSION_CWD ?? '',
       CP_REAL_SESSION_ID: process.env.CP_REAL_SESSION_ID ?? '',
+      CP_E2E_IMAGE: process.env.CP_E2E_IMAGE ?? '',
       CP_REAL_DEFAULT_MODEL: process.env.CP_REAL_DEFAULT_MODEL ?? '',
       CP_REAL_DEFAULT_EFFORT: process.env.CP_REAL_DEFAULT_EFFORT ?? '',
       CP_E2E_CDP_PORT: visual ? String(cdpPort) : '',

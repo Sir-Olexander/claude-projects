@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import type { HandoffService } from '../handoff/Handoff';
 import type { ProjectStore } from '../projects/ProjectStore';
@@ -10,6 +11,15 @@ import type { Logger } from '../util/log';
 import { folderName } from '../util/paths';
 import { CHAT_VIEW_TYPE, ChatPanel } from './ChatPanel';
 import { PROPOSED_SCHEME, ProposedContentProvider } from './diffs';
+
+/**
+ * Folder of cached chat images as a plain file: URI. globalStorageUri can use
+ * VS Code's own vscode-userdata: scheme, which never matches the file: URLs the
+ * images are served from, so webviews would refuse them (HTTP 401).
+ */
+function imageCacheUri(context: vscode.ExtensionContext): vscode.Uri {
+  return vscode.Uri.file(join(context.globalStorageUri.fsPath, 'images'));
+}
 
 interface PersistedPanelState {
   session?: { key?: string; sessionId?: string; cwd?: string; title?: string };
@@ -44,7 +54,7 @@ export class ChatPanelManager implements vscode.Disposable {
     const { context, log } = this.deps;
     return {
       extensionUri: context.extensionUri,
-      imageDir: vscode.Uri.joinPath(context.globalStorageUri, 'images'),
+      imageDir: imageCacheUri(context),
       log,
       proposed: this.proposed,
       openInClaudeExtension: (s: ManagedSession) => this.openInClaudeExtension(s),
@@ -77,7 +87,13 @@ export class ChatPanelManager implements vscode.Disposable {
       CHAT_VIEW_TYPE,
       session.title,
       { viewColumn: opts.viewColumn ?? vscode.ViewColumn.Active, preserveFocus: opts.preserveFocus },
-      { enableScripts: true, retainContextWhenHidden: true, enableFindWidget: true },
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        enableFindWidget: true,
+        // Set here, not only later: the folders a webview may load files from (bundle + cached images).
+        localResourceRoots: [vscode.Uri.joinPath(this.deps.context.extensionUri, 'dist', 'webview'), imageCacheUri(this.deps.context)],
+      },
     );
     return this.attach(panel, session);
   }

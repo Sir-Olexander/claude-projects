@@ -119,6 +119,51 @@ export async function run(): Promise<void> {
   await sleep(1200);
   await screenshot('8-bookmark-jump');
 
+  // 7b) A message with a pasted image (big enough to go through the image cache).
+  if (process.env.CP_E2E_IMAGE) {
+    const { readFileSync } = await import('node:fs');
+    const data = readFileSync(process.env.CP_E2E_IMAGE).toString('base64');
+    await s.send('look at this picture', [{ mediaType: 'image/png', data, name: 'image.png' }]);
+    await waitFor('idle after image', () => s.status === 'idle');
+    await sleep(1500);
+    const img = s.getState().items.filter((i) => i.kind === 'user').pop() as { images?: { url?: string; data: string }[] };
+    log('sent image attachment:', JSON.stringify(img.images?.map((i) => ({ url: i.url, dataLen: i.data.length }))));
+    await api.panels.revealItem(s.sessionId, repo, (img as unknown as { id: string }).id);
+    await sleep(1500);
+    await screenshot('9-pasted-image');
+    // Diagnose: what src did the webview get, and did it load?
+    const port = process.env.CP_E2E_CDP_PORT;
+    const targets = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as { type: string; url: string; webSocketDebuggerUrl: string }[];
+    for (const t of targets.filter((x) => x.url.startsWith('vscode-webview://'))) {
+      const ws = new WebSocket(t.webSocketDebuggerUrl);
+      await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+      const logs: string[] = [];
+      let id = 0;
+      const call = (method: string, params: object = {}) =>
+        new Promise<unknown>((resolve) => {
+          const my = ++id;
+          const prev = ws.onmessage;
+          ws.onmessage = (ev) => {
+            const m = JSON.parse(String(ev.data));
+            if (m.method === 'Log.entryAdded') logs.push(`${m.params.entry.level} ${m.params.entry.text} ${m.params.entry.url ?? ''}`);
+            if (m.method === 'Runtime.consoleAPICalled') logs.push(`console ${JSON.stringify(m.params.args.map((x: { value?: unknown }) => x.value))}`);
+            if (m.id === my) { ws.onmessage = prev; resolve(m.result); }
+          };
+          ws.send(JSON.stringify({ id: my, method, params }));
+        });
+      ws.onmessage = (ev) => {
+        const m = JSON.parse(String(ev.data));
+        if (m.method === 'Log.entryAdded') logs.push(`${m.params.entry.level} ${m.params.entry.text} ${m.params.entry.url ?? ''}`);
+      };
+      await call('Log.enable');
+      await call('Runtime.evaluate', { expression: `(() => { const d = document.querySelector('iframe')?.contentDocument || document; const i = d.querySelector('.user-bubble img'); if (!i) return 'none'; const n = new Image(); n.src = i.src + '?retry=1'; d.body.appendChild(n); return i.src; })()` });
+      await new Promise((r) => setTimeout(r, 2500));
+      const res = logs.join('\n');
+      if (logs.length) log('webview log:', res);
+      ws.close();
+    }
+  }
+
   // 7) Light theme.
   await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Light Modern', vscode.ConfigurationTarget.Global);
   await sleep(2500);
