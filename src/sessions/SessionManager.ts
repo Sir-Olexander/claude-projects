@@ -9,7 +9,8 @@ import type { PermissionMode, PromptPreset } from '../shared/protocol';
 import { Emitter } from '../util/events';
 import type { Logger } from '../util/log';
 import { ImageCache } from './imageCache';
-import { ManagedSession, asEffort, type AttentionReason, type ManagedSessionInit, type SessionServices, type SessionSettings } from './ManagedSession';
+import { ManagedSession, asEffort, type AttentionReason, type ManagedSessionInit, type ProbedDefaults, type SessionServices, type SessionSettings } from './ManagedSession';
+import { ClaudeProcess } from '../claude/ClaudeProcess';
 import type { BookmarkStore, StoredBookmark } from './bookmarks';
 import { sourceOf } from './sources';
 
@@ -66,6 +67,7 @@ export class SessionManager implements vscode.Disposable {
       onRateLimit: (e) => deps.onRateLimit(e),
       onTranscriptActivity: (sessionId, cwd) => index.touch(transcriptPathFor(cwd, sessionId)),
       bookmarks: this.bookmarkStore,
+      probeDefaults: (cwd) => this.probeDefaults(cwd),
     };
 
     this.disposables.push(
@@ -77,6 +79,45 @@ export class SessionManager implements vscode.Disposable {
     this.disposables.push({ dispose: index.onDidChange(() => this.syncTitles()).dispose });
     this.disposables.push({ dispose: deps.registry.onDidChange(() => this.syncLiveElsewhere()).dispose });
     this.reaper = setInterval(() => this.reapIdle(), 60_000);
+  }
+
+  private readonly defaultsCache = new Map<string, { at: number; value: Promise<ProbedDefaults | undefined> }>();
+
+  /**
+   * Asks Claude Code which model and effort it would use in `cwd`, without a
+   * model call: a safe-mode CLI process (no hooks, plugins or MCP servers, no
+   * transcript) answers initialize + get_settings and exits. Cached per folder.
+   */
+  probeDefaults(cwd: string): Promise<ProbedDefaults | undefined> {
+    const hit = this.defaultsCache.get(cwd);
+    if (hit && Date.now() - hit.at < 120_000) return hit.value;
+    const value = (async (): Promise<ProbedDefaults | undefined> => {
+      const cliPath = await this.getCliPath();
+      if (!cliPath) return undefined;
+      const proc = new ClaudeProcess({
+        cliPath,
+        cwd,
+        noSessionPersistence: true,
+        safeMode: true,
+        strictMcpConfig: true,
+        includePartialMessages: false,
+        pathEnv: await this.services.getPathEnv(),
+        log: this.deps.log,
+      });
+      proc.start();
+      try {
+        const init = await proc.initialize();
+        const s = await proc.request<{ applied?: { model?: string; effort?: string | null } }>({ subtype: 'get_settings' }, 15_000);
+        return { model: s.applied?.model, effort: s.applied?.effort, models: init.models };
+      } catch (err) {
+        this.deps.log.debug(`probing defaults in ${cwd} failed: ${(err as Error).message}`);
+        return undefined;
+      } finally {
+        void proc.close(1000);
+      }
+    })();
+    this.defaultsCache.set(cwd, { at: Date.now(), value });
+    return value;
   }
 
   getCliPath(): Promise<string | undefined> {
@@ -117,6 +158,7 @@ export class SessionManager implements vscode.Disposable {
 
   private add(session: ManagedSession): ManagedSession {
     this.sessions.set(session.key, session);
+    void session.loadDefaults();
     session.onDidChange(() => this._onDidChange.fire(session));
     session.onNeedsAttention((a) => this._onNeedsAttention.fire({ session, ...a }));
     this.syncLiveElsewhere();

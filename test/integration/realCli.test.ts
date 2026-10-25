@@ -51,6 +51,7 @@ const services = (): SessionServices => ({
   onRateLimit: () => {},
   onTranscriptActivity: () => {},
   bookmarks: { load: () => [], save: () => {} },
+  probeDefaults: async () => undefined,
 });
 
 describe.runIf(enabled)('real Claude CLI', () => {

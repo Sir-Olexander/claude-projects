@@ -112,6 +112,7 @@ function services(overrides: Partial<SessionServices> = {}): SessionServices {
     onRateLimit: () => {},
     onTranscriptActivity: () => {},
     bookmarks: memoryBookmarks(),
+    probeDefaults: async () => undefined,
     ...overrides,
   };
 }
@@ -345,5 +346,34 @@ describe('ManagedSession: effort, MCP input and bookmarks', () => {
     s.toggleBookmark(user.id);
     expect(s.getState().bookmarks).toEqual([]);
     expect(store.map.get(s.sessionId)).toEqual([]);
+  });
+});
+
+describe('ManagedSession: defaults before the first message', () => {
+  it('shows the model and effort Claude Code will use before the process starts', async () => {
+    const probe = async () => ({
+      model: 'claude-opus-5-5',
+      effort: 'high',
+      models: [
+        { value: 'default', resolvedModel: 'claude-sonnet-5-5', displayName: 'Default (recommended)', supportedEffortLevels: ['low', 'high'] },
+        { value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus 5.5', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+      ],
+    });
+    const s = new ManagedSession({ cwd: tempDir(), projectName: 'T' }, services({ probeDefaults: probe }));
+    sessions.push(s);
+    await s.loadDefaults();
+    const st = s.getState();
+    expect(st).toMatchObject({ modelLabel: 'Opus 5.5', modelValue: 'opus', effort: 'high' });
+    expect(st.availableEfforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
+    expect(s.processAlive).toBe(false);
+  });
+
+  it('keeps choices from settings or the pickers', async () => {
+    const probe = async () => ({ model: 'claude-opus-5-5', effort: 'high', models: [{ value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus 5.5' }, { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku 5.5' }] });
+    const s = new ManagedSession({ cwd: tempDir(), projectName: 'T', model: 'haiku' }, services({ probeDefaults: probe }));
+    sessions.push(s);
+    await s.setEffort('low');
+    await s.loadDefaults();
+    expect(s.getState()).toMatchObject({ modelValue: 'haiku', modelLabel: 'Haiku 5.5', effort: 'low' });
   });
 });

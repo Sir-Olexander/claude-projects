@@ -76,5 +76,14 @@ export async function run(): Promise<void> {
     await sleep(3000);
     await screenshot('r2-real-session');
   }
+  // A brand-new session (nothing sent): the composer should already show the real defaults.
+  await vscode.commands.executeCommand('claudeProjects.newSession', { path: projects[0] });
+  const fresh = api.sessions.all.find((x) => x.isNew);
+  if (fresh) {
+    await waitFor('defaults', () => fresh.modelLabel && fresh.effort, 30_000).catch(() => undefined);
+    log('new session before any message:', fresh.modelLabel, fresh.effort, 'efforts:', fresh.getState().availableEfforts.join(','), 'process alive:', fresh.processAlive);
+    await sleep(1500);
+    await screenshot('r3-new-session-defaults');
+  }
   log('REAL DONE');
 }

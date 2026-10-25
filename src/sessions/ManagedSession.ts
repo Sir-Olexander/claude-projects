@@ -77,6 +77,18 @@ export interface SessionServices {
   onTranscriptActivity(sessionId: string, cwd: string): void;
   /** Persisted message bookmarks. */
   bookmarks: BookmarkStore;
+  /**
+   * The model and effort Claude Code would use in `cwd` (from its settings),
+   * asked from a short-lived CLI process; lets the chat show them before the
+   * session's own process starts.
+   */
+  probeDefaults(cwd: string): Promise<ProbedDefaults | undefined>;
+}
+
+export interface ProbedDefaults {
+  model?: string;
+  effort?: string | null;
+  models?: ModelInfo[];
 }
 
 export interface ManagedSessionInit {
@@ -450,6 +462,25 @@ export class ManagedSession {
         this.flush();
       }
     }
+  }
+
+  /**
+   * Shows the model and effort the session will start with (before its own
+   * process runs). Choices the user already made in this chat are kept.
+   */
+  async loadDefaults(): Promise<void> {
+    if (this.proc || this.disposed) return;
+    const d = await this.services.probeDefaults(this.cwd).catch(() => undefined);
+    if (!d || this.proc || this.disposed) return;
+    if (d.models?.length && !this.modelInfos.length) this.setModels(d.models, false);
+    if (!this.modelValue && d.model) this.setResolvedModel(d.model);
+    else if (this.modelValue) {
+      const info = this.modelInfos.find((m) => m.value === this.modelValue);
+      if (info) this.modelLabel = info.displayName.replace(/\s*\(recommended\)\s*/i, '');
+    }
+    if (this.effortChoice === undefined && !this.effort) this.effort = d.effort === null ? undefined : asEffort(d.effort);
+    this.patchUi({ availableModels: this.models, modelValue: this.modelValue, modelLabel: this.modelLabel, effort: this.effort ?? null, availableEfforts: this.availableEfforts() });
+    this.flush();
   }
 
   /** Settings changed: refresh what the panel shows from them. */
