@@ -365,7 +365,7 @@ export class ChatBuilder {
     }
     const content = msg.content;
     if (typeof content === 'string') {
-      this.addUserText(content, [], ctx);
+      if (!ctx.parentToolUseId) this.addUserText(content, [], ctx);
       return;
     }
     const texts: string[] = [];
@@ -380,7 +380,8 @@ export class ChatBuilder {
         if (src?.type === 'base64' && src.data) images.push(this.imageSink({ mediaType: src.media_type ?? 'image/png', data: src.data }));
       }
     }
-    if (texts.length || images.length) this.addUserText(texts.join('\n\n'), images, ctx);
+    // Text inside a subagent is the prompt Claude gave it (already shown on the Agent row), not something you typed.
+    if ((texts.length || images.length) && !ctx.parentToolUseId) this.addUserText(texts.join('\n\n'), images, ctx);
   }
 
   private addUserText(raw: string, images: ImageAttachment[], ctx: UserEntryContext): void {

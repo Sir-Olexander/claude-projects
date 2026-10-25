@@ -980,7 +980,9 @@ export class ManagedSession {
       }
       case 'task_notification': {
         const summary = typeof m.summary === 'string' ? m.summary : undefined;
-        if (summary) this.builder.addSystem('info', `Background task: ${summary}`);
+        // Agents run in the foreground already show their result on their tool row.
+        const shownAsTool = typeof m.tool_use_id === 'string' && !!this.builder.get(m.tool_use_id);
+        if (summary && !shownAsTool) this.builder.addSystem('info', `Background task: ${summary}`);
         this.scheduleFlush();
         break;
       }

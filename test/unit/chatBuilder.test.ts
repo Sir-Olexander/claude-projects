@@ -116,3 +116,15 @@ describe('ChatBuilder id mismatches', () => {
     expect(b.items[0]).toMatchObject({ kind: 'text', text: 'Hi there', id: 'm1:0' });
   });
 });
+
+describe('ChatBuilder subagents', () => {
+  it('does not show the prompt sent to a subagent as a user message, but nests its tools', () => {
+    const b = new ChatBuilder();
+    b.addAssistant({ id: 'm1', role: 'assistant', content: [{ type: 'tool_use', id: 'agent_1', name: 'Agent', input: { description: 'List files', prompt: 'Use Glob…' } }] }, null);
+    b.addUser({ role: 'user', content: [{ type: 'text', text: 'Use the Glob tool to list files' }] }, { parentToolUseId: 'agent_1', uuid: 'sub-prompt' });
+    b.addAssistant({ id: 's1', role: 'assistant', content: [{ type: 'tool_use', id: 'glob_1', name: 'Glob', input: { pattern: '*' } }] }, 'agent_1');
+    b.addUser({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'glob_1', content: 'a.txt' }] }, { parentToolUseId: 'agent_1' });
+    expect(b.items.filter((i) => i.kind === 'user')).toHaveLength(0);
+    expect(b.get<ToolItem>('glob_1')).toMatchObject({ parentToolUseId: 'agent_1', status: 'done', result: { text: 'a.txt' } });
+  });
+});

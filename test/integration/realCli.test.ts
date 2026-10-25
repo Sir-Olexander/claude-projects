@@ -108,4 +108,26 @@ describe.runIf(enabled)('real Claude CLI', () => {
     expect(s.effort).not.toBe('low');
     await s.stopProcess();
   }, 180_000);
+
+  it('runs a subagent and nests its tool calls under the Agent row', async () => {
+    const s = new ManagedSession({ cwd: dir, projectName: 'Integration', permissionMode: 'acceptEdits' }, services());
+    created.push(transcriptPathFor(dir, s.sessionId));
+    await s.send('Use the Agent tool to launch one general-purpose subagent that lists the files in the current directory and reports them. Then reply with one word: done.');
+    await waitFor(() => s.status === 'idle' || s.status === 'error' || s.pendingRequests.length > 0);
+    // Allow anything the subagent asks for (read-only listing).
+    while (s.pendingRequests.length) {
+      const p = s.pendingRequests[0];
+      if (p.kind === 'permission') s.respondPermission(p.requestId, 'allow');
+      await waitFor(() => s.status === 'idle' || s.status === 'error' || s.pendingRequests.length > 0);
+    }
+    expect(s.error).toBeUndefined();
+    const items = s.getState().items;
+    const agent = items.find((i): i is ToolItem => i.kind === 'tool' && (i.name === 'Agent' || i.name === 'Task'));
+    expect(agent?.status).toBe('done');
+    const nested = items.filter((i) => i.kind === 'tool' && i.parentToolUseId === agent!.id);
+    expect(nested.length).toBeGreaterThan(0);
+    // Only the message we typed appears as a user message.
+    expect(items.filter((i) => i.kind === 'user').map((i) => (i as { text: string }).text)).toHaveLength(1);
+    await s.stopProcess();
+  }, 180_000);
 });
