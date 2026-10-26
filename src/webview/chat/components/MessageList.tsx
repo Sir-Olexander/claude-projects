@@ -9,16 +9,90 @@ import { Icon } from './ui';
 import { send } from './actions';
 import { CopyButton } from './items';
 import { memo } from 'preact/compat';
+import { usageByReply, type UsedEntry } from '../lib/usage';
 
 const BOOKMARKABLE = new Set(['user', 'text', 'tool']);
 
+const RUNNING = new Set(['running', 'pending', 'streaming', 'waiting-permission']);
+
+/** Button on a reply listing the skills and agents used since your last prompt. */
+function UsedButton({ used }: { used: UsedEntry[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', close, true);
+    document.addEventListener('keydown', esc, true);
+    return () => {
+      document.removeEventListener('mousedown', close, true);
+      document.removeEventListener('keydown', esc, true);
+    };
+  }, [open]);
+  const skills = used.filter((u) => u.kind === 'skill');
+  const agents = used.filter((u) => u.kind === 'agent');
+  const summary = [skills.length ? `${skills.length} skill${skills.length > 1 ? 's' : ''}` : '', agents.length ? `${agents.length} agent${agents.length > 1 ? 's' : ''}` : ''].filter(Boolean).join(', ');
+  const row = (u: UsedEntry, i: number) => (
+    <button
+      key={i}
+      type="button"
+      class="used-row"
+      title="Show it in the conversation"
+      onClick={() => {
+        setOpen(false);
+        store.scrollTo(u.itemId);
+      }}
+    >
+      <Icon name={u.kind === 'agent' ? (RUNNING.has(u.status ?? '') ? 'loading' : 'hubot') : 'sparkle'} spin={u.kind === 'agent' && RUNNING.has(u.status ?? '')} />
+      <span class="used-label">{u.byYou ? `/${u.label}` : u.label}</span>
+      {u.detail ? <span class="used-detail">{u.detail}</span> : null}
+      {u.byYou ? <span class="used-tag">you</span> : u.nested ? <span class="used-tag">in agent</span> : null}
+    </button>
+  );
+  return (
+    <div class={`bm-used-wrap${open ? ' is-open' : ''}`} ref={ref}>
+      <button
+        type="button"
+        class="bm-toggle bm-used"
+        title={`Skills and agents used since your last message: ${summary}`}
+        aria-label={`Skills and agents used: ${summary}`}
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+      >
+        <Icon name="layers" />
+      </button>
+      {open ? (
+        <div class="used-pop" role="dialog" aria-label="Skills and agents used">
+          <div class="used-head">Since your last message</div>
+          {skills.length ? <div class="used-section">Skills</div> : null}
+          {skills.map(row)}
+          {agents.length ? <div class="used-section">Agents</div> : null}
+          {agents.map(row)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** A top-level item with its hover copy and bookmark buttons. */
-const Frame = memo(function Frame({ item, kids, marked }: { item: ChatItem; kids?: ChatItem[]; marked: boolean }) {
+const Frame = memo(function Frame({ item, kids, marked, used }: { item: ChatItem; kids?: ChatItem[]; marked: boolean; used?: UsedEntry[] }) {
   const can = BOOKMARKABLE.has(item.kind) && !(item.kind === 'text' && !item.text.trim()) && !(item.kind === 'user' && item.queued);
   return (
     <div class={`bm-frame${marked ? ' is-marked' : ''}`} data-item-id={item.id}>
       <ItemView item={item} kids={kids} />
       {item.kind === 'text' && item.text.trim() && !item.streaming ? <CopyButton text={item.text} label="Copy reply (Markdown)" class="bm-toggle bm-copy" /> : null}
+      {item.kind === 'text' && used?.length && !item.streaming ? <UsedButton used={used} /> : null}
       {item.kind === 'text' && item.uuid && item.text.trim() && !item.streaming ? (
         <button
           type="button"
@@ -102,8 +176,10 @@ export function MessageList({ state, contentVersion, empty, onSeen }: { state: C
     [children],
   );
   const marked = useMemo(() => new Set((state.bookmarks ?? []).map((b) => b.itemId)), [state.bookmarks]);
+  const usedRef = useRef<Map<string, UsedEntry[]>>(new Map());
+  const used = useMemo(() => (usedRef.current = usageByReply(state.items, usedRef.current)), [state.items]);
   const renderTop = (list: ChatItem[]) =>
-    list.map((it) => <Frame key={it.id} item={it} kids={it.kind === 'tool' ? children.get(it.id) : undefined} marked={marked.has(it.id)} />);
+    list.map((it) => <Frame key={it.id} item={it} kids={it.kind === 'tool' ? children.get(it.id) : undefined} marked={marked.has(it.id)} used={used.get(it.id)} />);
 
   // Jump to a bookmarked item; load older history first if it isn't rendered yet.
   const pendingScroll = useRef<string | undefined>(undefined);

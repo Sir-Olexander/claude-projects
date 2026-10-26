@@ -632,6 +632,99 @@
 .bm-toggle.bm-fork {
   right: 46px;
 }
+
+/* Skills and agents used since your last message. */
+.bm-used-wrap {
+  position: absolute;
+  top: 2px;
+  right: 70px;
+  z-index: 5;
+}
+.bm-used-wrap > .bm-toggle.bm-used {
+  position: static;
+}
+.bm-frame:hover > .bm-used-wrap > .bm-used,
+.bm-used-wrap.is-open > .bm-used,
+.bm-used:focus-visible {
+  opacity: 1;
+}
+.used-pop {
+  position: absolute;
+  top: 26px;
+  right: 0;
+  width: min(360px, 80vw);
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--menu-border);
+  border-radius: var(--radius-m);
+  background: var(--menu-bg);
+  color: var(--menu-fg);
+  box-shadow: 0 4px 18px var(--shadow);
+}
+.used-head {
+  padding: 4px 8px 2px;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.used-section {
+  padding: 6px 8px 2px;
+  color: var(--fg-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.used-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.used-row:hover,
+.used-row:focus-visible {
+  background: var(--menu-sel-bg);
+  color: var(--menu-sel-fg);
+}
+.used-row .codicon {
+  flex: none;
+  align-self: center;
+  font-size: 13px;
+}
+.used-label {
+  flex: none;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+}
+.used-detail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.used-row:hover .used-detail {
+  color: inherit;
+  opacity: 0.85;
+}
+.used-tag {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--pill-bg);
+  color: var(--fg-muted);
+  font-size: 10.5px;
+}
 .bm-toggle.bm-copy.is-copied {
   opacity: 1;
   color: var(--vscode-testing-iconPassed, #73c991);
