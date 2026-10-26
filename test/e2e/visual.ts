@@ -86,6 +86,25 @@ export async function run(): Promise<void> {
   await sleep(1500);
   await screenshot('3-chat-finished');
 
+  // Files view: the New File box shows the selected folder's path.
+  {
+    const views = api.gitViews();
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(join(repo, 'docs'), { recursive: true });
+    views?.files.refreshAll();
+    await vscode.commands.executeCommand('claudeProjects.files.focus');
+    await sleep(1000);
+    const docs = views?.files.nodeFor(join(repo, 'docs'));
+    if (views && docs) {
+      await views.filesView.reveal(docs, { select: true, focus: true });
+      void vscode.commands.executeCommand('claudeProjects.files.newFile');
+      await sleep(1200);
+      await screenshot('12-files-new-file');
+      await vscode.commands.executeCommand('workbench.action.closeQuickOpen');
+      await sleep(300);
+    }
+  }
+
   if (process.env.CP_E2E_PROBE_FILES) {
     await probeFilesCreate(api as never, repo, log);
     await probeFilesSelection(api as never, log);
