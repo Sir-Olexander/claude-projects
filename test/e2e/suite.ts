@@ -339,6 +339,18 @@ export async function run(): Promise<void> {
     await vscode.workspace.getConfiguration('claudeProjects.files').update('confirmDragAndDrop', undefined, vscode.ConfigurationTarget.Global);
   });
 
+  await check('shared .env: a new chat lists its variable names', async () => {
+    const envFile = join(claudeHome, 'shared.env');
+    writeFileSync(envFile, '# test\nSHARED_E2E_KEY=abc123\n');
+    await vscode.workspace.getConfiguration('claudeProjects').update('chat.globalEnvFile', envFile, vscode.ConfigurationTarget.Global);
+    const s = await api.panels.newSession(repo);
+    log('sharedEnv in a new chat:', JSON.stringify(s.getState().sharedEnv));
+    assert.deepEqual(s.getState().sharedEnv, ['SHARED_E2E_KEY']);
+    api.panels.closeTab(s.key);
+    await api.sessions.close(s.key);
+    await vscode.workspace.getConfiguration('claudeProjects').update('chat.globalEnvFile', undefined, vscode.ConfigurationTarget.Global);
+  });
+
   await check('refresh and next-attention commands run', async () => {
     await vscode.commands.executeCommand('claudeProjects.refresh');
     await vscode.commands.executeCommand('claudeProjects.focusNextAttention');

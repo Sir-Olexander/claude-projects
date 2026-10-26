@@ -817,7 +817,32 @@ kbd {
   }
 }
 
-/* Key icon when the shared .env has variables. */
-.icon-btn.has-env {
-  color: var(--fg);
+/* Shared .env menu (reuses the bookmarks menu look). */
+.env-hint {
+  padding: 2px 10px 6px;
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.env-name {
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+.env-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 8px);
+  margin: 4px;
+  padding: 5px 8px;
+  border: 0;
+  border-top: 1px solid var(--menu-border);
+  border-radius: 0 0 var(--radius-s) var(--radius-s);
+  background: transparent;
+  color: var(--link);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.env-edit:hover {
+  background: var(--hover-bg);
 }

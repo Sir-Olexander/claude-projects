@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ClaudeProjectsApi } from '../../src/extension';
-import { probeFilesCreate, probeFilesSelection, probeSelection } from './probe';
+import { probeFilesCreate, probeFilesSelection, probeSelection, webviewQuery } from './probe';
 
 const log = (...a: unknown[]) => console.log('[visual]', ...a);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -179,6 +179,20 @@ export async function run(): Promise<void> {
   await sleep(1200);
   await screenshot('11-limit-dashboard');
   api.panels.show(s);
+
+  if (process.env.CP_E2E_PROBE_ENV) {
+    const { writeFileSync: wf } = await import('node:fs');
+    const envFile = join(process.env.CLAUDE_CONFIG_DIR ?? '/tmp', 'shared.env');
+    wf(envFile, 'OpenAI_API_KEY=abc\n');
+    await vscode.workspace.getConfiguration('claudeProjects').update('chat.globalEnvFile', envFile, vscode.ConfigurationTarget.Global);
+    const fresh = await api.panels.newSession(repo);
+    await sleep(2500);
+    log('state.sharedEnv:', JSON.stringify(fresh.getState().sharedEnv));
+    const menu = await webviewQuery(
+      `(d) => { const b = [...d.querySelectorAll('.icon-btn')].find((x) => x.querySelector('.codicon-key') && x.offsetParent); if (!b) return null; b.click(); return new Promise((r) => setTimeout(() => r({ badge: b.querySelector('.bm-count')?.textContent, menu: d.querySelector('.env-menu')?.innerText }), 200)); }`,
+    );
+    log('shared env menu:', JSON.stringify(menu.filter(Boolean)));
+  }
 
   // 7) Light theme.
   await vscode.workspace.getConfiguration('workbench').update('colorTheme', 'Default Light Modern', vscode.ConfigurationTarget.Global);

@@ -31,16 +31,7 @@ export function Header({ state }: { state: ChatState }) {
       </div>
       <div class="header-actions">
         {state.agents?.length ? <AgentsChip agents={state.agents} /> : null}
-        <IconButton
-          icon="key"
-          class={state.sharedEnv?.length ? 'has-env' : undefined}
-          title={
-            state.sharedEnv?.length
-              ? `Shared .env: ${state.sharedEnv.join(', ')}. Claude can use these ($NAME) without seeing the values. Click to edit.`
-              : 'Shared .env: no variables yet. Click to add variables every chat can use without showing their values.'
-          }
-          onClick={() => send({ type: 'open-global-env' })}
-        />
+        <SharedEnvMenu names={state.sharedEnv ?? []} />
         <IconButton
           icon="remote"
           title={state.remote?.state === 'on' ? 'Remote Control is on. Click to turn it off.' : 'Remote Control: continue this chat from claude.ai or the Claude app'}
@@ -73,6 +64,78 @@ function AgentsChip({ agents }: { agents: NonNullable<ChatState['agents']> }) {
         {n} agent{n > 1 ? 's' : ''}
       </span>
     </button>
+  );
+}
+
+/** The shared .env variables this chat has: names only; click one to put $NAME in your message. */
+function SharedEnvMenu({ names }: { names: string[] }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div class="bm-menu-wrap" ref={root}>
+      <button
+        type="button"
+        class={`icon-btn bm-menu-btn${names.length ? ' has-items' : ''}`}
+        title="Shared .env"
+        aria-label={`Shared .env: ${names.length} variable${names.length === 1 ? '' : 's'}`}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Icon name="key" />
+        {names.length ? <span class="bm-count">{names.length}</span> : null}
+      </button>
+      {open ? (
+        <div class="bm-menu env-menu" role="menu">
+          <div class="bm-menu-title">Shared .env</div>
+          {names.length === 0 ? (
+            <div class="bm-empty">No variables yet. Add lines like MY_API_KEY=… to the shared .env and save it.</div>
+          ) : (
+            <>
+              <div class="env-hint">Claude has these in its environment and knows their names, not their values. Click one to use it in your message.</div>
+              {names.map((n) => (
+                <div class="bm-row" role="menuitem" key={n}>
+                  <button
+                    type="button"
+                    class="bm-go"
+                    title={`Insert $${n}`}
+                    onClick={() => {
+                      setOpen(false);
+                      store.insertText(`$${n}`);
+                    }}
+                  >
+                    <Icon name="symbol-variable" class="bm-kind" />
+                    <span class="bm-label env-name">${n}</span>
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+          <button
+            type="button"
+            class="env-edit"
+            onClick={() => {
+              setOpen(false);
+              send({ type: 'open-global-env' });
+            }}
+          >
+            <Icon name="edit" /> Edit shared .env
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -49,6 +49,11 @@ export class ChatStore {
     this.emit('scroll-to', itemId);
   }
 
+  /** Insert text into the message box at the end. */
+  insertText(text: string): void {
+    this.emit('insert-text', text);
+  }
+
   private emit(type: string, detail?: unknown): void {
     this.bus.dispatchEvent(new CustomEvent(type, { detail }));
   }

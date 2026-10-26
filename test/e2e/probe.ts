@@ -141,3 +141,31 @@ export async function probeFilesCreate(api: { gitViews(): { filesView: vscode.Tr
   log('probe-2 at root?', existsSync(`${root}/probe-2.txt`), 'in probe-b?', existsSync(`${root}/probe-b/probe-2.txt`), 'selection:', JSON.stringify(sel()));
 }
 
+
+/** Reads an attribute of an element in every chat webview (diagnostics). */
+export async function webviewQuery(expression: string): Promise<unknown[]> {
+  const port = process.env.CP_E2E_CDP_PORT;
+  const targets = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as { type: string; url: string; webSocketDebuggerUrl: string }[];
+  const out: unknown[] = [];
+  for (const t of targets.filter((x) => x.url.startsWith('vscode-webview://'))) {
+    try {
+      const ws = new WebSocket(t.webSocketDebuggerUrl);
+      await new Promise((r, j) => {
+        ws.onopen = r;
+        ws.onerror = j;
+      });
+      const v = await new Promise<unknown>((resolve) => {
+        ws.onmessage = (ev) => {
+          const m = JSON.parse(String(ev.data));
+          if (m.id === 1) resolve(m.result?.result?.value);
+        };
+        ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { returnByValue: true, awaitPromise: true, expression: `(() => { const d = document.querySelector('iframe')?.contentDocument || document; return (${expression})(d); })()` } }));
+      });
+      out.push(v);
+      ws.close();
+    } catch {
+      // not reachable
+    }
+  }
+  return out;
+}
