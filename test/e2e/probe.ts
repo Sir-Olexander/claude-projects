@@ -140,3 +140,4 @@ export async function probeFilesCreate(api: { gitViews(): { filesView: vscode.Tr
   await sleep(800);
   log('probe-2 at root?', existsSync(`${root}/probe-2.txt`), 'in probe-b?', existsSync(`${root}/probe-b/probe-2.txt`), 'selection:', JSON.stringify(sel()));
 }
+

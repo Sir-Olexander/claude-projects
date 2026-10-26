@@ -211,6 +211,22 @@ export async function run(): Promise<void> {
     });
   }
 
+  await check('forking from a reply opens a new chat with the conversation up to it', async () => {
+    const s = api.sessions.findBySessionId(existingId)!;
+    await s.ensureHistory();
+    const reply = s.getState().items.find((i) => i.kind === 'text' && i.text === 'Earlier answer')!;
+    assert.ok(reply, 'reply in history');
+    const fork = api.panels.fork(s, reply.id)!;
+    assert.ok(fork && api.panels.hasPanel(fork.key), 'fork tab opened');
+    assert.notEqual(fork.sessionId, existingId);
+    await fork.ensureHistory();
+    const texts = fork.getState().items.filter((i) => i.kind === 'user' || i.kind === 'text').map((i) => (i as { text: string }).text);
+    assert.deepEqual(texts, ['Earlier question', 'Earlier answer']);
+    await waitFor('fork tab title', () => tabLabels().some((l) => l.includes('(fork)')));
+    api.panels.closeTab(fork.key);
+    await api.sessions.close(fork.key);
+  });
+
   await check('stop session ends the process', async () => {
     const s = api.sessions.findBySessionId(existingId)!;
     assert.ok(s.processAlive, 'process running before stop');
