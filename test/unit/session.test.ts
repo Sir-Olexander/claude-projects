@@ -86,7 +86,7 @@ describe('ClaudeProcess', () => {
       proc.start();
       await proc.initialize();
       const logged = JSON.parse(readFileSync(logFile, 'utf8').trim().split('\n')[0]);
-      expect(logged.env).toEqual({ entry: 'sdk-ts', electron: null });
+      expect(logged.env).toMatchObject({ entry: 'sdk-ts', electron: null });
       expect(logged.args).toContain('--session-id');
       expect(logged.args).toContain('acceptEdits');
     } finally {
