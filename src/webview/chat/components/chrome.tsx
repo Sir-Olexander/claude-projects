@@ -31,13 +31,16 @@ export function Header({ state }: { state: ChatState }) {
       </div>
       <div class="header-actions">
         {state.agents?.length ? <AgentsChip agents={state.agents} /> : null}
-        {state.sharedEnv?.length ? (
-          <IconButton
-            icon="key"
-            title={`Shared .env: ${state.sharedEnv.join(', ')}. Claude can use these ($NAME) without seeing the values. Click to edit.`}
-            onClick={() => send({ type: 'open-global-env' })}
-          />
-        ) : null}
+        <IconButton
+          icon="key"
+          class={state.sharedEnv?.length ? 'has-env' : undefined}
+          title={
+            state.sharedEnv?.length
+              ? `Shared .env: ${state.sharedEnv.join(', ')}. Claude can use these ($NAME) without seeing the values. Click to edit.`
+              : 'Shared .env: no variables yet. Click to add variables every chat can use without showing their values.'
+          }
+          onClick={() => send({ type: 'open-global-env' })}
+        />
         <IconButton
           icon="remote"
           title={state.remote?.state === 'on' ? 'Remote Control is on. Click to turn it off.' : 'Remote Control: continue this chat from claude.ai or the Claude app'}

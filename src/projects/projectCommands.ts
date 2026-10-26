@@ -302,6 +302,7 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
 
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (doc.uri.scheme !== 'file' || doc.uri.fsPath !== globalEnvPath()) return;
+      for (const s of sessions.all) s.refreshSharedEnv();
       const env = readGlobalEnv(doc.uri.fsPath);
       const names = Object.keys(env?.vars ?? {});
       const skipped = env?.skipped.length ? ` Ignored: ${env.skipped.map((s) => `${s.name} (${s.reason})`).join(', ')}.` : '';

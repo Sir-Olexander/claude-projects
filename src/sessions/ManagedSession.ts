@@ -394,7 +394,8 @@ export class ManagedSession {
       contextUsage: this.contextUsage,
       forkFrom: this.hasTranscript ? undefined : this.forkFrom,
       agents: this.runningAgents(),
-      sharedEnv: this.sharedEnvNames,
+      // Before Claude starts: what it will get from the file. After: what it got.
+      sharedEnv: this.proc?.alive ? this.sharedEnvNames : Object.keys(this.services.globalEnv?.()?.vars ?? {}).sort(),
       remote: this.remote,
       autoContinue: this.autoContinue,
       limit: this.limitStop,
@@ -731,6 +732,13 @@ export class ManagedSession {
     } catch (err) {
       this.setRemote({ state: 'error', error: errorMessage(err) });
     }
+  }
+
+  /** The shared .env was edited: chats whose Claude hasn't started show the new names. */
+  refreshSharedEnv(): void {
+    if (this.proc?.alive) return; // a running Claude keeps what it started with
+    this.patchUi({ sharedEnv: Object.keys(this.services.globalEnv?.()?.vars ?? {}).sort() });
+    this.flush();
   }
 
   private setRemote(remote: RemoteControlView | undefined): void {

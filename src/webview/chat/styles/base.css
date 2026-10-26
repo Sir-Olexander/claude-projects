@@ -816,3 +816,8 @@ kbd {
     transition: none;
   }
 }
+
+/* Key icon when the shared .env has variables. */
+.icon-btn.has-env {
+  color: var(--fg);
+}

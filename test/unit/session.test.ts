@@ -605,6 +605,7 @@ describe('ManagedSession: shared .env', () => {
     try {
       const s = new ManagedSession({ cwd: tempDir(), projectName: 'T' }, services({ globalEnv: () => ({ vars: { SHARED_TOKEN: 's3cret-value' }, skipped: [] }) }));
       sessions.push(s);
+      expect(s.getState().sharedEnv).toEqual(['SHARED_TOKEN']); // shown before Claude starts too
       await s.send('hello');
       await waitFor(() => s.status === 'idle');
       const entry = JSON.parse(readFileSync(log, 'utf8').trim().split('\n').pop()!) as { args: string[]; env: { sharedToken: string | null } };
