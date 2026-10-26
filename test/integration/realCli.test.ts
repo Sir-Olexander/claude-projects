@@ -161,6 +161,11 @@ describe.runIf(enabled)('real Claude CLI', () => {
     expect(existsSync(transcriptPathFor(dir, fork.sessionId))).toBe(true);
     expect(readFileSync(transcriptPathFor(dir, s.sessionId), 'utf8')).toContain('MANGO');
     expect(readFileSync(transcriptPathFor(dir, s.sessionId), 'utf8')).not.toContain('List every code word');
+    // The fork keeps its own name (Claude copies the original's title) and saves it in its transcript.
+    expect(fork.title).toMatch(/\(fork\)$/);
+    await waitFor(() => readFileSync(transcriptPathFor(dir, fork.sessionId), 'utf8').includes('"customTitle"'), 10_000);
+    const tail = readFileSync(transcriptPathFor(dir, fork.sessionId), 'utf8');
+    expect(tail).toContain(`"customTitle":${JSON.stringify(fork.title)}`);
     await fork.stopProcess();
     await s.stopProcess();
   }, 240_000);

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { transcriptPathFor } from '../../src/claude/paths';
 import { ClaudeProcess } from '../../src/claude/ClaudeProcess';
-import { ManagedSession, type SessionServices } from '../../src/sessions/ManagedSession';
+import { ManagedSession, forkTitle, type SessionServices } from '../../src/sessions/ManagedSession';
 import type { ExtToChatMessage, ToolItem, UserItem } from '../../src/shared/protocol';
 import { silentLogger } from '../../src/util/log';
 import type { StoredBookmark } from '../../src/sessions/bookmarks';
@@ -550,10 +550,29 @@ describe('ManagedSession: forking from a reply', () => {
       expect(after('--session-id')).toBe(fork.sessionId);
       expect(after('--resume-session-at')).toBe('a1');
       expect(fork.getState().forkFrom).toBeUndefined();
+
+      // Claude copies the original's title into the fork's transcript; the fork keeps its own
+      // name and saves it there (as /rename would) once the transcript exists.
+      const forkFile = transcriptPathFor(cwd, fork.sessionId);
+      writeFileSync(forkFile, JSON.stringify({ type: 'ai-title', aiTitle: 'Original', sessionId: fork.sessionId }) + '\n');
+      fork.setTitle('Original', false);
+      expect(fork.title).toBe('Original (fork)');
+      await fork.send('One more');
+      await waitFor(() => readFileSync(forkFile, 'utf8').includes('custom-title'));
+      expect(readFileSync(forkFile, 'utf8')).toContain('"customTitle":"Original (fork)"');
     } finally {
       if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
       else process.env.CLAUDE_CONFIG_DIR = prev;
       delete process.env.FAKE_CLAUDE_LOG;
     }
+  });
+});
+
+describe('fork names', () => {
+  it('adds (fork), then numbers further forks, without stacking suffixes', () => {
+    expect(forkTitle('Fix login', [])).toBe('Fix login (fork)');
+    expect(forkTitle('Fix login', ['Fix login (fork)'])).toBe('Fix login (fork 2)');
+    expect(forkTitle('Fix login (fork)', ['Fix login (fork)', 'Fix login (fork 2)'])).toBe('Fix login (fork 3)');
+    expect(forkTitle('Fix login (fork 2)', [])).toBe('Fix login (fork)');
   });
 });

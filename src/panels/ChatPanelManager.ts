@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import type { HandoffService } from '../handoff/Handoff';
 import type { ProjectStore } from '../projects/ProjectStore';
 import type { SessionIndex } from '../claude/SessionIndex';
-import type { ForkSource, ManagedSession } from '../sessions/ManagedSession';
+import { forkTitle, type ForkSource, type ManagedSession } from '../sessions/ManagedSession';
 import type { SessionManager } from '../sessions/SessionManager';
 import { getCurrentBranch } from '../git/gitCli';
 import type { Logger } from '../util/log';
@@ -159,6 +159,7 @@ export class ChatPanelManager implements vscode.Disposable {
       void vscode.window.showWarningMessage("Can't fork from this message: it isn't saved in the session yet.");
       return undefined;
     }
+    const taken = [...this.deps.index.sessionsFor(source.cwd).map((i) => i.title), ...this.deps.sessions.all.map((s) => s.title)];
     const session = this.deps.sessions.createNew({
       cwd: source.cwd,
       projectName: source.projectName,
@@ -167,6 +168,7 @@ export class ChatPanelManager implements vscode.Disposable {
       permissionMode: source.permissionMode,
       model: source.modelValue,
       forkFrom: from,
+      title: forkTitle(from.title, taken),
     });
     this.show(session);
     return session;

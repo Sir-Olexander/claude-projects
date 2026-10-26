@@ -223,6 +223,14 @@ export async function run(): Promise<void> {
     const texts = fork.getState().items.filter((i) => i.kind === 'user' || i.kind === 'text').map((i) => (i as { text: string }).text);
     assert.deepEqual(texts, ['Earlier question', 'Earlier answer']);
     await waitFor('fork tab title', () => tabLabels().some((l) => l.includes('(fork)')));
+    // Listed in Projects right away, before its first message.
+    const listedInProjects = async () => {
+      const top = (await api.tree.getChildren()) as ProjectsNode[];
+      const node = top.find((n) => n.kind === 'project' && (n as { projectId?: string }).projectId === project.id);
+      const kids = node ? ((await api.tree.getChildren(node)) as ProjectsNode[]) : [];
+      return kids.some((k) => k.kind === 'session' && (k as SessionNode).sessionId === fork.sessionId);
+    };
+    await waitFor('fork listed in Projects', listedInProjects, 10_000);
     api.panels.closeTab(fork.key);
     await api.sessions.close(fork.key);
   });

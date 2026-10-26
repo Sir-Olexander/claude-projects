@@ -184,7 +184,7 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     // Sessions opened here that have no transcript yet (new) or fresher titles.
     for (const s of this.sessions.all) {
       if (!isSameOrInside(s.cwd, root) || excluded.some((e) => isSameOrInside(s.cwd, e))) continue;
-      if (s.isNew && !s.processAlive && s.visibleCount === 0) continue;
+      if (s.isNew && !s.processAlive && s.visibleCount === 0 && !s.isUnstartedFork) continue;
       add(s.sessionId, s.cwd, s.title, undefined, s);
     }
     const list = [...rows.values()];
@@ -192,7 +192,8 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     // Opening an old session to read it must not make it jump to the top; only real activity counts.
     const lastActive = (n: SessionNode) => {
       const managed = n.managedKey ? this.sessions.get(n.managedKey) : undefined;
-      return Math.max(n.info?.lastModified ?? 0, live(n)?.since ?? 0, managed?.processAlive ? managed.lastActivityAt : 0);
+      // A chat opened here that has no transcript yet (a new chat or fork) counts from when it was opened.
+      return Math.max(n.info?.lastModified ?? 0, live(n)?.since ?? 0, managed?.processAlive || managed?.isNew ? managed.lastActivityAt : 0);
     };
     list.sort((a, b) => {
       const la = live(a);

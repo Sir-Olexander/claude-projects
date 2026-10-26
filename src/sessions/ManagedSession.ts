@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import { ClaudeProcess, type ControlRequestEvent, type ExitEvent } from '../claude/ClaudeProcess';
 import { transcriptPathFor } from '../claude/paths';
 import type {
@@ -197,6 +197,8 @@ export class ManagedSession {
   private forkOnNextStart = false;
   /** Set until this fork has its own transcript (written with the first message). */
   private forkFrom: ForkSource | undefined;
+  /** The fork's name still has to be written into its new transcript. */
+  private forkTitlePending = false;
   private uiPatch: ChatStatePatch = {};
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
@@ -243,7 +245,10 @@ export class ManagedSession {
       this.key = this.sessionId;
       this.hasTranscript = false;
       this.status = 'new';
-      this.title = init.title || `${init.forkFrom.title} (fork)`;
+      this.title = init.title || forkTitle(init.forkFrom.title, []);
+      // Claude copies the original's title into the fork: keep ours, and save it as the fork's name.
+      this.titleFromUser = true;
+      this.forkTitlePending = true;
     } else {
       this.sessionId = randomUUID();
       this.key = this.sessionId;
@@ -263,6 +268,11 @@ export class ManagedSession {
 
   get isNew(): boolean {
     return this.status === 'new';
+  }
+
+  /** A fork that hasn't sent its first message yet. */
+  get isUnstartedFork(): boolean {
+    return !!this.forkFrom && !this.hasTranscript;
   }
 
   get processAlive(): boolean {
@@ -514,6 +524,19 @@ export class ManagedSession {
     this.armAutoContinue();
     this.patchUi({ autoContinue: true, limit: this.limitStop });
     this._onDidChange.fire();
+  }
+
+  /** Writes the fork's name into its transcript (the record /rename writes), once the transcript exists. */
+  private async saveForkTitle(): Promise<void> {
+    const path = this.transcriptPath;
+    if (!existsSync(path)) return;
+    this.forkTitlePending = false;
+    try {
+      await appendFile(path, JSON.stringify({ type: 'custom-title', customTitle: this.title, sessionId: this.sessionId }) + '\n');
+      this.services.onTranscriptActivity(this.sessionId, this.cwd);
+    } catch (err) {
+      this.log.warn(`could not save the fork's name: ${errorMessage(err)}`);
+    }
   }
 
   /** The original conversation up to the fork point, shown until the fork has its own transcript. */
@@ -1165,6 +1188,7 @@ export class ManagedSession {
         const interrupted = r.subtype === 'error_during_execution' && !(r.errors?.length);
         const errorText = r.is_error && !interrupted ? (r.errors?.join('\n') || r.result || 'The turn ended with an error.') : undefined;
         this.builder.addTurnEnd({ durationMs: r.duration_ms, isError: !!errorText, errorText });
+        if (this.forkTitlePending) void this.saveForkTitle();
         const limitText = this.turnLimit ?? (errorText && isLimitMessage(errorText) ? errorText : undefined);
         if (limitText) this.onLimitStop(limitText);
         else if (!interrupted) this.autoAttempts = 0;
@@ -1455,6 +1479,17 @@ export class ManagedSession {
 }
 
 type SystemFrame = Omit<Partial<SdkSystemInit>, 'subtype'> & { subtype: string; [k: string]: unknown };
+
+/**
+ * Name for a fork of `title`: "Title (fork)", or "Title (fork 2)", "(fork 3)"…
+ * when that name is taken. Forking a fork keeps one "(fork N)" suffix.
+ */
+export function forkTitle(title: string, taken: readonly string[]): string {
+  const base = title.replace(/\s*\(fork(?: \d+)?\)$/, '') || 'Session';
+  const used = new Set(taken);
+  if (!used.has(`${base} (fork)`)) return `${base} (fork)`;
+  for (let n = 2; ; n++) if (!used.has(`${base} (fork ${n})`)) return `${base} (fork ${n})`;
+}
 
 const EFFORT_NAMES: Record<EffortLevel, string> = { low: 'low', medium: 'medium', high: 'high', xhigh: 'extra high', max: 'max' };
 
