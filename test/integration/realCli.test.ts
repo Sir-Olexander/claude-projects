@@ -131,4 +131,37 @@ describe.runIf(enabled)('real Claude CLI', () => {
     expect(items.filter((i) => i.kind === 'user').map((i) => (i as { text: string }).text)).toHaveLength(1);
     await s.stopProcess();
   }, 180_000);
+
+  it('forks from a reply: the fork only knows the conversation up to that reply', async () => {
+    const isIdle = (x: ManagedSession) => () => x.status === 'idle' || x.status === 'error';
+    const s = new ManagedSession({ cwd: dir, projectName: 'Integration' }, services());
+    created.push(transcriptPathFor(dir, s.sessionId));
+    await s.send('Remember the code word PAPAYA. Reply with only: OK');
+    await waitFor(isIdle(s));
+    await s.send('Also remember the code word MANGO. Reply with only: OK');
+    await waitFor(isIdle(s));
+    expect(s.error).toBeUndefined();
+    const replies = s.getState().items.filter((i) => i.kind === 'text' && !i.parentToolUseId);
+    const first = replies[0];
+    expect(first.kind === 'text' && first.uuid).toBeTruthy();
+    const from = s.forkPoint(first.id)!;
+    expect(from).toBeDefined();
+
+    const fork = new ManagedSession({ cwd: dir, projectName: 'Integration', forkFrom: from }, services());
+    created.push(transcriptPathFor(dir, fork.sessionId));
+    await fork.ensureHistory();
+    await fork.send('List every code word I asked you to remember, in capitals, separated by spaces, nothing else.');
+    await waitFor(isIdle(fork));
+    expect(fork.error).toBeUndefined();
+    const answer = fork.getState().items.filter((i) => i.kind === 'text').pop();
+    const text = answer && answer.kind === 'text' ? answer.text : '';
+    expect(text).toContain('PAPAYA');
+    expect(text).not.toContain('MANGO');
+    // The fork has its own transcript under its own id; the original is untouched.
+    expect(existsSync(transcriptPathFor(dir, fork.sessionId))).toBe(true);
+    expect(readFileSync(transcriptPathFor(dir, s.sessionId), 'utf8')).toContain('MANGO');
+    expect(readFileSync(transcriptPathFor(dir, s.sessionId), 'utf8')).not.toContain('List every code word');
+    await fork.stopProcess();
+    await s.stopProcess();
+  }, 240_000);
 });

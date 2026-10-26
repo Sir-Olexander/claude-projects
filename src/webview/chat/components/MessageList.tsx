@@ -19,6 +19,20 @@ const Frame = memo(function Frame({ item, kids, marked }: { item: ChatItem; kids
     <div class={`bm-frame${marked ? ' is-marked' : ''}`} data-item-id={item.id}>
       <ItemView item={item} kids={kids} />
       {item.kind === 'text' && item.text.trim() && !item.streaming ? <CopyButton text={item.text} label="Copy reply (Markdown)" class="bm-toggle bm-copy" /> : null}
+      {item.kind === 'text' && item.uuid && item.text.trim() && !item.streaming ? (
+        <button
+          type="button"
+          class="bm-toggle bm-fork"
+          title="Fork from here: a new chat with the conversation up to this reply"
+          aria-label="Fork from here"
+          onClick={(e) => {
+            e.stopPropagation();
+            send({ type: 'fork', itemId: item.id });
+          }}
+        >
+          <Icon name="repo-forked" />
+        </button>
+      ) : null}
       {can ? (
         <button
           type="button"

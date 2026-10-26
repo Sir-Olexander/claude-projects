@@ -498,3 +498,62 @@ describe('ManagedSession: continue automatically after a usage limit', () => {
     await waitFor(() => s.status === 'idle');
   });
 });
+
+describe('ManagedSession: forking from a reply', () => {
+  it('shows the conversation up to the reply and starts Claude on a cut copy under its own id', async () => {
+    const home = tempDir();
+    const prev = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = home;
+    const log = join(tempDir(), 'args.jsonl');
+    process.env.FAKE_CLAUDE_LOG = log;
+    try {
+      const cwd = tempDir();
+      const src = '88888888-8888-8888-8888-888888888888';
+      const file = transcriptPathFor(cwd, src);
+      mkdirSync(dirname(file), { recursive: true });
+      const t = '2026-10-26T10:00:00.000Z';
+      const e = (o: object) => ({ sessionId: src, cwd, timestamp: t, ...o });
+      writeFileSync(
+        file,
+        [
+          e({ type: 'user', uuid: 'u1', parentUuid: null, message: { role: 'user', content: 'First question' } }),
+          e({ type: 'assistant', uuid: 'a1', parentUuid: 'u1', message: { id: 'm1', role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'First answer' }] } }),
+          e({ type: 'user', uuid: 'u2', parentUuid: 'a1', message: { role: 'user', content: 'Second question' } }),
+          e({ type: 'assistant', uuid: 'a2', parentUuid: 'u2', message: { id: 'm2', role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Second answer' }] } }),
+        ]
+          .map((l) => JSON.stringify(l))
+          .join('\n') + '\n',
+      );
+      const original = new ManagedSession({ cwd, projectName: 'T', sessionId: src, title: 'Original' }, services());
+      sessions.push(original);
+      await original.ensureHistory();
+      const firstAnswer = original.getState().items.find((i) => i.kind === 'text' && i.text === 'First answer')!;
+      expect(firstAnswer).toMatchObject({ uuid: 'a1' });
+      const from = original.forkPoint(firstAnswer.id)!;
+      expect(from).toEqual({ sessionId: src, at: 'a1', title: 'Original' });
+
+      const fork = new ManagedSession({ cwd, projectName: 'T', forkFrom: from }, services());
+      sessions.push(fork);
+      expect(fork.sessionId).not.toBe(src);
+      expect(fork.title).toBe('Original (fork)');
+      await fork.ensureHistory();
+      const texts = fork.getState().items.filter((i) => i.kind === 'text' || i.kind === 'user').map((i) => (i as { text: string }).text);
+      expect(texts).toEqual(['First question', 'First answer']);
+      expect(fork.getState().forkFrom).toEqual(from);
+
+      await fork.send('Go on from here');
+      await waitFor(() => fork.getState().items.some((i) => i.kind === 'text' && i.text === 'Echo: Go on from here'));
+      const args = readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l).args as string[]).pop()!;
+      const after = (flag: string) => args[args.indexOf(flag) + 1];
+      expect(after('--resume')).toBe(src);
+      expect(args).toContain('--fork-session');
+      expect(after('--session-id')).toBe(fork.sessionId);
+      expect(after('--resume-session-at')).toBe('a1');
+      expect(fork.getState().forkFrom).toBeUndefined();
+    } finally {
+      if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = prev;
+      delete process.env.FAKE_CLAUDE_LOG;
+    }
+  });
+});

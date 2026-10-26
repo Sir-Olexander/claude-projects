@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import type { HandoffService } from '../handoff/Handoff';
 import type { ProjectStore } from '../projects/ProjectStore';
 import type { SessionIndex } from '../claude/SessionIndex';
-import type { ManagedSession } from '../sessions/ManagedSession';
+import type { ForkSource, ManagedSession } from '../sessions/ManagedSession';
 import type { SessionManager } from '../sessions/SessionManager';
 import { getCurrentBranch } from '../git/gitCli';
 import type { Logger } from '../util/log';
@@ -22,7 +22,7 @@ function imageCacheUri(context: vscode.ExtensionContext): vscode.Uri {
 }
 
 interface PersistedPanelState {
-  session?: { key?: string; sessionId?: string; cwd?: string; title?: string };
+  session?: { key?: string; sessionId?: string; cwd?: string; title?: string; forkFrom?: ForkSource };
 }
 
 export interface ChatPanelManagerDeps {
@@ -59,6 +59,7 @@ export class ChatPanelManager implements vscode.Disposable {
       proposed: this.proposed,
       openInClaudeExtension: (s: ManagedSession) => this.openInClaudeExtension(s),
       newSession: (cwd: string) => void this.newSession(cwd),
+      fork: (s: ManagedSession, itemId: string) => void this.fork(s, itemId),
       onActive: (s: ManagedSession) => this.onActive(s),
       onDispose: (p: ChatPanel) => {
         if (this.panels.get(p.session.key) === p) this.panels.delete(p.session.key);
@@ -127,6 +128,8 @@ export class ChatPanelManager implements vscode.Disposable {
         isWorktree: !!project && project.path !== s.cwd,
         title: this.deps.index.get(s.sessionId)?.title ?? s.title,
       });
+    } else if (s.forkFrom?.sessionId && s.forkFrom.at) {
+      session = this.deps.sessions.createNew({ cwd: s.cwd, projectName: project?.name ?? folderName(s.cwd), branch, isWorktree: !!project && project.path !== s.cwd, forkFrom: s.forkFrom, title: s.title });
     } else {
       session = this.deps.sessions.createNew({ cwd: s.cwd, projectName: project?.name ?? folderName(s.cwd), branch, isWorktree: !!project && project.path !== s.cwd });
     }
@@ -142,6 +145,29 @@ export class ChatPanelManager implements vscode.Disposable {
     const project = this.deps.store.findContaining(cwd);
     const branch = await getCurrentBranch(cwd).catch(() => undefined);
     const session = this.deps.sessions.createNew({ cwd, projectName: project?.name ?? folderName(cwd), branch, isWorktree: !!project && project.path !== cwd });
+    this.show(session);
+    return session;
+  }
+
+  /**
+   * Opens a new chat that continues `source`'s conversation from one of its
+   * replies (that reply included). The original session is left untouched.
+   */
+  fork(source: ManagedSession, itemId: string): ManagedSession | undefined {
+    const from = source.forkPoint(itemId);
+    if (!from) {
+      void vscode.window.showWarningMessage("Can't fork from this message: it isn't saved in the session yet.");
+      return undefined;
+    }
+    const session = this.deps.sessions.createNew({
+      cwd: source.cwd,
+      projectName: source.projectName,
+      branch: source.branch,
+      isWorktree: source.isWorktree,
+      permissionMode: source.permissionMode,
+      model: source.modelValue,
+      forkFrom: from,
+    });
     this.show(session);
     return session;
   }

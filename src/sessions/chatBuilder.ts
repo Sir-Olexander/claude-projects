@@ -118,6 +118,22 @@ export class ChatBuilder {
     return next;
   }
 
+  /** Keeps only the items `keep` accepts (one pass, for cutting a long history). */
+  retain(keep: (item: ChatItem, index: number) => boolean): void {
+    const next: ChatItem[] = [];
+    this.list.forEach((item, i) => {
+      if (keep(item, i)) next.push(item);
+      else {
+        this.upserted.delete(item.id);
+        this.removedIds.add(item.id);
+      }
+    });
+    this.list.length = 0;
+    this.list.push(...next);
+    this.pos.clear();
+    next.forEach((item, i) => this.pos.set(item.id, i));
+  }
+
   remove(id: string): void {
     const i = this.pos.get(id);
     if (i === undefined) return;
@@ -190,7 +206,7 @@ export class ChatBuilder {
    * block per frame/entry; `blockIndex` (transcript `apiBlockIndex`) or a
    * per-message counter maps each block to a stable item id.
    */
-  addAssistant(msg: ApiMessage, parentToolUseId: string | null | undefined, blockIndex?: number): void {
+  addAssistant(msg: ApiMessage, parentToolUseId: string | null | undefined, blockIndex?: number, uuid?: string): void {
     const msgId = msg.id || randomUUID();
     const parent = parentToolUseId ?? undefined;
     const blocks: ContentBlock[] = typeof msg.content === 'string' ? [{ type: 'text', text: msg.content }] : (msg.content ?? []);
@@ -210,7 +226,7 @@ export class ChatBuilder {
         case 'text': {
           const text = (block as { text?: string }).text ?? '';
           if (!text.trim() && !this.get(itemId)) break;
-          this.upsert({ kind: 'text', id: itemId, text, parentToolUseId: parent });
+          this.upsert({ kind: 'text', id: itemId, text, parentToolUseId: parent, ...(uuid && !parent ? { uuid } : {}) });
           break;
         }
         case 'thinking':

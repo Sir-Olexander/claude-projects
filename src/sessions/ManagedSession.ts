@@ -105,6 +105,16 @@ export interface ManagedSessionInit {
   title?: string;
   permissionMode?: PermissionMode;
   model?: string;
+  /** Start as a fork of another session, keeping its conversation up to message `at` (included). */
+  forkFrom?: ForkSource;
+}
+
+export interface ForkSource {
+  sessionId: string;
+  /** Transcript uuid of the last message to keep. */
+  at: string;
+  /** Title of the original session. */
+  title: string;
 }
 
 interface PendingEntry {
@@ -185,6 +195,8 @@ export class ManagedSession {
   private stoppingProc: ClaudeProcess | undefined;
   private queued: string[] = [];
   private forkOnNextStart = false;
+  /** Set until this fork has its own transcript (written with the first message). */
+  private forkFrom: ForkSource | undefined;
   private uiPatch: ChatStatePatch = {};
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
@@ -223,6 +235,15 @@ export class ManagedSession {
       this.hasTranscript = existsSync(transcriptPathFor(init.cwd, init.sessionId));
       this.status = 'idle';
       this.title = init.title || 'Session';
+    } else if (init.forkFrom) {
+      // A fork: shows the original conversation up to the fork point; the first
+      // message starts Claude on a copy of it under this new id.
+      this.forkFrom = init.forkFrom;
+      this.sessionId = randomUUID();
+      this.key = this.sessionId;
+      this.hasTranscript = false;
+      this.status = 'new';
+      this.title = init.title || `${init.forkFrom.title} (fork)`;
     } else {
       this.sessionId = randomUUID();
       this.key = this.sessionId;
@@ -289,6 +310,7 @@ export class ManagedSession {
   }
 
   private async loadHistory(): Promise<void> {
+    if (this.forkFrom && !this.hasTranscript) return this.loadForkHistory(this.forkFrom);
     const builder = new ChatBuilder(this.services.imageSink);
     const started = Date.now();
     const info = await loadTranscriptFile(this.transcriptPath, builder);
@@ -348,6 +370,7 @@ export class ManagedSession {
       promptPresets: settings.promptPresets,
       todos: this.builder.todos,
       contextUsage: this.contextUsage,
+      forkFrom: this.hasTranscript ? undefined : this.forkFrom,
       autoContinue: this.autoContinue,
       limit: this.limitStop,
       liveElsewhere: this.liveElsewhere,
@@ -473,6 +496,16 @@ export class ManagedSession {
     this._onDidChange.fire();
   }
 
+  /** Where a fork would start from a reply: its transcript uuid, if the reply is in the main conversation. */
+  forkPoint(itemId: string): ForkSource | undefined {
+    const item = this.builder.get(itemId);
+    if (!item || item.kind !== 'text' || item.parentToolUseId || item.streaming || !item.uuid) return undefined;
+    // The fork copies this session's transcript (or, for a fork that hasn't started, its original's).
+    if (this.hasTranscript) return { sessionId: this.sessionId, at: item.uuid, title: this.title };
+    if (this.forkFrom) return { sessionId: this.forkFrom.sessionId, at: item.uuid, title: this.forkFrom.title };
+    return undefined;
+  }
+
   /** Re-creates a waiting auto-continue after VS Code restarted. */
   restoreLimitStop(limit: LimitStopView): void {
     if (this.status === 'running' || this.status === 'starting' || this.status === 'waiting') return;
@@ -481,6 +514,36 @@ export class ManagedSession {
     this.armAutoContinue();
     this.patchUi({ autoContinue: true, limit: this.limitStop });
     this._onDidChange.fire();
+  }
+
+  /** The original conversation up to the fork point, shown until the fork has its own transcript. */
+  private async loadForkHistory(fork: ForkSource): Promise<void> {
+    const builder = new ChatBuilder(this.services.imageSink);
+    const info = await loadTranscriptFile(transcriptPathFor(this.cwd, fork.sessionId), builder);
+    if (!info) {
+      this.builder.addSystem('error', 'The original session could not be read, so this fork starts empty.');
+      this.flush();
+      return;
+    }
+    const items = builder.items;
+    const cut = items.findIndex((i) => i.kind === 'text' && i.uuid === fork.at);
+    if (cut >= 0) {
+      const keptTools = new Set(items.slice(0, cut + 1).filter((i) => i.kind === 'tool').map((i) => i.id));
+      builder.retain((item, i) => i <= cut || (!!(item as { parentToolUseId?: string }).parentToolUseId && keptTools.has((item as { parentToolUseId?: string }).parentToolUseId!)));
+    } else {
+      this.log.warn(`fork point ${fork.at} not found in ${fork.sessionId}`);
+    }
+    // Nothing is running in a fork that hasn't started yet.
+    builder.settleOpenTools('interrupted');
+    builder.addSystem('info', `Forked from "${clip(fork.title, 60)}" at this reply. Your next message continues from here in a new session; the original stays as it was.`, 'forked');
+    for (const it of this.builder.items) builder.upsert(it);
+    this.builder = builder;
+    if (info.gitBranch && info.gitBranch !== 'HEAD' && !this.branch) this.branch = info.gitBranch;
+    if (builder.lastModel) this.setResolvedModel(builder.lastModel);
+    if (info.effort && !this.effort) this.effort = asEffort(info.effort);
+    this.updateContextUsage();
+    this.syncBookmarks();
+    this.builder.clearChanges();
   }
 
   /** A chat that last stopped at a usage limit that hasn't reset yet shows the limit notice again. */
@@ -907,12 +970,15 @@ export class ManagedSession {
     const settings = this.services.settings();
     const fork = this.forkOnNextStart && this.hasTranscript;
     this.forkOnNextStart = false;
+    // A fork that hasn't started: resume the original as a copy, cut at the fork point, under our id.
+    const forkStart = !this.hasTranscript ? this.forkFrom : undefined;
     const proc = new ClaudeProcess({
       cliPath,
       cwd: this.cwd,
-      resume: this.hasTranscript ? this.sessionId : undefined,
+      resume: forkStart ? forkStart.sessionId : this.hasTranscript ? this.sessionId : undefined,
       sessionId: this.hasTranscript ? undefined : this.sessionId,
-      forkSession: fork,
+      forkSession: fork || !!forkStart,
+      resumeSessionAt: forkStart?.at,
       permissionMode: this.permissionMode,
       model: this.modelValue,
       effort: this.effortChoice && this.effortChoice !== 'default' ? this.effortChoice : undefined,
@@ -1070,7 +1136,7 @@ export class ManagedSession {
       case 'assistant': {
         const am = m as SdkAssistantMessage;
         this.consumeQueued(am.user_message_uuids);
-        this.builder.addAssistant(am.message, am.parent_tool_use_id);
+        this.builder.addAssistant(am.message, am.parent_tool_use_id, undefined, (am as { uuid?: string }).uuid);
         if (!am.parent_tool_use_id) {
           const blocks = Array.isArray(am.message.content) ? am.message.content : [];
           for (const b of blocks) {
@@ -1134,7 +1200,7 @@ export class ManagedSession {
         }
         if (!this.hasTranscript) {
           this.hasTranscript = true;
-          this.patchUi({ sessionId: this.sessionId });
+          this.patchUi({ sessionId: this.sessionId, forkFrom: undefined });
         }
         if (m.model) this.setResolvedModel(m.model);
         if (m.permissionMode && m.permissionMode !== this.permissionMode) {

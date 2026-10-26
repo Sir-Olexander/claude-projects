@@ -122,7 +122,7 @@ export function buildChat(entries: TranscriptEntry[], builder: ChatBuilder): Tra
     if (e.type === 'assistant' && typeof e.effort === 'string') info.effort = e.effort;
     switch (e.type) {
       case 'assistant':
-        if (e.message) builder.addAssistant(e.message, null, typeof e.apiBlockIndex === 'number' ? e.apiBlockIndex : undefined);
+        if (e.message) builder.addAssistant(e.message, null, typeof e.apiBlockIndex === 'number' ? e.apiBlockIndex : undefined, e.uuid);
         break;
       case 'user':
         if (e.message) builder.addUser(e.message, { uuid: e.uuid, toolUseResult: e.toolUseResult, timestamp: ts, isMeta: e.isMeta, isCompactSummary: e.isCompactSummary });

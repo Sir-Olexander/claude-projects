@@ -24,9 +24,9 @@ onMessage<ExtToChatMessage>((m) => {
   if (!m || typeof m !== 'object' || !('type' in m)) return;
   store.apply(m);
   // Keep the session identity in the persisted webview state for the panel serializer.
-  const touchesSession = m.type === 'state' || (m.type === 'patch' && ('sessionId' in m.patch || 'title' in m.patch || 'cwd' in m.patch));
+  const touchesSession = m.type === 'state' || (m.type === 'patch' && ('sessionId' in m.patch || 'title' in m.patch || 'cwd' in m.patch || 'forkFrom' in m.patch));
   const s = store.state;
-  if (touchesSession && s) saveSession({ key: s.key, sessionId: s.sessionId, cwd: s.cwd, title: s.title });
+  if (touchesSession && s) saveSession({ key: s.key, sessionId: s.sessionId, cwd: s.cwd, title: s.title, forkFrom: s.forkFrom ?? undefined });
 });
 
 /** Throttled "the user has seen the latest output" signal. */

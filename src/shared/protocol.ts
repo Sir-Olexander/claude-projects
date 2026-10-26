@@ -128,6 +128,8 @@ export interface AssistantTextItem {
   kind: 'text';
   id: string;
   text: string;
+  /** Transcript entry uuid of this reply (where a fork can start). */
+  uuid?: string;
   /** True while the text is still streaming in. */
   streaming?: boolean;
   /** Set for messages produced inside a subagent (Task/Agent tool). */
@@ -356,6 +358,8 @@ export interface ChatState {
   promptPresets?: PromptPreset[];
   todos?: TodoItem[];
   contextUsage?: ContextUsageView;
+  /** Set for a fork that hasn't sent its first message yet (to restore it after a reload). */
+  forkFrom?: { sessionId: string; at: string; title: string };
   /** Send "continue" by itself once a usage limit that stopped this session resets. */
   autoContinue: boolean;
   /** Set while the session is stopped at a usage limit. */
@@ -432,6 +436,8 @@ export type ChatToExtMessage =
   | { type: 'toggle-bookmark'; itemId: string }
   /** Turn "continue automatically when usage limits reset" on or off for this session. */
   | { type: 'set-auto-continue'; on: boolean }
+  /** Start a new session with the conversation up to (and including) this reply. */
+  | { type: 'fork'; itemId: string }
   /**
    * Answer a permission request.
    * optionId: one of PermissionRequestView.options[].id for allow, or 'deny'.

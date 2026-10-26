@@ -11,6 +11,8 @@ export interface PersistedSession {
   sessionId?: string;
   cwd: string;
   title: string;
+  /** A fork that hasn't sent its first message. */
+  forkFrom?: { sessionId: string; at: string; title: string };
 }
 
 interface PersistedUi {
@@ -44,8 +46,8 @@ function persistSoon(): void {
 /** Records which session this panel shows; written right away (not debounced). */
 export function saveSession(s: PersistedSession): void {
   const cur = ui.session;
-  if (cur && cur.key === s.key && cur.sessionId === s.sessionId && cur.cwd === s.cwd && cur.title === s.title) return;
-  ui.session = { key: s.key, sessionId: s.sessionId, cwd: s.cwd, title: s.title };
+  if (cur && cur.key === s.key && cur.sessionId === s.sessionId && cur.cwd === s.cwd && cur.title === s.title && cur.forkFrom?.at === s.forkFrom?.at) return;
+  ui.session = { key: s.key, sessionId: s.sessionId, cwd: s.cwd, title: s.title, forkFrom: s.forkFrom };
   setPersisted(ui);
 }
 

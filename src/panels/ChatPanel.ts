@@ -19,6 +19,8 @@ export interface ChatPanelHost {
   proposed: ProposedContentProvider;
   openInClaudeExtension(session: ManagedSession): Promise<void>;
   newSession(cwd: string): void;
+  /** Opens a fork of a session from one of its replies. */
+  fork(session: ManagedSession, itemId: string): void;
   onActive(session: ManagedSession): void;
   onDispose(panel: ChatPanel): void;
 }
@@ -185,6 +187,9 @@ export class ChatPanel implements vscode.Disposable {
           break;
         case 'new-session':
           this.host.newSession(s.cwd);
+          break;
+        case 'fork':
+          this.host.fork(s, m.itemId);
           break;
         case 'restart':
           await s.restart();

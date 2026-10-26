@@ -27,8 +27,10 @@ export interface ClaudeProcessOptions {
   resume?: string;
   /** Start a new session with this id. */
   sessionId?: string;
-  /** With `resume`: continue under a new session id instead. */
+  /** With `resume`: continue under a new session id instead (`sessionId`, when given). */
   forkSession?: boolean;
+  /** With `resume`: keep the conversation only up to this message uuid (included). */
+  resumeSessionAt?: string;
   permissionMode?: PermissionMode;
   model?: string;
   /** Reasoning effort for the session (--effort). */
@@ -109,7 +111,11 @@ export function buildArgs(opts: ClaudeProcessOptions): string[] {
   if (opts.effort) args.push('--effort', opts.effort);
   if (opts.resume) {
     args.push('--resume', opts.resume);
-    if (opts.forkSession) args.push('--fork-session');
+    if (opts.forkSession) {
+      args.push('--fork-session');
+      if (opts.sessionId) args.push('--session-id', opts.sessionId);
+    }
+    if (opts.resumeSessionAt) args.push('--resume-session-at', opts.resumeSessionAt);
   } else if (opts.sessionId) {
     args.push('--session-id', opts.sessionId);
   }
