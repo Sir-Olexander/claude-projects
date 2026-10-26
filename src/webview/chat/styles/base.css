@@ -738,3 +738,67 @@ kbd {
 .bm-remove:focus-visible {
   opacity: 1;
 }
+
+/* Dots for your messages, along the right edge of the conversation. */
+.prompt-rail {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  right: 12px;
+  width: 12px;
+  z-index: 4;
+  pointer-events: none;
+}
+.prompt-dot {
+  position: absolute;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fg-muted) 55%, transparent);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+/* A bigger invisible hit area than the dot itself. */
+.prompt-dot::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+}
+.prompt-dot:hover,
+.prompt-dot:focus-visible {
+  transform: scale(1.5);
+  background: var(--fg);
+  outline: none;
+}
+.prompt-dot.is-active {
+  background: var(--c-orange);
+  transform: scale(1.3);
+}
+.prompt-tip {
+  position: absolute;
+  right: 18px;
+  max-width: min(320px, 60vw);
+  transform: translateY(-50%);
+  padding: 5px 9px;
+  border: 1px solid var(--menu-border);
+  border-radius: var(--radius-m);
+  background: var(--menu-bg);
+  color: var(--menu-fg);
+  box-shadow: 0 2px 10px var(--shadow);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prompt-dot {
+    transition: none;
+  }
+}

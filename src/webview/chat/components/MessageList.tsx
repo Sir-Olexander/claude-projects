@@ -10,6 +10,7 @@ import { send } from './actions';
 import { CopyButton } from './items';
 import { memo } from 'preact/compat';
 import { usageByReply, type UsedEntry } from '../lib/usage';
+import { PromptRail, type RailPrompt } from './PromptRail';
 
 const BOOKMARKABLE = new Set(['user', 'text', 'tool']);
 
@@ -176,6 +177,11 @@ export function MessageList({ state, contentVersion, empty, onSeen }: { state: C
     [children],
   );
   const marked = useMemo(() => new Set((state.bookmarks ?? []).map((b) => b.itemId)), [state.bookmarks]);
+  const promptsRef = useRef<RailPrompt[]>([]);
+  const prompts = useMemo(() => {
+    const next = top.filter((i) => i.kind === 'user' && !i.queued && i.text.trim()).map((i) => ({ id: i.id, text: (i as { text: string }).text.replace(/\s+/g, ' ').trim() }));
+    return JSON.stringify(next) === JSON.stringify(promptsRef.current) ? promptsRef.current : (promptsRef.current = next);
+  }, [top]);
   const usedRef = useRef<Map<string, UsedEntry[]>>(new Map());
   const used = useMemo(() => (usedRef.current = usageByReply(state.items, usedRef.current)), [state.items]);
   const renderTop = (list: ChatItem[]) =>
@@ -308,6 +314,7 @@ export function MessageList({ state, contentVersion, empty, onSeen }: { state: C
       <div class="messages" ref={scroller} onScroll={onScroll}>
         <div class="messages-inner">{top.length === 0 ? empty : renderTop(top)}</div>
       </div>
+      <PromptRail scroller={scroller} prompts={prompts} version={contentVersion} />
       {showJump ? (
         <button type="button" class="jump-bottom" onClick={jump} title="Jump to latest" aria-label="Jump to latest">
           <Icon name="arrow-down" />
