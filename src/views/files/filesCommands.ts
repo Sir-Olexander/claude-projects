@@ -7,6 +7,7 @@ import { errorMessage } from '../../util/log';
 import { folderName, isSameOrInside } from '../../util/paths';
 import type { RepoStateService } from '../../git/RepoStateService';
 import type { FileNode, FilesTreeProvider } from './FilesTreeProvider';
+import { transferInto, type TransferMode } from './moveFiles';
 
 interface Ctx {
   provider: FilesTreeProvider;
@@ -25,11 +26,17 @@ function isEntry(n: unknown): n is FileNode {
 export function registerFilesCommands(ctx: Ctx): vscode.Disposable {
   const { provider, tree, store, state, log } = ctx;
 
-  /** Folder that new files/folders go into: the clicked/selected folder, a selected file's folder, or the root. */
+  /**
+   * Folder that new or pasted items go into: the clicked or selected folder (a
+   * selected file's folder), or the root when nothing is selected. A selection
+   * that no longer exists or belongs to another project is ignored.
+   */
   const targetFolder = (arg?: unknown): string | undefined => {
-    const node = isEntry(arg) ? arg : tree.selection.find(isEntry);
-    if (node) return node.isDirectory ? node.path : dirname(node.path);
-    return provider.root;
+    const root = provider.root;
+    const usable = (n: FileNode | undefined) => !!n && !!root && isSameOrInside(n.path, root) && existsSync(n.path);
+    const node = isEntry(arg) ? arg : tree.selection.find((n) => isEntry(n) && usable(n));
+    if (node && usable(node)) return node.isDirectory ? node.path : dirname(node.path);
+    return root;
   };
 
   const pick = (node: unknown, nodes: unknown): FileNode[] => {
@@ -43,11 +50,12 @@ export function registerFilesCommands(ctx: Ctx): vscode.Disposable {
     void vscode.window.showErrorMessage(`${what}: ${errorMessage(err)}`);
   };
 
-  /** Validates a relative name typed by the user and returns the absolute target, or an error. */
-  const resolveNew = (folder: string, value: string): { path?: string; error?: string } => {
+  /** Validates a path typed by the user (relative to `folder`) and returns the absolute target, or an error. */
+  const resolveNew = (folder: string, value: string, kind: 'file' | 'folder' = 'file'): { path?: string; error?: string } => {
     const v = value.trim();
     if (!v) return { error: 'Please enter a name.' };
-    if (isAbsolute(v)) return { error: 'Use a name relative to the folder.' };
+    if (isAbsolute(v)) return { error: 'Use a path inside the project, like docs/notes.md.' };
+    if (kind === 'file' && /[\\/]$/.test(v)) return { error: `Type a file name after "${v}".` };
     const target = normalize(join(folder, v));
     const root = provider.root ?? folder;
     if (!isSameOrInside(target, root)) return { error: 'The name must stay inside the project folder.' };
@@ -55,23 +63,32 @@ export function registerFilesCommands(ctx: Ctx): vscode.Disposable {
     return { path: target };
   };
 
-  const createEntry = async (kind: 'file' | 'folder', arg?: unknown) => {
+  /** `opts.name` skips the input box (tests only). */
+  const createEntry = async (kind: 'file' | 'folder', arg?: unknown, opts?: unknown) => {
     const folder = targetFolder(arg);
+    const preset = opts && typeof opts === 'object' && !Array.isArray(opts) && typeof (opts as { name?: unknown }).name === 'string' ? (opts as { name: string }).name : undefined;
     if (!folder) {
       void vscode.window.showWarningMessage('Select a project in the Projects view first.');
       return;
     }
     const root = provider.root ?? folder;
-    const where = relative(root, folder) || folderName(root);
-    const value = await vscode.window.showInputBox({
-      title: kind === 'file' ? 'New File' : 'New Folder',
-      prompt: `In ${where}`,
-      placeHolder: kind === 'file' ? 'File name (use / to create subfolders)' : 'Folder name (use / for nested folders)',
-      ignoreFocusOut: true,
-      validateInput: (v) => resolveNew(folder, v).error,
-    });
+    // The box starts with the target folder's path, so it's clear where the new item goes;
+    // clearing it puts the item at the top level.
+    const prefix = relative(root, folder) ? `${relative(root, folder).split(sep).join('/')}/` : '';
+    const value =
+      preset !== undefined
+        ? prefix + preset
+        : await vscode.window.showInputBox({
+            title: kind === 'file' ? 'New File' : 'New Folder',
+            prompt: `Path inside ${folderName(root)}. ${prefix ? `Delete "${prefix}" to create it at the top level.` : 'Add folder/ in front to put it in a folder.'}`,
+            value: prefix,
+            valueSelection: [prefix.length, prefix.length],
+            placeHolder: kind === 'file' ? 'File name, e.g. notes.md or docs/notes.md' : 'Folder name, e.g. assets or docs/images',
+            ignoreFocusOut: true,
+            validateInput: (v) => (v === prefix ? undefined : resolveNew(root, v, kind).error),
+          });
     if (value === undefined) return;
-    const { path, error } = resolveNew(folder, value);
+    const { path, error } = resolveNew(root, value, kind);
     if (!path) {
       if (error) void vscode.window.showWarningMessage(error);
       return;
@@ -154,6 +171,36 @@ export function registerFilesCommands(ctx: Ctx): vscode.Disposable {
     }
   };
 
+  // Cut / Copy / Paste, like the Explorer: paste moves (after Cut) or copies (after Copy).
+  let clip: { mode: TransferMode; paths: string[] } | undefined;
+  const setClip = (c: typeof clip) => {
+    clip = c;
+    void vscode.commands.executeCommand('setContext', 'claudeProjects.files.canPaste', !!c?.paths.length);
+  };
+  const cutOrCopy = (mode: TransferMode) => (node?: unknown, nodes?: unknown) => {
+    const list = pick(node, nodes);
+    if (list.length) setClip({ mode, paths: list.map((n) => n.path) });
+  };
+  const paste = async (node?: unknown) => {
+    if (!clip) return;
+    const dest = targetFolder(node);
+    if (!dest) return;
+    const { mode } = clip;
+    const sources = clip.paths.filter((p) => existsSync(p));
+    if (!sources.length) {
+      setClip(undefined);
+      return;
+    }
+    try {
+      const r = await transferInto(sources, dest, mode);
+      if (mode === 'move') setClip(undefined);
+      const refused = r.skipped.filter((s) => s.reason !== 'already there' && s.reason !== 'kept the existing item');
+      if (refused.length) void vscode.window.showWarningMessage(refused.map((s) => s.reason).join(' '));
+    } catch (err) {
+      fail(mode === 'move' ? 'Could not move' : 'Could not copy', err);
+    }
+  };
+
   const reg = vscode.commands.registerCommand;
   return vscode.Disposable.from(
     reg('claudeProjects.files.refresh', async () => {
@@ -161,14 +208,17 @@ export function registerFilesCommands(ctx: Ctx): vscode.Disposable {
       await state.refresh('status');
     }),
     reg('claudeProjects.files.openFile', openFile),
-    reg('claudeProjects.files.newFile', (arg?: unknown) => createEntry('file', arg)),
-    reg('claudeProjects.files.newFolder', (arg?: unknown) => createEntry('folder', arg)),
+    reg('claudeProjects.files.newFile', (arg?: unknown, opts?: unknown) => createEntry('file', arg, opts)),
+    reg('claudeProjects.files.newFolder', (arg?: unknown, opts?: unknown) => createEntry('folder', arg, opts)),
     reg('claudeProjects.files.openToSide', async (node?: unknown, nodes?: unknown) => {
       for (const n of pick(node, nodes).filter((x) => !x.isDirectory)) {
         await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(n.path), { viewColumn: vscode.ViewColumn.Beside, preview: false });
       }
     }),
     reg('claudeProjects.files.rename', rename),
+    reg('claudeProjects.files.cut', cutOrCopy('move')),
+    reg('claudeProjects.files.copy', cutOrCopy('copy')),
+    reg('claudeProjects.files.paste', paste),
     reg('claudeProjects.files.delete', remove),
     reg('claudeProjects.files.openRootInNewWindow', async () => {
       const p = store.selection?.path;

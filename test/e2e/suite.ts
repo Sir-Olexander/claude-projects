@@ -262,6 +262,59 @@ export async function run(): Promise<void> {
     await waitFor('session gone from the index', () => !api.index.get(id), 10_000);
   });
 
+  await check('Files view: new items follow the selection; drag, cut, copy and paste move and copy', async () => {
+    const { mkdirSync, writeFileSync, existsSync } = await import('node:fs');
+    const v = api.gitViews()!;
+    api.store.select(project.id);
+    await vscode.commands.executeCommand('claudeProjects.files.focus');
+    await vscode.workspace.getConfiguration('claudeProjects.files').update('confirmDragAndDrop', false, vscode.ConfigurationTarget.Global);
+    mkdirSync(join(repo, 'box'), { recursive: true });
+    mkdirSync(join(repo, 'other'), { recursive: true });
+    writeFileSync(join(repo, 'loose.txt'), 'x');
+    const listed = async (...paths: string[]) => {
+      const top = (await v.files.getChildren()).map((n) => n.path);
+      return paths.every((p) => top.includes(p));
+    };
+    await waitFor('folders listed', () => listed(join(repo, 'box'), join(repo, 'other'), join(repo, 'loose.txt')), 10_000);
+    v.files.refreshAll();
+    await new Promise((r) => setTimeout(r, 800)); // let the view fetch the new folders
+    await waitFor('folders listed again', () => listed(join(repo, 'box'), join(repo, 'other')), 10_000);
+    const box = v.files.nodeFor(join(repo, 'box'))!;
+    const other = v.files.nodeFor(join(repo, 'other'))!;
+
+    // Nothing selected: the top level.
+    assert.equal(v.filesView.selection.length, 0, 'nothing selected yet');
+    await vscode.commands.executeCommand('claudeProjects.files.newFile', undefined, { name: 'top.txt' });
+    assert.ok(existsSync(join(repo, 'top.txt')), 'created at the top level');
+    // A selected folder: inside it.
+    await v.filesView.reveal(box, { select: true, focus: true });
+    await vscode.commands.executeCommand('claudeProjects.files.newFile', undefined, { name: 'inner.txt' });
+    assert.ok(existsSync(join(repo, 'box', 'inner.txt')), 'created in the selected folder');
+
+    // Drag a file onto a folder: moved.
+    const dt = new vscode.DataTransfer();
+    dt.set('application/vnd.code.tree.claudeprojects.files', new vscode.DataTransferItem([join(repo, 'loose.txt')]));
+    await v.filesDnd.handleDrop(box, dt, new vscode.CancellationTokenSource().token);
+    assert.ok(existsSync(join(repo, 'box', 'loose.txt')) && !existsSync(join(repo, 'loose.txt')), 'dragged file moved');
+    // A folder onto itself: nothing happens.
+    const self = new vscode.DataTransfer();
+    self.set('application/vnd.code.tree.claudeprojects.files', new vscode.DataTransferItem([join(repo, 'box')]));
+    await v.filesDnd.handleDrop(box, self, new vscode.CancellationTokenSource().token);
+    assert.ok(existsSync(join(repo, 'box', 'inner.txt')), 'folder left alone');
+
+    // Cut + paste: moved.
+    const inner = { kind: 'entry', path: join(repo, 'box', 'inner.txt'), name: 'inner.txt', isDirectory: false, isSymlink: false };
+    await vscode.commands.executeCommand('claudeProjects.files.cut', inner, [inner]);
+    await vscode.commands.executeCommand('claudeProjects.files.paste', other);
+    assert.ok(existsSync(join(repo, 'other', 'inner.txt')) && !existsSync(join(repo, 'box', 'inner.txt')), 'cut and pasted');
+    // Copy + paste into the same folder: a copy next to it.
+    const moved = { ...inner, path: join(repo, 'other', 'inner.txt') };
+    await vscode.commands.executeCommand('claudeProjects.files.copy', moved, [moved]);
+    await vscode.commands.executeCommand('claudeProjects.files.paste', other);
+    assert.ok(existsSync(join(repo, 'other', 'inner copy.txt')) && existsSync(join(repo, 'other', 'inner.txt')), 'copied');
+    await vscode.workspace.getConfiguration('claudeProjects.files').update('confirmDragAndDrop', undefined, vscode.ConfigurationTarget.Global);
+  });
+
   await check('refresh and next-attention commands run', async () => {
     await vscode.commands.executeCommand('claudeProjects.refresh');
     await vscode.commands.executeCommand('claudeProjects.focusNextAttention');

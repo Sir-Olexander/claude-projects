@@ -5,7 +5,7 @@ import { ProjectStore } from './projects/ProjectStore';
 import { ProjectsTreeProvider, type ProjectsNode } from './projects/ProjectsTreeProvider';
 import { registerProjectCommands, type OpenExternal } from './projects/projectCommands';
 import { registerCommonCommands } from './commands/common';
-import { registerGitViews } from './views/registerGitViews';
+import { getGitViewsForTesting, registerGitViews, type GitViewsInternals } from './views/registerGitViews';
 import { SessionIndex } from './claude/SessionIndex';
 import { LiveRegistry } from './claude/LiveRegistry';
 import { liveSessionsDir, projectsDir } from './claude/paths';
@@ -35,6 +35,8 @@ export interface ClaudeProjectsApi {
   handoff: HandoffService;
   tree: ProjectsTreeProvider;
   treeView: vscode.TreeView<ProjectsNode>;
+  /** Source Control and Files views (for tests). */
+  gitViews(): GitViewsInternals | undefined;
 }
 
 export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
@@ -169,7 +171,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   usage.start();
 
   log.info(`Claude Projects activated (${store.projects.length} projects)`);
-  return { store, index, registry, sessions, attention, usage, panels, dashboard, handoff, tree, treeView };
+  return { store, index, registry, sessions, attention, usage, panels, dashboard, handoff, tree, treeView, gitViews: getGitViewsForTesting };
 }
 
 export async function deactivate(): Promise<void> {

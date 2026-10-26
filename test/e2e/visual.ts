@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ClaudeProjectsApi } from '../../src/extension';
-import { probeSelection } from './probe';
+import { probeFilesCreate, probeFilesSelection, probeSelection } from './probe';
 
 const log = (...a: unknown[]) => console.log('[visual]', ...a);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -86,6 +86,10 @@ export async function run(): Promise<void> {
   await sleep(1500);
   await screenshot('3-chat-finished');
 
+  if (process.env.CP_E2E_PROBE_FILES) {
+    await probeFilesCreate(api as never, repo, log);
+    await probeFilesSelection(api as never, log);
+  }
   if (process.env.CP_E2E_PROBE_SELECT) {
     await probeSelection(screenshot, log);
     // Again while Claude is writing a long reply.

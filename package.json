@@ -395,6 +395,21 @@
         "title": "Delete Session…",
         "category": "Claude Projects",
         "icon": "$(trash)"
+      },
+      {
+        "command": "claudeProjects.files.cut",
+        "title": "Cut",
+        "category": "Claude Projects: Files"
+      },
+      {
+        "command": "claudeProjects.files.copy",
+        "title": "Copy",
+        "category": "Claude Projects: Files"
+      },
+      {
+        "command": "claudeProjects.files.paste",
+        "title": "Paste",
+        "category": "Claude Projects: Files"
       }
     ],
     "menus": {
@@ -505,6 +520,18 @@
         },
         {
           "command": "claudeProjects.deleteSession",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.files.cut",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.files.copy",
+          "when": "false"
+        },
+        {
+          "command": "claudeProjects.files.paste",
           "when": "false"
         }
       ],
@@ -940,6 +967,21 @@
           "command": "claudeProjects.deleteSession",
           "when": "view == claudeProjects.projects && viewItem =~ /^session/",
           "group": "4_delete@1"
+        },
+        {
+          "command": "claudeProjects.files.cut",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "group": "5_cutcopypaste@1"
+        },
+        {
+          "command": "claudeProjects.files.copy",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "group": "5_cutcopypaste@2"
+        },
+        {
+          "command": "claudeProjects.files.paste",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./ && claudeProjects.files.canPaste",
+          "group": "5_cutcopypaste@3"
         }
       ],
       "editor/title": [
@@ -1139,6 +1181,11 @@
           "type": "boolean",
           "default": true,
           "description": "Show 5-hour and weekly usage in the status bar."
+        },
+        "claudeProjects.files.confirmDragAndDrop": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Ask before moving files and folders by drag and drop in the **Files** view."
         }
       }
     },
@@ -1153,6 +1200,24 @@
         "command": "claudeProjects.files.delete",
         "key": "delete",
         "mac": "cmd+backspace",
+        "when": "focusedView == claudeProjects.files && !inputFocus"
+      },
+      {
+        "command": "claudeProjects.files.cut",
+        "key": "ctrl+x",
+        "mac": "cmd+x",
+        "when": "focusedView == claudeProjects.files && !inputFocus"
+      },
+      {
+        "command": "claudeProjects.files.copy",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "focusedView == claudeProjects.files && !inputFocus"
+      },
+      {
+        "command": "claudeProjects.files.paste",
+        "key": "ctrl+v",
+        "mac": "cmd+v",
         "when": "focusedView == claudeProjects.files && !inputFocus"
       }
     ]

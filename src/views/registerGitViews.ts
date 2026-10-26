@@ -8,6 +8,7 @@ import { RepoStateService } from '../git/RepoStateService';
 import { ScmTreeProvider, type ScmNode } from './scm/ScmTreeProvider';
 import { registerScmCommands } from './scm/scmCommands';
 import { registerWorktreeCommands } from './scm/worktreeCommands';
+import { FilesDragAndDrop } from './files/filesDragAndDrop';
 import { FilesTreeProvider, type FileNode } from './files/FilesTreeProvider';
 import { registerFilesCommands } from './files/filesCommands';
 
@@ -28,6 +29,7 @@ export interface GitViewsInternals {
   scmView: vscode.TreeView<ScmNode>;
   files: FilesTreeProvider;
   filesView: vscode.TreeView<FileNode>;
+  filesDnd: FilesDragAndDrop;
   decorations: GitDecorationProvider;
   content: GitContentProvider;
 }
@@ -58,7 +60,8 @@ export function registerGitViews(_context: vscode.ExtensionContext, store: Proje
   const scm = new ScmTreeProvider(state, store);
   const scmView = vscode.window.createTreeView<ScmNode>(SCM_VIEW, { treeDataProvider: scm, canSelectMany: true });
   const files = new FilesTreeProvider(state, store, log);
-  const filesView = vscode.window.createTreeView<FileNode>(FILES_VIEW, { treeDataProvider: files, canSelectMany: true, showCollapseAll: true });
+  const filesDnd = new FilesDragAndDrop(files, log);
+  const filesView = vscode.window.createTreeView<FileNode>(FILES_VIEW, { treeDataProvider: files, canSelectMany: true, showCollapseAll: true, dragAndDropController: filesDnd });
   disposables.push(scm, scmView, files, filesView);
 
   const updateViewText = () => {
@@ -119,7 +122,7 @@ export function registerGitViews(_context: vscode.ExtensionContext, store: Proje
 
   if (scmView.visible || filesView.visible) void state.refresh('all');
 
-  internals = { state, scm, scmView, files, filesView, decorations, content };
+  internals = { state, scm, scmView, files, filesView, filesDnd, decorations, content };
   disposables.push({ dispose: () => (internals = undefined) });
   return vscode.Disposable.from(...disposables);
 }
