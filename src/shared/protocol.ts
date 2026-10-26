@@ -358,6 +358,8 @@ export interface ChatState {
   promptPresets?: PromptPreset[];
   todos?: TodoItem[];
   contextUsage?: ContextUsageView;
+  /** Agents (subagents) running in this session right now, foreground and background. */
+  agents?: RunningAgentView[];
   /** Set for a fork that hasn't sent its first message yet (to restore it after a reload). */
   forkFrom?: { sessionId: string; at: string; title: string };
   /** Send "continue" by itself once a usage limit that stopped this session resets. */
@@ -409,6 +411,17 @@ export type ExtToChatMessage =
 // ---------------------------------------------------------------------------
 // Messages: chat webview -> extension
 // ---------------------------------------------------------------------------
+
+/** An agent running in a session. */
+export interface RunningAgentView {
+  /** Agent type, e.g. "Explore" or "general-purpose". */
+  type: string;
+  description?: string;
+  /** The Agent tool row to scroll to, when it's in the conversation. */
+  itemId?: string;
+  /** Runs in the background (the turn can end while it works). */
+  background?: boolean;
+}
 
 /** A turn that ended because a usage limit was reached. */
 export interface LimitStopView {

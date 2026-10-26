@@ -30,11 +30,33 @@ export function Header({ state }: { state: ChatState }) {
         ) : null}
       </div>
       <div class="header-actions">
+        {state.agents?.length ? <AgentsChip agents={state.agents} /> : null}
         <BookmarksMenu bookmarks={state.bookmarks ?? []} />
         <IconButton icon="link-external" title="Open in Claude extension (new window)" onClick={() => send({ type: 'open-in-claude-extension' })} />
         <IconButton icon="add" title="New session" onClick={() => send({ type: 'new-session' })} />
       </div>
     </header>
+  );
+}
+
+/** "2 agents running", with the list on hover; click jumps to the first one. */
+function AgentsChip({ agents }: { agents: NonNullable<ChatState['agents']> }) {
+  const n = agents.length;
+  const list = agents.map((a) => `• ${a.type}${a.description ? ` — ${a.description}` : ''}${a.background ? ' (background)' : ''}`).join('\n');
+  const first = agents.find((a) => a.itemId);
+  return (
+    <button
+      type="button"
+      class="agents-chip"
+      title={`${n} agent${n > 1 ? 's' : ''} running\n${list}`}
+      aria-label={`${n} agent${n > 1 ? 's' : ''} running`}
+      onClick={() => first?.itemId && store.scrollTo(first.itemId)}
+    >
+      <Icon name="loading" spin />
+      <span>
+        {n} agent{n > 1 ? 's' : ''}
+      </span>
+    </button>
   );
 }
 

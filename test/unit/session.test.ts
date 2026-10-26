@@ -576,3 +576,24 @@ describe('fork names', () => {
     expect(forkTitle('Fix login (fork 2)', [])).toBe('Fix login (fork)');
   });
 });
+
+describe('ManagedSession: running agents', () => {
+  it('counts a background agent until the CLI reports it finished', async () => {
+    process.env.FAKE_AGENT_MS = '600';
+    try {
+      const { s, ui } = newSession();
+      await s.send('start a background-agent please');
+      await waitFor(() => s.status === 'idle' && s.getState().items.some((i) => i.kind === 'text' && i.text.includes('background')));
+      // The turn is over but the agent keeps running.
+      expect(s.runningAgents()).toMatchObject([{ type: 'Explore', description: 'Scan the repo', background: true }]);
+      expect(s.runningAgents()[0].itemId).toBeTruthy();
+      await waitFor(() => s.runningAgents().length === 0, 5000);
+      s.flush();
+      const patches = ui.filter((m) => m.type === 'patch' && 'agents' in m.patch).map((m) => (m as { patch: { agents: unknown[] | null } }).patch.agents);
+      expect(patches.some((a) => Array.isArray(a) && a.length === 1)).toBe(true);
+      expect(patches[patches.length - 1]).toEqual([]);
+    } finally {
+      delete process.env.FAKE_AGENT_MS;
+    }
+  });
+});

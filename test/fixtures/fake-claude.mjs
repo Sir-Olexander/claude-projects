@@ -74,6 +74,20 @@ async function runTurn(text, uuid) {
     process.exit(3);
   }
 
+  if (text.includes('background-agent')) {
+    // An Agent tool call that goes to the background, finishing after FAKE_AGENT_MS.
+    const toolId = 'toolu_' + randomUUID().slice(0, 8);
+    const input = { subagent_type: 'Explore', description: 'Scan the repo', prompt: 'look around', run_in_background: true };
+    out({ type: 'assistant', message: { id: msgId, role: 'assistant', model, content: [{ type: 'tool_use', id: toolId, name: 'Agent', input }] }, parent_tool_use_id: null, session_id: sessionId, uuid: randomUUID() });
+    const taskId = 'task_' + randomUUID().slice(0, 6);
+    out({ type: 'system', subtype: 'task_started', task_id: taskId, tool_use_id: toolId, description: 'Scan the repo', subagent_type: 'Explore', is_backgrounded: true, task_type: 'local_agent', session_id: sessionId, uuid: randomUUID() });
+    out({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolId, content: 'Agent launched in the background.' }] }, parent_tool_use_id: null, session_id: sessionId });
+    await streamText('msg_' + randomUUID().slice(0, 8), 0, 'Started an agent in the background.');
+    result();
+    setTimeout(() => out({ type: 'system', subtype: 'task_notification', task_id: taskId, tool_use_id: toolId, status: 'completed', summary: 'Scanned', session_id: sessionId, uuid: randomUUID() }), Number(process.env.FAKE_AGENT_MS ?? 800));
+    return;
+  }
+
   if (text.includes('hit-limit')) {
     // What Claude Code sends when a usage limit stops a turn.
     const resetsAt = Math.floor(Date.now() / 1000) + Number(process.env.FAKE_LIMIT_RESET_SECONDS ?? 3600);

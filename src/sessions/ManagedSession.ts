@@ -28,6 +28,7 @@ import type {
   ElicitationRequestView,
   ExtToChatMessage,
   PromptPreset,
+  RunningAgentView,
   ImageAttachment,
   LimitStopView,
   ModelOption,
@@ -199,6 +200,9 @@ export class ManagedSession {
   private forkFrom: ForkSource | undefined;
   /** The fork's name still has to be written into its new transcript. */
   private forkTitlePending = false;
+  /** Agent tasks the CLI reported as started and not yet finished (by task id). */
+  private readonly agentTasks = new Map<string, { toolUseId?: string; type: string; description?: string; background: boolean }>();
+  private agentsKey = '[]';
   private uiPatch: ChatStatePatch = {};
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
@@ -381,6 +385,7 @@ export class ManagedSession {
       todos: this.builder.todos,
       contextUsage: this.contextUsage,
       forkFrom: this.hasTranscript ? undefined : this.forkFrom,
+      agents: this.runningAgents(),
       autoContinue: this.autoContinue,
       limit: this.limitStop,
       liveElsewhere: this.liveElsewhere,
@@ -416,6 +421,7 @@ export class ManagedSession {
   flush(): void {
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.flushTimer = undefined;
+    this.syncAgents();
     const changes = this.builder.takeChanges();
     if (changes.removed.length) this._onUiMessage.fire({ type: 'remove-items', ids: changes.removed });
     if (changes.upserts.length) this._onUiMessage.fire({ type: 'items', items: changes.upserts });
@@ -427,6 +433,39 @@ export class ManagedSession {
       this.uiPatch = {};
       this._onUiMessage.fire({ type: 'patch', patch });
     }
+  }
+
+  /**
+   * Agents running now: Agent/Task tool calls still in progress plus agent tasks
+   * the CLI reported as started (background ones keep running after the turn).
+   */
+  runningAgents(): RunningAgentView[] {
+    const out: RunningAgentView[] = [];
+    const seen = new Set<string>();
+    for (const t of this.agentTasks.values()) {
+      const item = t.toolUseId ? this.builder.get<ToolItem>(t.toolUseId) : undefined;
+      if (t.toolUseId) seen.add(t.toolUseId);
+      out.push({ type: t.type, description: t.description, itemId: item ? topLevelId(this.builder, item.id) : undefined, background: t.background });
+    }
+    if (this.status === 'running' || this.status === 'waiting') {
+      for (const it of this.builder.items) {
+        if (it.kind !== 'tool' || (it.name !== 'Agent' && it.name !== 'Task') || seen.has(it.id)) continue;
+        if (it.status !== 'running' && it.status !== 'pending') continue;
+        const type = typeof it.input.subagent_type === 'string' && it.input.subagent_type ? it.input.subagent_type : 'general-purpose';
+        const description = typeof it.input.description === 'string' ? it.input.description : undefined;
+        out.push({ type, description, itemId: topLevelId(this.builder, it.id) });
+      }
+    }
+    return out;
+  }
+
+  private syncAgents(): void {
+    const agents = this.runningAgents();
+    const key = JSON.stringify(agents);
+    if (key === this.agentsKey) return;
+    this.agentsKey = key;
+    this.patchUi({ agents });
+    this._onDidChange.fire();
   }
 
   private setStatus(status: SessionStatus, activity?: string): void {
@@ -1094,6 +1133,7 @@ export class ManagedSession {
     this.stoppingProc = undefined;
     const hadPending = this.pending.size > 0;
     this.pending.clear();
+    this.agentTasks.clear(); // its agents ended with it
     this.builder.endStreaming();
     const wasBusy = this.status === 'running' || this.status === 'waiting' || this.status === 'starting';
     if (wasBusy) this.builder.settleOpenTools('interrupted');
@@ -1290,7 +1330,27 @@ export class ManagedSession {
         this.scheduleFlush();
         break;
       }
+      case 'task_started': {
+        const taskId = typeof m.task_id === 'string' ? m.task_id : undefined;
+        const type = typeof m.subagent_type === 'string' && m.subagent_type ? m.subagent_type : typeof m.task_type === 'string' && /agent/i.test(m.task_type) ? 'agent' : undefined;
+        if (taskId && type) {
+          this.agentTasks.set(taskId, {
+            toolUseId: typeof m.tool_use_id === 'string' ? m.tool_use_id : undefined,
+            type,
+            description: typeof m.description === 'string' ? m.description : undefined,
+            background: m.is_backgrounded === true,
+          });
+          this.scheduleFlush();
+        }
+        break;
+      }
+      case 'task_updated': {
+        const patch = m.patch as { status?: string } | undefined;
+        if (typeof m.task_id === 'string' && patch?.status && TASK_DONE.has(patch.status) && this.agentTasks.delete(m.task_id)) this.scheduleFlush();
+        break;
+      }
       case 'task_notification': {
+        if (typeof m.task_id === 'string' && this.agentTasks.delete(m.task_id)) this.scheduleFlush();
         const summary = typeof m.summary === 'string' ? m.summary : undefined;
         // Agents run in the foreground already show their result on their tool row.
         const shownAsTool = typeof m.tool_use_id === 'string' && !!this.builder.get(m.tool_use_id);
@@ -1479,6 +1539,19 @@ export class ManagedSession {
 }
 
 type SystemFrame = Omit<Partial<SdkSystemInit>, 'subtype'> & { subtype: string; [k: string]: unknown };
+
+const TASK_DONE = new Set(['completed', 'failed', 'killed', 'stopped', 'cancelled', 'canceled', 'error']);
+
+/** The top-level row an item belongs to (subagent items sit under their Agent row). */
+function topLevelId(builder: ChatBuilder, id: string): string {
+  let cur = id;
+  for (let i = 0; i < 50; i++) {
+    const item = builder.get(cur) as { parentToolUseId?: string } | undefined;
+    if (!item?.parentToolUseId) return cur;
+    cur = item.parentToolUseId;
+  }
+  return cur;
+}
 
 /**
  * Name for a fork of `title`: "Title (fork)", or "Title (fork 2)", "(fork 3)"…
