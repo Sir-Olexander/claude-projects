@@ -184,4 +184,18 @@ describe.runIf(enabled)('real Claude CLI', () => {
     expect(readFileSync(transcriptPathFor(dir, s.sessionId), 'utf8')).not.toContain(secret);
     await s.stopProcess();
   }, 240_000);
+
+  it('Remote Control: turns on with a claude.ai link and off again', async () => {
+    const s = new ManagedSession({ cwd: dir, projectName: 'Integration' }, services());
+    created.push(transcriptPathFor(dir, s.sessionId));
+    await s.setRemoteControl(true);
+    const remote = s.getState().remote;
+    if (process.env.VERBOSE) console.log('remote control:', JSON.stringify(remote));
+    expect(remote?.error).toBeUndefined();
+    expect(remote?.state).toBe('on');
+    expect(remote?.url).toMatch(/^https:\/\//);
+    await s.setRemoteControl(false);
+    expect(s.getState().remote).toBeUndefined();
+    await s.stopProcess();
+  }, 120_000);
 });

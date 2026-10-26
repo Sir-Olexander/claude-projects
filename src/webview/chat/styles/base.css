@@ -336,6 +336,20 @@ kbd {
   color: var(--link);
 }
 
+.banner-remote {
+  background: color-mix(in srgb, var(--c-orange) 10%, var(--bg));
+}
+
+.banner-remote > .codicon {
+  color: var(--c-orange);
+}
+
+/* Header button that is switched on (Remote Control). */
+.icon-btn.is-on {
+  color: var(--c-orange);
+  background: color-mix(in srgb, var(--c-orange) 14%, transparent);
+}
+
 /* Buttons */
 .btn {
   border: 0;

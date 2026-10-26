@@ -358,6 +358,8 @@ export interface ChatState {
   promptPresets?: PromptPreset[];
   todos?: TodoItem[];
   contextUsage?: ContextUsageView;
+  /** Remote Control (continue this chat from claude.ai or the Claude app). */
+  remote?: RemoteControlView;
   /** Names of the shared .env variables this chat's Claude process has (values never leave the extension). */
   sharedEnv?: string[];
   /** Agents (subagents) running in this session right now, foreground and background. */
@@ -414,6 +416,13 @@ export type ExtToChatMessage =
 // Messages: chat webview -> extension
 // ---------------------------------------------------------------------------
 
+export interface RemoteControlView {
+  state: 'connecting' | 'on' | 'error';
+  /** Link to the session on claude.ai (open it there or in the Claude app). */
+  url?: string;
+  error?: string;
+}
+
 /** An agent running in a session. */
 export interface RunningAgentView {
   /** Agent type, e.g. "Explore" or "general-purpose". */
@@ -453,6 +462,8 @@ export type ChatToExtMessage =
   | { type: 'set-auto-continue'; on: boolean }
   /** Open the shared .env file. */
   | { type: 'open-global-env' }
+  /** Turn Remote Control on or off. */
+  | { type: 'remote-control'; on: boolean }
   /** Start a new session with the conversation up to (and including) this reply. */
   | { type: 'fork'; itemId: string }
   /**

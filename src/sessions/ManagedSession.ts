@@ -28,6 +28,7 @@ import type {
   ElicitationRequestView,
   ExtToChatMessage,
   PromptPreset,
+  RemoteControlView,
   RunningAgentView,
   ImageAttachment,
   LimitStopView,
@@ -208,6 +209,8 @@ export class ManagedSession {
   private agentsKey = '[]';
   /** Names of the shared .env variables the current process got. */
   private sharedEnvNames: string[] = [];
+  /** Remote Control state while it's on (or turning on). */
+  remote: RemoteControlView | undefined;
   private uiPatch: ChatStatePatch = {};
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
@@ -392,6 +395,7 @@ export class ManagedSession {
       forkFrom: this.hasTranscript ? undefined : this.forkFrom,
       agents: this.runningAgents(),
       sharedEnv: this.sharedEnvNames,
+      remote: this.remote,
       autoContinue: this.autoContinue,
       limit: this.limitStop,
       liveElsewhere: this.liveElsewhere,
@@ -693,6 +697,46 @@ export class ManagedSession {
   private stopAutoTimer(): void {
     if (this.autoTimer) clearInterval(this.autoTimer);
     this.autoTimer = undefined;
+  }
+
+  /**
+   * Remote Control: lets this chat be continued from claude.ai or the Claude
+   * app while its Claude process runs here. Starts the process if needed.
+   */
+  async setRemoteControl(on: boolean): Promise<void> {
+    if (!on) {
+      const proc = this.proc;
+      const wasOn = this.remote?.state === 'on';
+      this.setRemote(undefined);
+      if (wasOn && proc?.alive) await proc.remoteControl(false).catch((err) => this.log.warn(`turning off Remote Control failed: ${errorMessage(err)}`));
+      if (wasOn) {
+        this.builder.addSystem('info', 'Remote Control is off.');
+        this.flush();
+      }
+      return;
+    }
+    if (this.remote?.state === 'on' || this.remote?.state === 'connecting') return;
+    this.setRemote({ state: 'connecting' });
+    const proc = await this.ensureProcess();
+    if (!proc) {
+      this.setRemote({ state: 'error', error: this.error ?? 'Claude could not start.' });
+      return;
+    }
+    try {
+      const r = await proc.remoteControl(true);
+      if (this.proc !== proc) return;
+      this.setRemote({ state: 'on', url: r.session_url ?? r.connect_url });
+      this.builder.addSystem('info', 'Remote Control is on: continue this chat from claude.ai or the Claude app. It stays on while this chat is open here.');
+      this.flush();
+    } catch (err) {
+      this.setRemote({ state: 'error', error: errorMessage(err) });
+    }
+  }
+
+  private setRemote(remote: RemoteControlView | undefined): void {
+    this.remote = remote;
+    this.patchUi({ remote });
+    this._onDidChange.fire();
   }
 
   async interrupt(): Promise<void> {
@@ -1148,6 +1192,12 @@ export class ManagedSession {
     const hadPending = this.pending.size > 0;
     this.pending.clear();
     this.agentTasks.clear(); // its agents ended with it
+    if (this.remote) {
+      const wasOn = this.remote.state === 'on';
+      this.remote = undefined;
+      this.patchUi({ remote: undefined });
+      if (wasOn) this.builder.addSystem('info', 'Remote Control ended because Claude stopped. Turn it on again from the header.');
+    }
     this.builder.endStreaming();
     const wasBusy = this.status === 'running' || this.status === 'waiting' || this.status === 'starting';
     if (wasBusy) this.builder.settleOpenTools('interrupted');

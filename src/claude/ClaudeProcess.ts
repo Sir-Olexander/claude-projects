@@ -326,6 +326,14 @@ export class ClaudeProcess {
     await this.request({ subtype: 'set_permission_mode', mode }, 15_000);
   }
 
+  /**
+   * Turns Remote Control on or off for this session: on, it can be continued
+   * from claude.ai or the Claude app; the reply has the session's link.
+   */
+  async remoteControl(enabled: boolean): Promise<{ session_url?: string; connect_url?: string }> {
+    return this.request<{ session_url?: string; connect_url?: string }>({ subtype: 'remote_control', enabled }, 60_000);
+  }
+
   async setModel(model: string | null): Promise<void> {
     await this.request({ subtype: 'set_model', model }, 15_000);
   }

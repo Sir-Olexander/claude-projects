@@ -619,3 +619,32 @@ describe('ManagedSession: shared .env', () => {
     }
   });
 });
+
+describe('ManagedSession: Remote Control', () => {
+  it('turns on with a link, keeps it while Claude runs, and turns off', async () => {
+    const { s } = newSession();
+    await s.setRemoteControl(true);
+    expect(s.getState().remote).toMatchObject({ state: 'on' });
+    expect(s.getState().remote?.url).toMatch(/^https:\/\/claude\.ai\/code\/session_/);
+    expect(s.processAlive).toBe(true);
+    await s.setRemoteControl(false);
+    expect(s.getState().remote).toBeUndefined();
+    await s.setRemoteControl(true);
+    await s.stopProcess();
+    await waitFor(() => !s.processAlive);
+    expect(s.getState().remote).toBeUndefined();
+    expect(s.getState().items.some((i) => i.kind === 'system' && i.text.startsWith('Remote Control ended'))).toBe(true);
+  });
+
+  it('shows why it could not start', async () => {
+    process.env.FAKE_REMOTE_FAIL = '1';
+    try {
+      const { s } = newSession();
+      await s.setRemoteControl(true);
+      expect(s.getState().remote).toMatchObject({ state: 'error' });
+      expect(s.getState().remote?.error).toMatch(/not available/);
+    } finally {
+      delete process.env.FAKE_REMOTE_FAIL;
+    }
+  });
+});

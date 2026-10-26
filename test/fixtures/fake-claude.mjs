@@ -223,6 +223,13 @@ rl.on('line', async (line) => {
       case 'get_usage':
         ok({ subscription_type: 'max', rate_limits_available: true, rate_limits: { five_hour: { utilization: 42, resets_at: '2030-01-01T00:00:00Z' }, seven_day: { utilization: 7, resets_at: '2030-01-05T00:00:00Z' }, model_scoped: [{ display_name: 'Fable', utilization: 1, resets_at: '2030-01-05T00:00:00Z' }] } });
         return;
+      case 'remote_control':
+        if (process.env.FAKE_REMOTE_FAIL) {
+          out({ type: 'control_response', response: { subtype: 'error', request_id: m.request_id, error: 'Remote Control is not available for this account' } });
+          break;
+        }
+        ok(m.request.enabled ? { session_url: `https://claude.ai/code/session_${sessionId.slice(0, 8)}`, connect_url: 'https://claude.ai/connect', bridge_session_id: 'b1' } : {});
+        break;
       case 'interrupt':
         ok({ still_queued: [] });
         if (turn && !turn.interrupted) {

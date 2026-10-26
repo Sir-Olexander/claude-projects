@@ -38,6 +38,12 @@ export function Header({ state }: { state: ChatState }) {
             onClick={() => send({ type: 'open-global-env' })}
           />
         ) : null}
+        <IconButton
+          icon="remote"
+          title={state.remote?.state === 'on' ? 'Remote Control is on. Click to turn it off.' : 'Remote Control: continue this chat from claude.ai or the Claude app'}
+          class={state.remote?.state === 'on' ? 'is-on' : undefined}
+          onClick={() => send({ type: 'remote-control', on: !(state.remote?.state === 'on' || state.remote?.state === 'connecting') })}
+        />
         <BookmarksMenu bookmarks={state.bookmarks ?? []} />
         <IconButton icon="link-external" title="Open in Claude extension (new window)" onClick={() => send({ type: 'open-in-claude-extension' })} />
         <IconButton icon="add" title="New session" onClick={() => send({ type: 'new-session' })} />
@@ -123,8 +129,43 @@ function BookmarksMenu({ bookmarks }: { bookmarks: BookmarkView[] }) {
 }
 
 export function Banners({ state }: { state: ChatState }) {
+  const remote = state.remote;
   return (
     <>
+      {remote?.state === 'on' ? (
+        <div class="banner banner-remote" role="status">
+          <Icon name="remote" />
+          <div class="banner-text">
+            <b>Remote Control is on.</b> Continue this chat from claude.ai or the Claude app. It stays on while the chat is open here.
+          </div>
+          {remote.url ? (
+            <>
+              <button type="button" class="btn btn-small" onClick={() => send({ type: 'open-url', url: remote.url! })}>
+                Open
+              </button>
+              <button type="button" class="btn btn-small btn-ghost" onClick={() => send({ type: 'copy', text: remote.url! })}>
+                Copy link
+              </button>
+            </>
+          ) : null}
+          <button type="button" class="btn btn-small btn-ghost" onClick={() => send({ type: 'remote-control', on: false })}>
+            Turn off
+          </button>
+        </div>
+      ) : remote?.state === 'connecting' ? (
+        <div class="banner banner-info" role="status">
+          <Icon name="loading" spin />
+          <div class="banner-text">Turning on Remote Control…</div>
+        </div>
+      ) : remote?.state === 'error' ? (
+        <div class="banner banner-error" role="alert">
+          <Icon name="error" />
+          <div class="banner-text">Remote Control couldn't start: {remote.error}</div>
+          <button type="button" class="btn btn-small btn-ghost" onClick={() => send({ type: 'remote-control', on: false })}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       {state.liveElsewhere ? (
         <div class="banner banner-warn" role="status">
           <Icon name="broadcast" />

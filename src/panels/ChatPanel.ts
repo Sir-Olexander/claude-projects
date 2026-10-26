@@ -191,6 +191,9 @@ export class ChatPanel implements vscode.Disposable {
         case 'fork':
           this.host.fork(s, m.itemId);
           break;
+        case 'remote-control':
+          await s.setRemoteControl(m.on);
+          break;
         case 'open-global-env':
           await vscode.commands.executeCommand('claudeProjects.openGlobalEnv');
           break;

@@ -277,6 +277,7 @@ export class SessionManager implements vscode.Disposable {
     const cutoff = Date.now() - minutes * 60_000;
     for (const s of this.sessions.values()) {
       if (!s.processAlive || s.visibleCount > 0) continue;
+      if (s.remote) continue; // Remote Control needs the process
       if (s.status !== 'idle' || s.pendingRequests.length > 0) continue;
       if (s.lastActivityAt > cutoff) continue;
       this.deps.log.info(`stopping idle Claude process for ${s.sessionId}`);
