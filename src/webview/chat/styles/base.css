@@ -846,3 +846,57 @@ kbd {
 .env-edit:hover {
   background: var(--hover-bg);
 }
+
+.env-master {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 6px;
+  cursor: pointer;
+}
+.env-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 10px;
+  border-radius: var(--radius-s);
+}
+.env-row:hover {
+  background: var(--hover-bg);
+}
+.env-check {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.env-check input {
+  margin: 0;
+  accent-color: var(--c-orange);
+}
+.env-insert {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.env-insert:hover {
+  color: var(--fg);
+  background: var(--hover-bg);
+}
+.env-note {
+  margin: 4px 10px 2px;
+  color: var(--warn);
+  font-size: 11.5px;
+  line-height: 1.4;
+}

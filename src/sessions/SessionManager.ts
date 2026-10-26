@@ -77,6 +77,15 @@ export class SessionManager implements vscode.Disposable {
       bookmarks: this.bookmarkStore,
       probeDefaults: (cwd) => this.probeDefaults(cwd),
       globalEnv: () => readGlobalEnv(globalEnvPath()),
+      sharedEnvChoice: {
+        load: (id) => context.globalState.get<Record<string, string[]>>(SHARED_ENV_KEY, {})[id],
+        save: (id, names) => {
+          const next = { ...context.globalState.get<Record<string, string[]>>(SHARED_ENV_KEY, {}) };
+          if (names.length) next[id] = names;
+          else delete next[id];
+          void context.globalState.update(SHARED_ENV_KEY, next);
+        },
+      },
     };
 
     this.disposables.push(
@@ -323,6 +332,8 @@ export function readSettings(): SessionSettings {
 }
 
 const BOOKMARKS_KEY = 'claudeProjects.bookmarks.v1';
+/** Which shared .env variables each chat uses (by session id). */
+const SHARED_ENV_KEY = 'claudeProjects.sharedEnvChoice.v1';
 const AUTO_CONTINUE_KEY = 'claudeProjects.autoContinue.v1';
 
 /** A chat waiting to send "continue" when a usage limit resets (global state, shared by windows). */

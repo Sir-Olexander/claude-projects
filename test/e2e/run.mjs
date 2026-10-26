@@ -110,6 +110,8 @@ writeFileSync(
   JSON.stringify({
     ...(real ? {} : { 'claudeProjects.claudePath': join(root, 'test', 'fixtures', 'fake-claude.mjs') }),
     'claudeProjects.notifications.enabled': false,
+    // Never read the real shared .env from a test.
+    'claudeProjects.chat.globalEnvFile': join(base, 'shared.env'),
     'workbench.startupEditor': 'none',
     'security.workspace.trust.enabled': false,
     'extensions.autoUpdate': false,

@@ -360,8 +360,8 @@ export interface ChatState {
   contextUsage?: ContextUsageView;
   /** Remote Control (continue this chat from claude.ai or the Claude app). */
   remote?: RemoteControlView;
-  /** Names of the shared .env variables this chat's Claude process has (values never leave the extension). */
-  sharedEnv?: string[];
+  /** Shared .env variables: which exist, which this chat uses (values never leave the extension). */
+  sharedEnv?: SharedEnvView;
   /** Agents (subagents) running in this session right now, foreground and background. */
   agents?: RunningAgentView[];
   /** Set for a fork that hasn't sent its first message yet (to restore it after a reload). */
@@ -416,6 +416,17 @@ export type ExtToChatMessage =
 // Messages: chat webview -> extension
 // ---------------------------------------------------------------------------
 
+export interface SharedEnvView {
+  /** Variable names in the shared .env file. */
+  available: string[];
+  /** Names chosen for this chat (none by default). */
+  enabled: string[];
+  /** Names the running Claude has; absent while Claude isn't running in this chat. */
+  active?: string[];
+  /** The choice changed while Claude was busy: it applies when Claude finishes. */
+  pending?: boolean;
+}
+
 export interface RemoteControlView {
   state: 'connecting' | 'on' | 'error';
   /** Link to the session on claude.ai (open it there or in the Claude app). */
@@ -462,6 +473,8 @@ export type ChatToExtMessage =
   | { type: 'set-auto-continue'; on: boolean }
   /** Open the shared .env file. */
   | { type: 'open-global-env' }
+  /** Choose which shared .env variables this chat gets (empty = none). */
+  | { type: 'set-shared-env'; names: string[] }
   /** Turn Remote Control on or off. */
   | { type: 'remote-control'; on: boolean }
   /** Start a new session with the conversation up to (and including) this reply. */

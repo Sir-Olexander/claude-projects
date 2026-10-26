@@ -599,25 +599,70 @@ describe('ManagedSession: running agents', () => {
 });
 
 describe('ManagedSession: shared .env', () => {
-  it('gives Claude the variables in its environment and only their names in the prompt', async () => {
+  const lastSpawn = (log: string) => JSON.parse(readFileSync(log, 'utf8').trim().split('\n').pop()!) as { args: string[]; env: { sharedToken: string | null } };
+  const env = () => ({ vars: { SHARED_TOKEN: 's3cret-value', OTHER_KEY: 'other' }, skipped: [] });
+  const choices = () => {
+    const m = new Map<string, string[]>();
+    return { load: (id: string) => m.get(id), save: (id: string, n: string[]) => void m.set(id, n), m };
+  };
+
+  it('is off by default: Claude gets no shared variables until the chat turns them on', async () => {
     const log = join(tempDir(), 'args.jsonl');
     process.env.FAKE_CLAUDE_LOG = log;
     try {
-      const s = new ManagedSession({ cwd: tempDir(), projectName: 'T' }, services({ globalEnv: () => ({ vars: { SHARED_TOKEN: 's3cret-value' }, skipped: [] }) }));
+      const s = new ManagedSession({ cwd: tempDir(), projectName: 'T' }, services({ globalEnv: env, sharedEnvChoice: choices() }));
       sessions.push(s);
-      expect(s.getState().sharedEnv).toEqual(['SHARED_TOKEN']); // shown before Claude starts too
+      expect(s.getState().sharedEnv).toEqual({ available: ['OTHER_KEY', 'SHARED_TOKEN'], enabled: [] });
       await s.send('hello');
       await waitFor(() => s.status === 'idle');
-      const entry = JSON.parse(readFileSync(log, 'utf8').trim().split('\n').pop()!) as { args: string[]; env: { sharedToken: string | null } };
-      expect(entry.env.sharedToken).toBe('s3cret-value');
-      const prompt = entry.args[entry.args.indexOf('--append-system-prompt') + 1];
-      expect(prompt).toContain('SHARED_TOKEN');
-      expect(entry.args.join(' ')).not.toContain('s3cret-value');
-      expect(entry.args).toContain('Bash(printenv:*)');
-      expect(s.getState().sharedEnv).toEqual(['SHARED_TOKEN']);
+      const spawn = lastSpawn(log);
+      expect(spawn.env.sharedToken).toBeNull();
+      expect(spawn.args).not.toContain('--append-system-prompt');
     } finally {
       delete process.env.FAKE_CLAUDE_LOG;
     }
+  });
+
+  it('gives Claude only the checked variables, names only in the prompt, and restarts an idle Claude to apply a change', async () => {
+    const log = join(tempDir(), 'args.jsonl');
+    process.env.FAKE_CLAUDE_LOG = log;
+    try {
+      const store = choices();
+      const s = new ManagedSession({ cwd: tempDir(), projectName: 'T' }, services({ globalEnv: env, sharedEnvChoice: store }));
+      sessions.push(s);
+      await s.send('hello');
+      await waitFor(() => s.status === 'idle');
+      expect(s.processAlive).toBe(true);
+      // Turn one on while Claude is idle: it restarts, and the next message uses it.
+      await s.setSharedEnv(['SHARED_TOKEN']);
+      await waitFor(() => !s.processAlive);
+      expect(store.m.get(s.sessionId)).toEqual(['SHARED_TOKEN']);
+      await s.send('again');
+      await waitFor(() => s.status === 'idle' && s.getState().items.some((i) => i.kind === 'text' && i.text === 'Echo: again'));
+      const spawn = lastSpawn(log);
+      expect(spawn.env.sharedToken).toBe('s3cret-value');
+      const prompt = spawn.args[spawn.args.indexOf('--append-system-prompt') + 1];
+      expect(prompt).toContain('SHARED_TOKEN');
+      expect(prompt).not.toContain('OTHER_KEY');
+      expect(spawn.args.join(' ')).not.toContain('s3cret-value');
+      expect(spawn.args).toContain('Bash(printenv:*)');
+      expect(s.getState().sharedEnv).toMatchObject({ enabled: ['SHARED_TOKEN'], active: ['SHARED_TOKEN'] });
+    } finally {
+      delete process.env.FAKE_CLAUDE_LOG;
+    }
+  });
+
+  it('waits for Claude to finish before applying a change', async () => {
+    const s = new ManagedSession({ cwd: tempDir(), projectName: 'T' }, services({ globalEnv: env, sharedEnvChoice: choices() }));
+    sessions.push(s);
+    void s.send('slow answer please');
+    await waitFor(() => s.status === 'running');
+    await s.setSharedEnv(['OTHER_KEY']);
+    expect(s.getState().sharedEnv?.pending).toBe(true);
+    expect(s.processAlive).toBe(true); // not cut off mid-answer
+    await waitFor(() => s.status === 'idle', 15_000);
+    await waitFor(() => !s.processAlive, 5000);
+    expect(s.getState().sharedEnv?.pending).toBeUndefined();
   });
 });
 

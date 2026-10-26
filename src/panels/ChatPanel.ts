@@ -194,6 +194,9 @@ export class ChatPanel implements vscode.Disposable {
         case 'remote-control':
           await s.setRemoteControl(m.on);
           break;
+        case 'set-shared-env':
+          await s.setSharedEnv(m.names);
+          break;
         case 'open-global-env':
           await vscode.commands.executeCommand('claudeProjects.openGlobalEnv');
           break;

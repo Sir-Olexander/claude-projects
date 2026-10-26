@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { BookmarkView, ChatState, LimitStopView, TodoItem } from '../../../shared/protocol';
+import type { BookmarkView, ChatState, LimitStopView, SharedEnvView, TodoItem } from '../../../shared/protocol';
 import { clockTime, countdown } from '../../../util/time';
 import { store } from '../store';
 import { formatElapsed } from '../lib/format';
@@ -31,7 +31,7 @@ export function Header({ state }: { state: ChatState }) {
       </div>
       <div class="header-actions">
         {state.agents?.length ? <AgentsChip agents={state.agents} /> : null}
-        <SharedEnvMenu names={state.sharedEnv ?? []} />
+        <SharedEnvMenu env={state.sharedEnv ?? { available: [], enabled: [] }} />
         <IconButton
           icon="remote"
           title={state.remote?.state === 'on' ? 'Remote Control is on. Click to turn it off.' : 'Remote Control: continue this chat from claude.ai or the Claude app'}
@@ -67,8 +67,11 @@ function AgentsChip({ agents }: { agents: NonNullable<ChatState['agents']> }) {
   );
 }
 
-/** The shared .env variables this chat has: names only; click one to put $NAME in your message. */
-function SharedEnvMenu({ names }: { names: string[] }) {
+/**
+ * The shared .env, per chat: a switch to use it here and a checkbox per
+ * variable (none by default). Names only; the values never reach the chat.
+ */
+function SharedEnvMenu({ env }: { env: SharedEnvView }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -84,43 +87,60 @@ function SharedEnvMenu({ names }: { names: string[] }) {
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+  const enabled = new Set(env.enabled);
+  const on = env.enabled.length > 0;
+  const setNames = (names: string[]) => send({ type: 'set-shared-env', names });
+  const toggle = (name: string) => setNames(enabled.has(name) ? env.enabled.filter((n) => n !== name) : [...env.enabled, name]);
   return (
     <div class="bm-menu-wrap" ref={root}>
       <button
         type="button"
-        class={`icon-btn bm-menu-btn${names.length ? ' has-items' : ''}`}
+        class={`icon-btn bm-menu-btn${on ? ' has-items is-on' : ''}`}
         title="Shared .env"
-        aria-label={`Shared .env: ${names.length} variable${names.length === 1 ? '' : 's'}`}
+        aria-label={`Shared .env: ${env.enabled.length} of ${env.available.length} variables in this chat`}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
         <Icon name="key" />
-        {names.length ? <span class="bm-count">{names.length}</span> : null}
+        {on ? <span class="bm-count">{env.enabled.length}</span> : null}
       </button>
       {open ? (
         <div class="bm-menu env-menu" role="menu">
           <div class="bm-menu-title">Shared .env</div>
-          {names.length === 0 ? (
+          {env.available.length === 0 ? (
             <div class="bm-empty">No variables yet. Add lines like MY_API_KEY=… to the shared .env and save it.</div>
           ) : (
             <>
-              <div class="env-hint">Claude has these in its environment and knows their names, not their values. Click one to use it in your message.</div>
-              {names.map((n) => (
-                <div class="bm-row" role="menuitem" key={n}>
-                  <button
-                    type="button"
-                    class="bm-go"
-                    title={`Insert $${n}`}
-                    onClick={() => {
-                      setOpen(false);
-                      store.insertText(`$${n}`);
-                    }}
-                  >
-                    <Icon name="symbol-variable" class="bm-kind" />
-                    <span class="bm-label env-name">${n}</span>
-                  </button>
+              <label class="env-master">
+                <button type="button" role="switch" aria-checked={on} class={`switch${on ? ' is-on' : ''}`} onClick={() => setNames(on ? [] : env.available)}>
+                  <span class="switch-knob" />
+                </button>
+                <span>Use in this chat</span>
+              </label>
+              <div class="env-hint">Claude gets the checked variables in its environment and knows their names, not their values.</div>
+              {env.available.map((n) => (
+                <div class="env-row" key={n}>
+                  <label class="env-check">
+                    <input type="checkbox" checked={enabled.has(n)} onChange={() => toggle(n)} />
+                    <span class="env-name">{n}</span>
+                  </label>
+                  {enabled.has(n) ? (
+                    <button
+                      type="button"
+                      class="env-insert"
+                      title={`Insert $${n} in your message`}
+                      aria-label={`Insert $${n} in your message`}
+                      onClick={() => {
+                        setOpen(false);
+                        store.insertText(`$${n}`);
+                      }}
+                    >
+                      <Icon name="insert" />
+                    </button>
+                  ) : null}
                 </div>
               ))}
+              {env.pending ? <div class="env-note">Applies when Claude finishes what it's doing (it restarts; the conversation continues).</div> : null}
             </>
           )}
           <button

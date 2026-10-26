@@ -169,6 +169,7 @@ export class ChatPanelManager implements vscode.Disposable {
       model: source.modelValue,
       forkFrom: from,
       title: forkTitle(from.title, taken),
+      sharedEnv: [...source.sharedEnvNames],
     });
     this.show(session);
     return session;

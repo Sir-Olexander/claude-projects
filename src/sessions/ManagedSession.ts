@@ -29,6 +29,7 @@ import type {
   ExtToChatMessage,
   PromptPreset,
   RemoteControlView,
+  SharedEnvView,
   RunningAgentView,
   ImageAttachment,
   LimitStopView,
@@ -92,6 +93,8 @@ export interface SessionServices {
   probeDefaults(cwd: string): Promise<ProbedDefaults | undefined>;
   /** Variables from the shared .env file, read each time a Claude process starts. */
   globalEnv?(): GlobalEnv | undefined;
+  /** Which shared .env variables each chat uses, by session id. */
+  sharedEnvChoice?: { load(sessionId: string): string[] | undefined; save(sessionId: string, names: string[]): void };
 }
 
 export interface ProbedDefaults {
@@ -112,6 +115,8 @@ export interface ManagedSessionInit {
   model?: string;
   /** Start as a fork of another session, keeping its conversation up to message `at` (included). */
   forkFrom?: ForkSource;
+  /** Shared .env variables to use (a fork takes its original's choice). */
+  sharedEnv?: string[];
 }
 
 export interface ForkSource {
@@ -207,8 +212,12 @@ export class ManagedSession {
   /** Agent tasks the CLI reported as started and not yet finished (by task id). */
   private readonly agentTasks = new Map<string, { toolUseId?: string; type: string; description?: string; background: boolean }>();
   private agentsKey = '[]';
-  /** Names of the shared .env variables the current process got. */
-  private sharedEnvNames: string[] = [];
+  /** Shared .env variables chosen for this chat (none unless turned on). */
+  private sharedEnvChoice: string[] = [];
+  /** Names the running process got; undefined while no process runs. */
+  private sharedEnvActive: string[] | undefined;
+  /** The choice changed while Claude was busy: restart Claude when it's done. */
+  private sharedEnvRestart = false;
   /** Remote Control state while it's on (or turning on). */
   remote: RemoteControlView | undefined;
   private uiPatch: ChatStatePatch = {};
@@ -271,6 +280,8 @@ export class ManagedSession {
     }
     this.builder = new ChatBuilder(services.imageSink);
     this.bookmarks = services.bookmarks.load(this.sessionId);
+    this.sharedEnvChoice = init.sharedEnv ?? services.sharedEnvChoice?.load(this.sessionId) ?? [];
+    if (init.sharedEnv?.length) services.sharedEnvChoice?.save(this.sessionId, this.sharedEnvChoice);
     this.applySharedInit();
   }
 
@@ -394,8 +405,7 @@ export class ManagedSession {
       contextUsage: this.contextUsage,
       forkFrom: this.hasTranscript ? undefined : this.forkFrom,
       agents: this.runningAgents(),
-      // Before Claude starts: what it will get from the file. After: what it got.
-      sharedEnv: this.proc?.alive ? this.sharedEnvNames : Object.keys(this.services.globalEnv?.()?.vars ?? {}).sort(),
+      sharedEnv: this.sharedEnvView(),
       remote: this.remote,
       autoContinue: this.autoContinue,
       limit: this.limitStop,
@@ -714,6 +724,7 @@ export class ManagedSession {
         this.builder.addSystem('info', 'Remote Control is off.');
         this.flush();
       }
+      await this.applySharedEnvIfIdle();
       return;
     }
     if (this.remote?.state === 'on' || this.remote?.state === 'connecting') return;
@@ -734,11 +745,53 @@ export class ManagedSession {
     }
   }
 
-  /** The shared .env was edited: chats whose Claude hasn't started show the new names. */
+  // ---------------------------------------------------------------------------
+  // Shared .env, per chat
+  // ---------------------------------------------------------------------------
+
+  get sharedEnvNames(): readonly string[] {
+    return this.sharedEnvChoice;
+  }
+
+  sharedEnvView(): SharedEnvView {
+    const available = Object.keys(this.services.globalEnv?.()?.vars ?? {}).sort();
+    return {
+      available,
+      enabled: this.sharedEnvChoice.filter((n) => available.includes(n)),
+      active: this.proc?.alive ? this.sharedEnvActive : undefined,
+      pending: this.sharedEnvRestart || undefined,
+    };
+  }
+
+  /** The shared .env was edited: show its current names. A running Claude keeps what it started with. */
   refreshSharedEnv(): void {
-    if (this.proc?.alive) return; // a running Claude keeps what it started with
-    this.patchUi({ sharedEnv: Object.keys(this.services.globalEnv?.()?.vars ?? {}).sort() });
+    this.patchUi({ sharedEnv: this.sharedEnvView() });
     this.flush();
+  }
+
+  /**
+   * Chooses the shared .env variables this chat gets. Claude only reads its
+   * environment when it starts, so a running Claude is restarted (the
+   * conversation continues): right away when idle, otherwise once it's done.
+   */
+  async setSharedEnv(names: string[]): Promise<void> {
+    this.sharedEnvChoice = [...new Set(names)].sort();
+    this.services.sharedEnvChoice?.save(this.sessionId, this.sharedEnvChoice);
+    const active = this.sharedEnvActive;
+    const same = !!active && active.length === this.sharedEnvChoice.length && active.every((n, i) => n === this.sharedEnvChoice[i]);
+    this.sharedEnvRestart = !!this.proc?.alive && !same;
+    this.patchUi({ sharedEnv: this.sharedEnvView() });
+    this.flush();
+    await this.applySharedEnvIfIdle();
+  }
+
+  /** Restarts Claude for a changed shared .env choice once nothing would be lost by it. */
+  private async applySharedEnvIfIdle(): Promise<void> {
+    if (!this.sharedEnvRestart || !this.proc?.alive) return;
+    const busy = this.status === 'running' || this.status === 'waiting' || this.status === 'starting' || this.pending.size > 0 || this.agentTasks.size > 0 || !!this.remote || !!this.procStarting;
+    if (busy) return;
+    this.log.info(`restarting Claude for ${this.sessionId}: shared .env changed`);
+    await this.stopProcess();
   }
 
   private setRemote(remote: RemoteControlView | undefined): void {
@@ -815,7 +868,7 @@ export class ManagedSession {
   /** Settings changed: refresh what the panel shows from them. */
   settingsChanged(): void {
     const settings = this.services.settings();
-    this.patchUi({ promptPresets: settings.promptPresets, allowBypass: settings.allowBypass, availableModes: this.availableModes(settings.allowBypass) });
+    this.patchUi({ promptPresets: settings.promptPresets, allowBypass: settings.allowBypass, availableModes: this.availableModes(settings.allowBypass), sharedEnv: this.sharedEnvView() });
     this.flush();
   }
 
@@ -1094,10 +1147,12 @@ export class ManagedSession {
     const forkStart = !this.hasTranscript ? this.forkFrom : undefined;
     // Shared variables: in the environment, names (never values) told to Claude, and the
     // commands that would dump the whole environment blocked.
-    const shared = this.services.globalEnv?.();
-    const sharedNames = Object.keys(shared?.vars ?? {}).sort();
-    this.sharedEnvNames = sharedNames;
-    this.patchUi({ sharedEnv: sharedNames });
+    const file = this.services.globalEnv?.();
+    const sharedVars: Record<string, string> = {};
+    for (const n of this.sharedEnvChoice) if (file && n in file.vars) sharedVars[n] = file.vars[n];
+    const sharedNames = Object.keys(sharedVars).sort();
+    this.sharedEnvActive = sharedNames;
+    this.sharedEnvRestart = false;
     const proc = new ClaudeProcess({
       cliPath,
       cwd: this.cwd,
@@ -1111,7 +1166,7 @@ export class ManagedSession {
       allowDangerouslySkipPermissions: settings.allowBypass || this.permissionMode === 'bypassPermissions',
       thinkingDisplay: settings.showThinking ? 'summarized' : undefined,
       pathEnv: await this.services.getPathEnv(),
-      extraEnv: sharedNames.length ? shared!.vars : undefined,
+      extraEnv: sharedNames.length ? sharedVars : undefined,
       extraArgs: sharedNames.length ? ['--append-system-prompt', globalEnvPrompt(sharedNames), '--disallowed-tools', 'Bash(printenv)', 'Bash(printenv:*)', 'Bash(env)'] : undefined,
       log: this.log,
     });
@@ -1126,6 +1181,7 @@ export class ManagedSession {
       return undefined;
     }
     this.proc = proc;
+    this.patchUi({ sharedEnv: this.sharedEnvView() });
     try {
       const init = await proc.initialize();
       this.onInitialized(init);
@@ -1200,6 +1256,9 @@ export class ManagedSession {
     const hadPending = this.pending.size > 0;
     this.pending.clear();
     this.agentTasks.clear(); // its agents ended with it
+    this.sharedEnvActive = undefined;
+    this.sharedEnvRestart = false;
+    this.patchUi({ sharedEnv: this.sharedEnvView() });
     if (this.remote) {
       const wasOn = this.remote.state === 'on';
       this.remote = undefined;
@@ -1331,6 +1390,7 @@ export class ManagedSession {
           this.log.info(`session ${this.sessionId} continues as ${m.session_id}`);
           this.sessionId = m.session_id;
           if (this.bookmarks.length) this.services.bookmarks.save(m.session_id, this.bookmarks);
+          if (this.sharedEnvChoice.length) this.services.sharedEnvChoice?.save(m.session_id, this.sharedEnvChoice);
           this.patchUi({ sessionId: m.session_id });
           this._onDidChange.fire();
         }
@@ -1422,7 +1482,10 @@ export class ManagedSession {
         break;
       }
       case 'task_notification': {
-        if (typeof m.task_id === 'string' && this.agentTasks.delete(m.task_id)) this.scheduleFlush();
+        if (typeof m.task_id === 'string' && this.agentTasks.delete(m.task_id)) {
+          this.scheduleFlush();
+          void this.applySharedEnvIfIdle();
+        }
         const summary = typeof m.summary === 'string' ? m.summary : undefined;
         // Agents run in the foreground already show their result on their tool row.
         const shownAsTool = typeof m.tool_use_id === 'string' && !!this.builder.get(m.tool_use_id);
@@ -1452,6 +1515,7 @@ export class ManagedSession {
     const wasWorking = this.status === 'running' || this.status === 'waiting';
     this.setStatus('idle');
     this.flush();
+    void this.applySharedEnvIfIdle();
     if (wasWorking) {
       if (!this.focused) this.unread = true;
       this._onDidChange.fire();

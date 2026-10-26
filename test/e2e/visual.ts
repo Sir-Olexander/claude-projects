@@ -189,9 +189,10 @@ export async function run(): Promise<void> {
     await sleep(2500);
     log('state.sharedEnv:', JSON.stringify(fresh.getState().sharedEnv));
     const menu = await webviewQuery(
-      `(d) => { const b = [...d.querySelectorAll('.icon-btn')].find((x) => x.querySelector('.codicon-key') && x.offsetParent); if (!b) return null; b.click(); return new Promise((r) => setTimeout(() => r({ badge: b.querySelector('.bm-count')?.textContent, menu: d.querySelector('.env-menu')?.innerText }), 200)); }`,
+      `(d) => { const b = [...d.querySelectorAll('.icon-btn')].find((x) => x.querySelector('.codicon-key') && x.offsetParent); if (!b) return null; b.click(); return new Promise((r) => setTimeout(() => { const before = d.querySelector('.env-menu')?.innerText; d.querySelector('.env-master .switch')?.click(); setTimeout(() => r({ before, badge: b.querySelector('.bm-count')?.textContent, checked: [...d.querySelectorAll('.env-check input')].map((i) => i.checked) }), 400); }, 200)); }`,
     );
-    log('shared env menu:', JSON.stringify(menu.filter(Boolean)));
+    for (const m of menu.filter(Boolean)) log('shared env menu:', JSON.stringify(m));
+    log('fresh chat after the switch:', JSON.stringify(fresh.getState().sharedEnv));
   }
 
   // 7) Light theme.

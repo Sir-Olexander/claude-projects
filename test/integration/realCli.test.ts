@@ -172,7 +172,7 @@ describe.runIf(enabled)('real Claude CLI', () => {
 
   it('shared .env: Claude can use a variable without the value reaching the chat', async () => {
     const secret = `pv-${Math.random().toString(36).slice(2)}`;
-    const s = new ManagedSession({ cwd: dir, projectName: 'Integration' }, { ...services(), globalEnv: () => ({ vars: { SHARED_PROBE: secret }, skipped: [] }) });
+    const s = new ManagedSession({ cwd: dir, projectName: 'Integration', sharedEnv: ['SHARED_PROBE'] }, { ...services(), globalEnv: () => ({ vars: { SHARED_PROBE: secret }, skipped: [] }) });
     created.push(transcriptPathFor(dir, s.sessionId));
     await s.send('Use the Bash tool to run exactly: test -n "$SHARED_PROBE" && echo has-value   Then reply with only the command output.');
     await waitFor(() => s.pendingRequests.length > 0 || s.status === 'idle' || s.status === 'error');

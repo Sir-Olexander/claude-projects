@@ -339,16 +339,18 @@ export async function run(): Promise<void> {
     await vscode.workspace.getConfiguration('claudeProjects.files').update('confirmDragAndDrop', undefined, vscode.ConfigurationTarget.Global);
   });
 
-  await check('shared .env: a new chat lists its variable names', async () => {
+  await check('shared .env: a new chat lists the variables, none turned on', async () => {
     const envFile = join(claudeHome, 'shared.env');
     writeFileSync(envFile, '# test\nSHARED_E2E_KEY=abc123\n');
+    const before = vscode.workspace.getConfiguration('claudeProjects').inspect<string>('chat.globalEnvFile')?.globalValue;
     await vscode.workspace.getConfiguration('claudeProjects').update('chat.globalEnvFile', envFile, vscode.ConfigurationTarget.Global);
     const s = await api.panels.newSession(repo);
     log('sharedEnv in a new chat:', JSON.stringify(s.getState().sharedEnv));
-    assert.deepEqual(s.getState().sharedEnv, ['SHARED_E2E_KEY']);
+    const env = s.getState().sharedEnv!;
+    assert.deepEqual([env.available, env.enabled], [['SHARED_E2E_KEY'], []]);
     api.panels.closeTab(s.key);
     await api.sessions.close(s.key);
-    await vscode.workspace.getConfiguration('claudeProjects').update('chat.globalEnvFile', undefined, vscode.ConfigurationTarget.Global);
+    await vscode.workspace.getConfiguration('claudeProjects').update('chat.globalEnvFile', before, vscode.ConfigurationTarget.Global);
   });
 
   await check('refresh and next-attention commands run', async () => {
