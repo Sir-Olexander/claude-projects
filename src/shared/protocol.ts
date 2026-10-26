@@ -358,6 +358,8 @@ export interface ChatState {
   promptPresets?: PromptPreset[];
   todos?: TodoItem[];
   contextUsage?: ContextUsageView;
+  /** Names of the shared .env variables this chat's Claude process has (values never leave the extension). */
+  sharedEnv?: string[];
   /** Agents (subagents) running in this session right now, foreground and background. */
   agents?: RunningAgentView[];
   /** Set for a fork that hasn't sent its first message yet (to restore it after a reload). */
@@ -449,6 +451,8 @@ export type ChatToExtMessage =
   | { type: 'toggle-bookmark'; itemId: string }
   /** Turn "continue automatically when usage limits reset" on or off for this session. */
   | { type: 'set-auto-continue'; on: boolean }
+  /** Open the shared .env file. */
+  | { type: 'open-global-env' }
   /** Start a new session with the conversation up to (and including) this reply. */
   | { type: 'fork'; itemId: string }
   /**

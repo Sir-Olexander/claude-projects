@@ -597,3 +597,25 @@ describe('ManagedSession: running agents', () => {
     }
   });
 });
+
+describe('ManagedSession: shared .env', () => {
+  it('gives Claude the variables in its environment and only their names in the prompt', async () => {
+    const log = join(tempDir(), 'args.jsonl');
+    process.env.FAKE_CLAUDE_LOG = log;
+    try {
+      const s = new ManagedSession({ cwd: tempDir(), projectName: 'T' }, services({ globalEnv: () => ({ vars: { SHARED_TOKEN: 's3cret-value' }, skipped: [] }) }));
+      sessions.push(s);
+      await s.send('hello');
+      await waitFor(() => s.status === 'idle');
+      const entry = JSON.parse(readFileSync(log, 'utf8').trim().split('\n').pop()!) as { args: string[]; env: { sharedToken: string | null } };
+      expect(entry.env.sharedToken).toBe('s3cret-value');
+      const prompt = entry.args[entry.args.indexOf('--append-system-prompt') + 1];
+      expect(prompt).toContain('SHARED_TOKEN');
+      expect(entry.args.join(' ')).not.toContain('s3cret-value');
+      expect(entry.args).toContain('Bash(printenv:*)');
+      expect(s.getState().sharedEnv).toEqual(['SHARED_TOKEN']);
+    } finally {
+      delete process.env.FAKE_CLAUDE_LOG;
+    }
+  });
+});

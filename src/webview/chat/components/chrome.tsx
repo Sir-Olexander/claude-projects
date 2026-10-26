@@ -31,6 +31,13 @@ export function Header({ state }: { state: ChatState }) {
       </div>
       <div class="header-actions">
         {state.agents?.length ? <AgentsChip agents={state.agents} /> : null}
+        {state.sharedEnv?.length ? (
+          <IconButton
+            icon="key"
+            title={`Shared .env: ${state.sharedEnv.join(', ')}. Claude can use these ($NAME) without seeing the values. Click to edit.`}
+            onClick={() => send({ type: 'open-global-env' })}
+          />
+        ) : null}
         <BookmarksMenu bookmarks={state.bookmarks ?? []} />
         <IconButton icon="link-external" title="Open in Claude extension (new window)" onClick={() => send({ type: 'open-in-claude-extension' })} />
         <IconButton icon="add" title="New session" onClick={() => send({ type: 'new-session' })} />

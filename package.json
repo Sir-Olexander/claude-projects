@@ -410,6 +410,12 @@
         "command": "claudeProjects.files.paste",
         "title": "Paste",
         "category": "Claude Projects: Files"
+      },
+      {
+        "command": "claudeProjects.openGlobalEnv",
+        "title": "Open Shared .env for Chats",
+        "category": "Claude Projects",
+        "icon": "$(key)"
       }
     ],
     "menus": {
@@ -655,6 +661,11 @@
           "command": "claudeProjects.showBookmarks",
           "when": "view == claudeProjects.projects",
           "group": "1_projects@2"
+        },
+        {
+          "command": "claudeProjects.openGlobalEnv",
+          "when": "view == claudeProjects.projects",
+          "group": "3_misc@0"
         }
       ],
       "view/item/context": [
@@ -1107,6 +1118,11 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Start new **Open Here** chats with *Continue automatically when limits reset* turned on. When a chat stops at a usage limit, it sends `continue` about a minute after the limit resets. You can switch it per chat with the button under the message box."
+        },
+        "claudeProjects.chat.globalEnvFile": {
+          "type": "string",
+          "default": "~/.claude-projects/.env",
+          "markdownDescription": "A shared `.env` file for **Open Here** chats. Its variables are put in every chat's environment, so Claude can use them in commands (`$MY_API_KEY`) without the values appearing in the chat. Claude is told only the names. Edit it with **Claude Projects: Open Shared .env for Chats**."
         },
         "claudeProjects.chat.allowBypassPermissions": {
           "type": "boolean",

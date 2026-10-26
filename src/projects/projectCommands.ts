@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { appendFile } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { GLOBAL_ENV_TEMPLATE, readGlobalEnv } from '../sessions/globalEnv';
+import { globalEnvPath } from '../sessions/SessionManager';
 import { tmpdir } from 'node:os';
 import type { SessionIndex } from '../claude/SessionIndex';
 import { transcriptPathFor } from '../claude/paths';
@@ -286,6 +289,25 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
       sessions.bookmarkStore.save(s.sessionId, []);
       index.touch(path);
       log.info(`deleted session ${s.sessionId} (${path})`);
+    }),
+
+    reg('claudeProjects.openGlobalEnv', async () => {
+      const path = globalEnvPath();
+      if (!existsSync(path)) {
+        mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+        writeFileSync(path, GLOBAL_ENV_TEMPLATE, { mode: 0o600 });
+      }
+      await vscode.window.showTextDocument(vscode.Uri.file(path), { preview: false });
+    }),
+
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      if (doc.uri.scheme !== 'file' || doc.uri.fsPath !== globalEnvPath()) return;
+      const env = readGlobalEnv(doc.uri.fsPath);
+      const names = Object.keys(env?.vars ?? {});
+      const skipped = env?.skipped.length ? ` Ignored: ${env.skipped.map((s) => `${s.name} (${s.reason})`).join(', ')}.` : '';
+      void vscode.window.showInformationMessage(
+        `Shared .env saved: ${names.length} variable${names.length === 1 ? '' : 's'}. New chats get them; a running chat picks them up when restarted.${skipped}`,
+      );
     }),
 
     reg('claudeProjects.copySessionId', async (arg?: SessionArg) => {

@@ -11,6 +11,8 @@ import type { PermissionMode, PromptPreset } from '../shared/protocol';
 import { Emitter, debounce } from '../util/events';
 import type { Logger } from '../util/log';
 import { ImageCache } from './imageCache';
+import { readGlobalEnv } from './globalEnv';
+import { expandHome } from '../util/paths';
 import { ManagedSession, asEffort, type AttentionReason, type ManagedSessionInit, type ProbedDefaults, type SessionServices, type SessionSettings } from './ManagedSession';
 import { ClaudeProcess } from '../claude/ClaudeProcess';
 import type { BookmarkStore, StoredBookmark } from './bookmarks';
@@ -74,6 +76,7 @@ export class SessionManager implements vscode.Disposable {
       onTranscriptActivity: (sessionId, cwd) => index.touch(transcriptPathFor(cwd, sessionId)),
       bookmarks: this.bookmarkStore,
       probeDefaults: (cwd) => this.probeDefaults(cwd),
+      globalEnv: () => readGlobalEnv(globalEnvPath()),
     };
 
     this.disposables.push(
@@ -296,6 +299,12 @@ export class SessionManager implements vscode.Disposable {
     this._onDidChange.dispose();
     this._onNeedsAttention.dispose();
   }
+}
+
+/** Where the shared .env lives (setting, ~ expanded). */
+export function globalEnvPath(): string {
+  const configured = vscode.workspace.getConfiguration('claudeProjects').get<string>('chat.globalEnvFile', '')?.trim();
+  return expandHome(configured || '~/.claude-projects/.env');
 }
 
 export function readSettings(): SessionSettings {

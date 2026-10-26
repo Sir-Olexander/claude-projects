@@ -48,6 +48,7 @@ import { fieldsFromSchema, normalizeElicitation, validateElicitation, type Elici
 import { bookmarkFor, resolveBookmarks, toViews, type BookmarkStore, type StoredBookmark } from './bookmarks';
 import { clip, describeToolActivity, prettyModelName } from './toolText';
 import { isLimitMessage, parseLimitReset } from './usageLimit';
+import { globalEnvPrompt, type GlobalEnv } from './globalEnv';
 
 export interface SessionSettings {
   defaultPermissionMode: PermissionMode;
@@ -88,6 +89,8 @@ export interface SessionServices {
    * session's own process starts.
    */
   probeDefaults(cwd: string): Promise<ProbedDefaults | undefined>;
+  /** Variables from the shared .env file, read each time a Claude process starts. */
+  globalEnv?(): GlobalEnv | undefined;
 }
 
 export interface ProbedDefaults {
@@ -203,6 +206,8 @@ export class ManagedSession {
   /** Agent tasks the CLI reported as started and not yet finished (by task id). */
   private readonly agentTasks = new Map<string, { toolUseId?: string; type: string; description?: string; background: boolean }>();
   private agentsKey = '[]';
+  /** Names of the shared .env variables the current process got. */
+  private sharedEnvNames: string[] = [];
   private uiPatch: ChatStatePatch = {};
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
@@ -386,6 +391,7 @@ export class ManagedSession {
       contextUsage: this.contextUsage,
       forkFrom: this.hasTranscript ? undefined : this.forkFrom,
       agents: this.runningAgents(),
+      sharedEnv: this.sharedEnvNames,
       autoContinue: this.autoContinue,
       limit: this.limitStop,
       liveElsewhere: this.liveElsewhere,
@@ -1034,6 +1040,12 @@ export class ManagedSession {
     this.forkOnNextStart = false;
     // A fork that hasn't started: resume the original as a copy, cut at the fork point, under our id.
     const forkStart = !this.hasTranscript ? this.forkFrom : undefined;
+    // Shared variables: in the environment, names (never values) told to Claude, and the
+    // commands that would dump the whole environment blocked.
+    const shared = this.services.globalEnv?.();
+    const sharedNames = Object.keys(shared?.vars ?? {}).sort();
+    this.sharedEnvNames = sharedNames;
+    this.patchUi({ sharedEnv: sharedNames });
     const proc = new ClaudeProcess({
       cliPath,
       cwd: this.cwd,
@@ -1047,6 +1059,8 @@ export class ManagedSession {
       allowDangerouslySkipPermissions: settings.allowBypass || this.permissionMode === 'bypassPermissions',
       thinkingDisplay: settings.showThinking ? 'summarized' : undefined,
       pathEnv: await this.services.getPathEnv(),
+      extraEnv: sharedNames.length ? shared!.vars : undefined,
+      extraArgs: sharedNames.length ? ['--append-system-prompt', globalEnvPrompt(sharedNames), '--disallowed-tools', 'Bash(printenv)', 'Bash(printenv:*)', 'Bash(env)'] : undefined,
       log: this.log,
     });
     proc.onMessage((m) => this.onMessage(proc, m));

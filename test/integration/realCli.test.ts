@@ -169,4 +169,19 @@ describe.runIf(enabled)('real Claude CLI', () => {
     await fork.stopProcess();
     await s.stopProcess();
   }, 240_000);
+
+  it('shared .env: Claude can use a variable without the value reaching the chat', async () => {
+    const secret = `pv-${Math.random().toString(36).slice(2)}`;
+    const s = new ManagedSession({ cwd: dir, projectName: 'Integration' }, { ...services(), globalEnv: () => ({ vars: { SHARED_PROBE: secret }, skipped: [] }) });
+    created.push(transcriptPathFor(dir, s.sessionId));
+    await s.send('Use the Bash tool to run exactly: test -n "$SHARED_PROBE" && echo has-value   Then reply with only the command output.');
+    await waitFor(() => s.pendingRequests.length > 0 || s.status === 'idle' || s.status === 'error');
+    if (s.pendingRequests[0]?.kind === 'permission') s.respondPermission(s.pendingRequests[0].requestId, 'allow');
+    await waitFor(() => s.status === 'idle' || s.status === 'error');
+    expect(s.error).toBeUndefined();
+    const reply = s.getState().items.filter((i) => i.kind === 'text').pop();
+    expect(reply && reply.kind === 'text' ? reply.text : '').toContain('has-value');
+    expect(readFileSync(transcriptPathFor(dir, s.sessionId), 'utf8')).not.toContain(secret);
+    await s.stopProcess();
+  }, 240_000);
 });

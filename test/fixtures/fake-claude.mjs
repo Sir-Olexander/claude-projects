@@ -22,7 +22,7 @@ let model = argValue('--model') ?? 'claude-sonnet-5-5';
 const MODEL_IDS = { default: 'claude-sonnet-5-5', opus: 'claude-opus-5-5', haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5' };
 if (MODEL_IDS[model]) model = MODEL_IDS[model];
 let effort = argValue('--effort') ?? null;
-if (process.env.FAKE_CLAUDE_LOG) appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ args, env: { entry: process.env.CLAUDE_CODE_ENTRYPOINT, electron: process.env.ELECTRON_RUN_AS_NODE ?? null } }) + '\n');
+if (process.env.FAKE_CLAUDE_LOG) appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ args, env: { entry: process.env.CLAUDE_CODE_ENTRYPOINT, electron: process.env.ELECTRON_RUN_AS_NODE ?? null, sharedToken: process.env.SHARED_TOKEN ?? null } }) + '\n');
 
 const out = (o) => process.stdout.write(JSON.stringify(o) + '\n');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
