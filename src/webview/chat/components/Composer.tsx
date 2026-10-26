@@ -6,6 +6,7 @@ import { store, type FileSuggestions } from '../store';
 import { getDraft, saveDraft } from '../ui';
 import { send } from './actions';
 import { ImageThumbs } from './items';
+import { findTrigger, type Trigger } from '../lib/trigger';
 import { Popup, type PopupItem } from './Popup';
 import { Icon } from './ui';
 
@@ -42,23 +43,6 @@ function EffortGauge({ level }: { level?: EffortLevel }) {
       ))}
     </span>
   );
-}
-
-interface Trigger {
-  kind: 'slash' | 'mention';
-  query: string;
-  /** Index in the text where the trigger token starts (the / or @). */
-  start: number;
-  end: number;
-}
-
-function findTrigger(text: string, caret: number): Trigger | undefined {
-  const before = text.slice(0, caret);
-  const slash = /^\/([^\s]*)$/.exec(before);
-  if (slash) return { kind: 'slash', query: slash[1], start: 0, end: caret };
-  const at = /(^|\s)@([^\s@]*)$/.exec(before);
-  if (at) return { kind: 'mention', query: at[2], start: caret - at[2].length - 1, end: caret };
-  return undefined;
 }
 
 function rankCommands(cmds: ChatState['slashCommands'], q: string) {
@@ -191,6 +175,11 @@ export function Composer({ state }: { state: ChatState }) {
         return;
       }
       if (t.kind === 'slash') {
+        // Mid-message, only offer the menu when something matches (so typing a path like " /usr" isn't interrupted).
+        if (t.inline && !rankCommands(state.slashCommands, t.query).length) {
+          if (menu === 'slash') setMenu(null);
+          return;
+        }
         if (menu !== 'slash') setActive(0);
         setMenu('slash');
       } else {
@@ -201,7 +190,7 @@ export function Composer({ state }: { state: ChatState }) {
         setMenu('mention');
       }
     },
-    [menu, trigger, requestMentions],
+    [menu, trigger, requestMentions, state.slashCommands],
   );
 
   const slashItems = useMemo(() => (menu === 'slash' ? rankCommands(state.slashCommands, trigger?.query ?? '') : []), [menu, trigger, state.slashCommands]);
@@ -488,8 +477,11 @@ export function Composer({ state }: { state: ChatState }) {
             title="Commands and skills (/)"
             aria-label="Commands"
             onClick={() => {
-              if (!text.startsWith('/')) replaceRange(0, 0, '/');
-              else ta.current?.focus();
+              // Insert "/" at the cursor (with a space before it mid-text), like typing it.
+              const el = ta.current;
+              const pos = el ? el.selectionStart : text.length;
+              const pre = pos > 0 && !/\s$/.test(text.slice(0, pos)) ? ' /' : '/';
+              replaceRange(pos, pos, pre);
             }}
           >
             <span class="slash-glyph">/</span>
