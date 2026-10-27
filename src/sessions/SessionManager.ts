@@ -74,6 +74,7 @@ export class SessionManager implements vscode.Disposable {
       },
       onRateLimit: (e) => deps.onRateLimit(e),
       onTranscriptActivity: (sessionId, cwd) => index.touch(transcriptPathFor(cwd, sessionId)),
+      rememberTitle: (sessionId, title) => index.rememberTitle(sessionId, title),
       bookmarks: this.bookmarkStore,
       probeDefaults: (cwd) => this.probeDefaults(cwd),
       globalEnv: () => readGlobalEnv(globalEnvPath()),

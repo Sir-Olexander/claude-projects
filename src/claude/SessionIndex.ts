@@ -39,11 +39,29 @@ export class SessionIndex {
 
   private readonly flushDirty = debounce(() => void this.processDirty(), 400);
 
+  /** Names given to sessions (renames, forks), by id: the file's head and tail may not show them anymore. */
+  private titles: Record<string, string>;
+
   constructor(
     readonly projectsDir: string,
     log?: Logger,
+    private readonly titleStore?: { load(): Record<string, string>; save(titles: Record<string, string>): void },
   ) {
     this.log = log ?? silentLogger;
+    this.titles = titleStore?.load() ?? {};
+  }
+
+  /**
+   * Remembers a name the user gave a session. Only the start and end of each
+   * transcript are read, and Claude keeps appending its own title, so a rename
+   * written once can scroll out of view; this keeps it.
+   */
+  rememberTitle(sessionId: string, title: string): void {
+    if (!title || this.titles[sessionId] === title) return;
+    this.titles = { ...this.titles, [sessionId]: title };
+    this.titleStore?.save(this.titles);
+    const changed = this.rebuild();
+    if (changed.size) this._onDidChange.fire({ cwds: changed });
   }
 
   get isReady(): boolean {
@@ -104,8 +122,11 @@ export class SessionIndex {
     const before = this.byCwd;
     const byCwd = new Map<string, SessionInfo[]>();
     const byId = new Map<string, SessionInfo>();
-    for (const { info } of this.cache.values()) {
-      if (!info) continue;
+    for (const { info: read } of this.cache.values()) {
+      if (!read) continue;
+      // A name the file doesn't show in the part we read: use the remembered one.
+      const named = this.titles[read.sessionId];
+      const info = named && !read.customTitle ? { ...read, customTitle: named, title: named } : read;
       const cwd = info.cwd ?? dirname(info.filePath);
       const list = byCwd.get(cwd);
       if (list) list.push(info);

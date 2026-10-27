@@ -60,7 +60,11 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   context.subscriptions.push(store, registerCommonCommands(store), registerGitViews(context, store, log));
 
   // What Claude Code knows: transcripts on disk and live processes.
-  const index = new SessionIndex(projectsDir(), log);
+  const TITLES_KEY = 'claudeProjects.sessionTitles.v1';
+  const index = new SessionIndex(projectsDir(), log, {
+    load: () => context.globalState.get<Record<string, string>>(TITLES_KEY, {}),
+    save: (titles) => void context.globalState.update(TITLES_KEY, titles),
+  });
   const registry = new LiveRegistry(liveSessionsDir(), log);
   context.subscriptions.push({ dispose: () => index.dispose() }, { dispose: () => registry.dispose() });
 

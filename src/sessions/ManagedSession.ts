@@ -93,6 +93,8 @@ export interface SessionServices {
   probeDefaults(cwd: string): Promise<ProbedDefaults | undefined>;
   /** Variables from the shared .env file, read each time a Claude process starts. */
   globalEnv?(): GlobalEnv | undefined;
+  /** A name the user gave this session (rename, fork) became known. */
+  rememberTitle?(sessionId: string, title: string): void;
   /** Which shared .env variables each chat uses, by session id. */
   sharedEnvChoice?: { load(sessionId: string): string[] | undefined; save(sessionId: string, names: string[]): void };
 }
@@ -207,8 +209,6 @@ export class ManagedSession {
   private forkOnNextStart = false;
   /** Set until this fork has its own transcript (written with the first message). */
   private forkFrom: ForkSource | undefined;
-  /** The fork's name still has to be written into its new transcript. */
-  private forkTitlePending = false;
   /** Agent tasks the CLI reported as started and not yet finished (by task id). */
   private readonly agentTasks = new Map<string, { toolUseId?: string; type: string; description?: string; background: boolean }>();
   private agentsKey = '[]';
@@ -267,9 +267,8 @@ export class ManagedSession {
       this.hasTranscript = false;
       this.status = 'new';
       this.title = init.title || forkTitle(init.forkFrom.title, []);
-      // Claude copies the original's title into the fork: keep ours, and save it as the fork's name.
+      // Claude copies the original's title into the fork: keep ours (saved into the fork's transcript after each turn).
       this.titleFromUser = true;
-      this.forkTitlePending = true;
     } else {
       this.sessionId = randomUUID();
       this.key = this.sessionId;
@@ -357,10 +356,9 @@ export class ManagedSession {
       if (!this.proc?.alive && !this.liveElsewhere && builder.settleOpenTools('interrupted') > 0) {
         builder.addSystem('warning', 'Claude stopped before finishing this turn (VS Code reloaded or Claude exited). Send a message, like "continue", to pick it up.', 'interrupted');
       }
-      if (info.customTitle) {
-        this.title = info.customTitle;
-        this.titleFromUser = true;
-      } else if (info.aiTitle && !this.titleFromUser) this.title = info.aiTitle;
+      // setTitle tells the tab and the Projects view, not just the chat's header.
+      if (info.customTitle) this.setTitle(info.customTitle, true);
+      else if (info.aiTitle) this.setTitle(info.aiTitle, false);
       // Claude records "HEAD" when the folder isn't a git repo (or is detached): not a branch name.
       if (info.gitBranch && info.gitBranch !== 'HEAD' && !this.branch) this.branch = info.gitBranch;
       if (builder.lastModel) this.setResolvedModel(builder.lastModel);
@@ -586,16 +584,21 @@ export class ManagedSession {
     this._onDidChange.fire();
   }
 
-  /** Writes the fork's name into its transcript (the record /rename writes), once the transcript exists. */
-  private async saveForkTitle(): Promise<void> {
+  /**
+   * Writes the name the user gave this session (rename, fork) at the end of
+   * its transcript, the record /rename writes. Done after every turn, the way
+   * Claude re-writes its own title, so the name stays where session lists
+   * (ours, the Claude extension's, claude --resume) look for it.
+   */
+  private async saveCustomTitle(): Promise<void> {
     const path = this.transcriptPath;
     if (!existsSync(path)) return;
-    this.forkTitlePending = false;
     try {
       await appendFile(path, JSON.stringify({ type: 'custom-title', customTitle: this.title, sessionId: this.sessionId }) + '\n');
+      this.services.rememberTitle?.(this.sessionId, this.title);
       this.services.onTranscriptActivity(this.sessionId, this.cwd);
     } catch (err) {
-      this.log.warn(`could not save the fork's name: ${errorMessage(err)}`);
+      this.log.warn(`could not save the session name: ${errorMessage(err)}`);
     }
   }
 
@@ -1091,7 +1094,10 @@ export class ManagedSession {
 
   setTitle(title: string, fromUser: boolean): void {
     if (!title || (this.titleFromUser && !fromUser)) return;
-    if (fromUser) this.titleFromUser = true;
+    if (fromUser) {
+      this.titleFromUser = true;
+      if (this.hasTranscript) this.services.rememberTitle?.(this.sessionId, title);
+    }
     if (title === this.title) return;
     this.title = title;
     this.patchUi({ title });
@@ -1359,7 +1365,7 @@ export class ManagedSession {
         const interrupted = r.subtype === 'error_during_execution' && !(r.errors?.length);
         const errorText = r.is_error && !interrupted ? (r.errors?.join('\n') || r.result || 'The turn ended with an error.') : undefined;
         this.builder.addTurnEnd({ durationMs: r.duration_ms, isError: !!errorText, errorText });
-        if (this.forkTitlePending) void this.saveForkTitle();
+        if (this.titleFromUser) void this.saveCustomTitle();
         const limitText = this.turnLimit ?? (errorText && isLimitMessage(errorText) ? errorText : undefined);
         if (limitText) this.onLimitStop(limitText);
         else if (!interrupted) this.autoAttempts = 0;

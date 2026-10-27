@@ -243,6 +243,7 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
       const title = (await vscode.window.showInputBox({ prompt: 'Session name', value: current, valueSelection: [0, current.length] }))?.trim();
       if (!title) return;
       const path = index.get(s.sessionId)?.filePath ?? transcriptPathFor(s.cwd, s.sessionId);
+      index.rememberTitle(s.sessionId, title);
       if (!existsSync(path)) {
         managed?.setTitle(title, true);
         return;
