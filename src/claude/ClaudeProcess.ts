@@ -334,6 +334,11 @@ export class ClaudeProcess {
     return this.request<{ session_url?: string; connect_url?: string }>({ subtype: 'remote_control', enabled }, 60_000);
   }
 
+  /** Tells Claude the name the user gave the session ("host" counts as a user rename), so Claude saves that name. */
+  async renameSession(title: string, sessionId?: string): Promise<void> {
+    await this.request({ subtype: 'rename_session', title, source: 'host', ...(sessionId ? { session_id: sessionId } : {}) }, 15_000);
+  }
+
   async setModel(model: string | null): Promise<void> {
     await this.request({ subtype: 'set_model', model }, 15_000);
   }

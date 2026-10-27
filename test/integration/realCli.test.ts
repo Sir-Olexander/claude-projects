@@ -140,6 +140,9 @@ describe.runIf(enabled)('real Claude CLI', () => {
     await waitFor(isIdle(s));
     await s.send('Also remember the code word MANGO. Reply with only: OK');
     await waitFor(isIdle(s));
+    // Give the original a name of its own (like a rename), which Claude copies into forks.
+    s.setTitle('Fruit memory original', true);
+    await new Promise((r) => setTimeout(r, 1500));
     expect(s.error).toBeUndefined();
     const replies = s.getState().items.filter((i) => i.kind === 'text' && !i.parentToolUseId);
     const first = replies[0];
@@ -161,11 +164,13 @@ describe.runIf(enabled)('real Claude CLI', () => {
     expect(existsSync(transcriptPathFor(dir, fork.sessionId))).toBe(true);
     expect(readFileSync(transcriptPathFor(dir, s.sessionId), 'utf8')).toContain('MANGO');
     expect(readFileSync(transcriptPathFor(dir, s.sessionId), 'utf8')).not.toContain('List every code word');
-    // The fork keeps its own name (Claude copies the original's title) and saves it in its transcript.
-    expect(fork.title).toMatch(/\(fork\)$/);
-    await waitFor(() => readFileSync(transcriptPathFor(dir, fork.sessionId), 'utf8').includes('"customTitle"'), 10_000);
-    const tail = readFileSync(transcriptPathFor(dir, fork.sessionId), 'utf8');
-    expect(tail).toContain(`"customTitle":${JSON.stringify(fork.title)}`);
+    // The fork keeps its own name over the original's that Claude copies in: the last name in its file is the fork's.
+    expect(fork.title).toBe('Fruit memory original (fork)');
+    await new Promise((r) => setTimeout(r, 1500));
+    const names = [...readFileSync(transcriptPathFor(dir, fork.sessionId), 'utf8').matchAll(/"customTitle":"([^"]*)"/g)].map((m) => m[1]);
+    if (process.env.VERBOSE) console.log('fork names in file:', names);
+    expect(names.length).toBeGreaterThan(0);
+    expect(names[names.length - 1]).toBe(fork.title);
     await fork.stopProcess();
     await s.stopProcess();
   }, 240_000);

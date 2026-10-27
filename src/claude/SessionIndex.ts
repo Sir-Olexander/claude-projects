@@ -13,6 +13,12 @@ interface CacheEntry {
   info: SessionInfo | undefined;
 }
 
+/** A name given to a session, and the name its file showed when last read. */
+export interface RememberedTitle {
+  title: string;
+  file?: string;
+}
+
 export interface SessionIndexChange {
   /** cwds whose session list changed. */
   cwds: Set<string>;
@@ -39,16 +45,27 @@ export class SessionIndex {
 
   private readonly flushDirty = debounce(() => void this.processDirty(), 400);
 
-  /** Names given to sessions (renames, forks), by id: the file's head and tail may not show them anymore. */
-  private titles: Record<string, string>;
+  /**
+   * Names given to sessions here (renames, forks), by id, with the name the
+   * file showed when we last looked. The given name wins over the file's (a
+   * fork's file carries its original's name); a change in the file's name
+   * means it was renamed elsewhere, and then that name is taken.
+   */
+  private titles: Record<string, RememberedTitle>;
 
   constructor(
     readonly projectsDir: string,
     log?: Logger,
-    private readonly titleStore?: { load(): Record<string, string>; save(titles: Record<string, string>): void },
+    private readonly titleStore?: { load(): Record<string, RememberedTitle | string>; save(titles: Record<string, RememberedTitle>): void },
   ) {
     this.log = log ?? silentLogger;
-    this.titles = titleStore?.load() ?? {};
+    this.titles = {};
+    for (const [id, v] of Object.entries(titleStore?.load() ?? {})) this.titles[id] = typeof v === 'string' ? { title: v } : v;
+  }
+
+  /** The name given to a session here, if any. */
+  rememberedTitle(sessionId: string): string | undefined {
+    return this.titles[sessionId]?.title;
   }
 
   /**
@@ -57,8 +74,9 @@ export class SessionIndex {
    * written once can scroll out of view; this keeps it.
    */
   rememberTitle(sessionId: string, title: string): void {
-    if (!title || this.titles[sessionId] === title) return;
-    this.titles = { ...this.titles, [sessionId]: title };
+    const prev = this.titles[sessionId];
+    if (!title || prev?.title === title) return;
+    this.titles = { ...this.titles, [sessionId]: { title, file: prev?.file } };
     this.titleStore?.save(this.titles);
     const changed = this.rebuild();
     if (changed.size) this._onDidChange.fire({ cwds: changed });
@@ -122,11 +140,18 @@ export class SessionIndex {
     const before = this.byCwd;
     const byCwd = new Map<string, SessionInfo[]>();
     const byId = new Map<string, SessionInfo>();
+    let titlesChanged = false;
     for (const { info: read } of this.cache.values()) {
       if (!read) continue;
-      // A name the file doesn't show in the part we read: use the remembered one.
       const named = this.titles[read.sessionId];
-      const info = named && !read.customTitle ? { ...read, customTitle: named, title: named } : read;
+      let use = named?.title;
+      if (named && read.customTitle && read.customTitle !== named.file) {
+        // The file's name changed since we last looked: renamed elsewhere (e.g. /rename in a terminal).
+        if (named.file !== undefined && read.customTitle !== named.title) use = read.customTitle;
+        this.titles = { ...this.titles, [read.sessionId]: { title: use ?? read.customTitle, file: read.customTitle } };
+        titlesChanged = true;
+      }
+      const info = use && use !== read.customTitle ? { ...read, customTitle: use, title: use } : read;
       const cwd = info.cwd ?? dirname(info.filePath);
       const list = byCwd.get(cwd);
       if (list) list.push(info);
@@ -134,6 +159,7 @@ export class SessionIndex {
       const prev = byId.get(info.sessionId);
       if (!prev || prev.lastModified < info.lastModified) byId.set(info.sessionId, info);
     }
+    if (titlesChanged) this.titleStore?.save(this.titles);
     for (const list of byCwd.values()) list.sort((a, b) => b.lastModified - a.lastModified);
     const changed = new Set<string>();
     for (const [cwd, list] of byCwd) {

@@ -6,7 +6,7 @@ import { ProjectsTreeProvider, type ProjectsNode } from './projects/ProjectsTree
 import { registerProjectCommands, type OpenExternal } from './projects/projectCommands';
 import { registerCommonCommands } from './commands/common';
 import { getGitViewsForTesting, registerGitViews, type GitViewsInternals } from './views/registerGitViews';
-import { SessionIndex } from './claude/SessionIndex';
+import { SessionIndex, type RememberedTitle } from './claude/SessionIndex';
 import { LiveRegistry } from './claude/LiveRegistry';
 import { liveSessionsDir, projectsDir } from './claude/paths';
 import { SessionManager } from './sessions/SessionManager';
@@ -62,7 +62,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   // What Claude Code knows: transcripts on disk and live processes.
   const TITLES_KEY = 'claudeProjects.sessionTitles.v1';
   const index = new SessionIndex(projectsDir(), log, {
-    load: () => context.globalState.get<Record<string, string>>(TITLES_KEY, {}),
+    load: () => context.globalState.get<Record<string, RememberedTitle | string>>(TITLES_KEY, {}),
     save: (titles) => void context.globalState.update(TITLES_KEY, titles),
   });
   const registry = new LiveRegistry(liveSessionsDir(), log);

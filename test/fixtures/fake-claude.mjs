@@ -223,6 +223,10 @@ rl.on('line', async (line) => {
       case 'get_usage':
         ok({ subscription_type: 'max', rate_limits_available: true, rate_limits: { five_hour: { utilization: 42, resets_at: '2030-01-01T00:00:00Z' }, seven_day: { utilization: 7, resets_at: '2030-01-05T00:00:00Z' }, model_scoped: [{ display_name: 'Fable', utilization: 1, resets_at: '2030-01-05T00:00:00Z' }] } });
         return;
+      case 'rename_session':
+        if (process.env.FAKE_RENAME_LOG) appendFileSync(process.env.FAKE_RENAME_LOG, JSON.stringify({ title: m.request.title, source: m.request.source, session_id: m.request.session_id }) + '\n');
+        ok({});
+        break;
       case 'remote_control':
         if (process.env.FAKE_REMOTE_FAIL) {
           out({ type: 'control_response', response: { subtype: 'error', request_id: m.request_id, error: 'Remote Control is not available for this account' } });

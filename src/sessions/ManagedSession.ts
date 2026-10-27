@@ -95,6 +95,8 @@ export interface SessionServices {
   globalEnv?(): GlobalEnv | undefined;
   /** A name the user gave this session (rename, fork) became known. */
   rememberTitle?(sessionId: string, title: string): void;
+  /** The name given to a session here, if any (wins over a name in its file). */
+  rememberedTitle?(sessionId: string): string | undefined;
   /** Which shared .env variables each chat uses, by session id. */
   sharedEnvChoice?: { load(sessionId: string): string[] | undefined; save(sessionId: string, names: string[]): void };
 }
@@ -357,7 +359,10 @@ export class ManagedSession {
         builder.addSystem('warning', 'Claude stopped before finishing this turn (VS Code reloaded or Claude exited). Send a message, like "continue", to pick it up.', 'interrupted');
       }
       // setTitle tells the tab and the Projects view, not just the chat's header.
-      if (info.customTitle) this.setTitle(info.customTitle, true);
+      // A name given here wins over the file's (a fork's file carries its original's name).
+      const given = this.services.rememberedTitle?.(this.sessionId);
+      if (given) this.setTitle(given, true);
+      else if (info.customTitle) this.setTitle(info.customTitle, true);
       else if (info.aiTitle) this.setTitle(info.aiTitle, false);
       // Claude records "HEAD" when the folder isn't a git repo (or is detached): not a branch name.
       if (info.gitBranch && info.gitBranch !== 'HEAD' && !this.branch) this.branch = info.gitBranch;
@@ -1099,6 +1104,8 @@ export class ManagedSession {
       if (this.hasTranscript) this.services.rememberTitle?.(this.sessionId, title);
     }
     if (title === this.title) return;
+    // A running Claude saves the name itself (and stops re-saving an older one).
+    if (fromUser && this.proc?.alive && !this.procStarting) void this.proc.renameSession(title, this.sessionId).catch((err) => this.log.debug(`rename_session failed: ${errorMessage(err)}`));
     this.title = title;
     this.patchUi({ title });
     this._onDidChange.fire();
@@ -1191,6 +1198,8 @@ export class ManagedSession {
     try {
       const init = await proc.initialize();
       this.onInitialized(init);
+      // Claude may carry another name (a fork inherits its original's): give it ours.
+      if (this.titleFromUser && this.title) await proc.renameSession(this.title, this.sessionId).catch((err) => this.log.debug(`rename_session failed: ${errorMessage(err)}`));
       await this.syncSettings();
       this.flush();
       if (fork) {

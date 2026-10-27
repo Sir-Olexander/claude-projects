@@ -171,6 +171,8 @@ export class ChatPanelManager implements vscode.Disposable {
       title: forkTitle(from.title, taken),
       sharedEnv: [...source.sharedEnvNames],
     });
+    // The fork's file will carry its original's name: the fork's own name wins from the start.
+    this.deps.index.rememberTitle(session.sessionId, session.title);
     this.show(session);
     return session;
   }
