@@ -188,6 +188,9 @@ export class ChatPanel implements vscode.Disposable {
         case 'new-session':
           this.host.newSession(s.cwd);
           break;
+        case 'delete-session':
+          await vscode.commands.executeCommand('claudeProjects.deleteSession', { sessionId: s.sessionId, cwd: s.cwd, title: s.title });
+          break;
         case 'fork':
           this.host.fork(s, m.itemId);
           break;

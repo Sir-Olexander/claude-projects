@@ -129,6 +129,9 @@ export class DashboardPanel implements vscode.Disposable {
         case 'dismiss':
           attention.dismiss(m.key);
           break;
+        case 'delete':
+          await vscode.commands.executeCommand('claudeProjects.deleteSession', { sessionId: m.sessionId, cwd: m.cwd, title: m.title });
+          break;
         case 'close':
           await this.closeSessions(m.keys);
           break;

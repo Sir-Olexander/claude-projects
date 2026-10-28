@@ -41,6 +41,7 @@ export function Header({ state }: { state: ChatState }) {
         <BookmarksMenu bookmarks={state.bookmarks ?? []} />
         <IconButton icon="link-external" title="Open in Claude extension (new window)" onClick={() => send({ type: 'open-in-claude-extension' })} />
         <IconButton icon="add" title="New session" onClick={() => send({ type: 'new-session' })} />
+        <IconButton icon="trash" title="Delete session" onClick={() => send({ type: 'delete-session' })} />
       </div>
     </header>
   );

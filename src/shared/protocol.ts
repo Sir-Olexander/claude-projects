@@ -496,6 +496,8 @@ export type ChatToExtMessage =
   | { type: 'open-url'; url: string }
   | { type: 'open-in-claude-extension' }
   | { type: 'new-session' }
+  /** Delete this session (asks first). */
+  | { type: 'delete-session' }
   /** Restart after an error. */
   | { type: 'restart' }
   /** @-mention autocomplete. */
@@ -615,6 +617,8 @@ export type DashboardToExtMessage =
   | { type: 'deny'; key: string; requestId: string }
   | { type: 'stop'; key: string }
   | { type: 'dismiss'; key: string }
+  /** Delete a session's conversation (asks first). */
+  | { type: 'delete'; sessionId: string; cwd: string; title?: string }
   /** Close sessions: tabs here close, idle processes stop, terminal sessions end (after a confirm). */
   | { type: 'close'; keys: string[] }
   | { type: 'new-session' }

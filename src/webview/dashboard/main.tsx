@@ -227,6 +227,9 @@ function RecentCard({ r, now }: { r: RecentSessionView; now: number }) {
         <button class="icon-btn" title="Open in the Claude extension" onClick={() => post({ type: 'open-recent', sessionId: r.sessionId, cwd: r.cwd, inClaudeExtension: true })}>
           <i class="codicon codicon-link-external" />
         </button>
+        <button class="icon-btn" title="Delete session" aria-label="Delete session" onClick={() => post({ type: 'delete', sessionId: r.sessionId, cwd: r.cwd, title: r.title })}>
+          <i class="codicon codicon-trash" />
+        </button>
         <button class="btn" onClick={open}>
           Resume
         </button>
@@ -349,6 +352,12 @@ function Card({ v, now, canClose }: { v: LiveSessionView; now: number; canClose?
         {!v.managed && v.source === 'vscode' && v.sessionId ? (
           <button class="icon-btn" title="Show in its VS Code window" onClick={() => post({ type: 'open-in-claude-extension', key: v.key })}>
             <i class="codicon codicon-link-external" />
+          </button>
+        ) : null}
+        {v.managed && v.sessionId ? (
+          // Sessions owned by other apps can't be deleted from here (they keep writing to the file).
+          <button class="icon-btn" title="Delete session" aria-label="Delete session" onClick={() => post({ type: 'delete', sessionId: v.sessionId!, cwd: v.cwd, title: v.title })}>
+            <i class="codicon codicon-trash" />
           </button>
         ) : null}
         <button class={`btn ${v.quickPermission ? '' : v.attention === 'needs-input' ? 'primary' : ''}`} onClick={open}>
