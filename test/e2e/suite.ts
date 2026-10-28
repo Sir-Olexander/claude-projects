@@ -43,7 +43,7 @@ export async function run(): Promise<void> {
     }
   };
 
-  const ext = vscode.extensions.getExtension('febundi.claude-projects');
+  const ext = vscode.extensions.getExtension('Sir-Olexander.claude-projects');
   assert.ok(ext, 'extension installed');
   const api = (await ext.activate()) as ClaudeProjectsApi;
   assert.ok(api?.store, 'activate() returns the API');

@@ -3,7 +3,7 @@
   "displayName": "Claude Projects",
   "description": "Work on all your projects with Claude Code from one window: projects, worktrees, sessions, per-project source control and files, an attention dashboard and a usage bar.",
   "version": "0.1.0",
-  "publisher": "febundi",
+  "publisher": "Sir-Olexander",
   "private": true,
   "license": "MIT",
   "engines": {

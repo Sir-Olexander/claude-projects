@@ -160,7 +160,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   context.subscriptions.push({ dispose: attention.onDidChange(updateAttention).dispose });
   updateAttention();
 
-  // vscode://febundi.claude-projects/session?key=… (notification clicks), /dashboard, /open?session=…&cwd=…
+  // vscode://Sir-Olexander.claude-projects/session?key=… (notification clicks), /dashboard, /open?session=…&cwd=…
   context.subscriptions.push(
     vscode.window.registerUriHandler({
       handleUri: async (uri) => {
