@@ -2,7 +2,7 @@
   "name": "claude-projects",
   "displayName": "Claude Projects",
   "description": "Work on all your projects with Claude Code from one window: projects, worktrees, sessions, per-project source control and files, an attention dashboard and a usage bar.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "Sir-Olexander",
   "private": true,
   "license": "MIT",
@@ -92,6 +92,11 @@
       {
         "command": "claudeProjects.removeProject",
         "title": "Remove from Projects",
+        "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.removeProjects",
+        "title": "Remove Projects…",
         "category": "Claude Projects"
       },
       {
@@ -578,6 +583,11 @@
           "command": "claudeProjects.importProjects",
           "when": "view == claudeProjects.projects",
           "group": "1_projects@1"
+        },
+        {
+          "command": "claudeProjects.removeProjects",
+          "when": "view == claudeProjects.projects",
+          "group": "1_projects@2"
         },
         {
           "command": "claudeProjects.refreshUsage",

@@ -116,7 +116,7 @@ export class SessionManager implements vscode.Disposable {
    * takes over the ones no window looks after any more, e.g. after VS Code was
    * restarted, so "continue" is still sent.
    */
-  private syncAutoContinue(): void {
+  syncAutoContinue(): void {
     const all = { ...this.savedAutoContinue() };
     const now = Date.now();
     for (const s of this.sessions.values()) {
