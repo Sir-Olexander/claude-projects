@@ -159,6 +159,8 @@ export class LiveRegistry {
 
   /** A file left behind by a crashed process can point at a pid the OS gave to something else. */
   private async dropReusedPids(entries: Map<number, LiveEntry>): Promise<void> {
+    // procStart is `ps` output; Windows has no `ps` to compare it with.
+    if (process.platform === 'win32') return;
     const unverified = [...entries.values()].filter((e) => e.procStart && !this.verified.has(e.pid));
     if (unverified.length) {
       try {

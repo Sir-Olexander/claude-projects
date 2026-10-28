@@ -185,6 +185,11 @@
         "category": "Claude Projects"
       },
       {
+        "command": "claudeProjects.revealInExplorer",
+        "title": "Reveal in File Explorer",
+        "category": "Claude Projects"
+      },
+      {
         "command": "claudeProjects.openTerminal",
         "title": "Open in Integrated Terminal",
         "category": "Claude Projects",
@@ -539,6 +544,14 @@
         {
           "command": "claudeProjects.files.paste",
           "when": "false"
+        },
+        {
+          "command": "claudeProjects.revealInFinder",
+          "when": "!isWindows"
+        },
+        {
+          "command": "claudeProjects.revealInExplorer",
+          "when": "isWindows"
         }
       ],
       "view/title": [
@@ -696,7 +709,12 @@
         },
         {
           "command": "claudeProjects.revealInFinder",
-          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/ && !isWindows",
+          "group": "2_open@2"
+        },
+        {
+          "command": "claudeProjects.revealInExplorer",
+          "when": "view == claudeProjects.projects && viewItem =~ /^(project|worktree)/ && isWindows",
           "group": "2_open@2"
         },
         {
@@ -816,7 +834,12 @@
         },
         {
           "command": "claudeProjects.revealInFinder",
-          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/ && !isWindows",
+          "group": "3_path@1"
+        },
+        {
+          "command": "claudeProjects.revealInExplorer",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.change/ && isWindows",
           "group": "3_path@1"
         },
         {
@@ -901,7 +924,12 @@
         },
         {
           "command": "claudeProjects.revealInFinder",
-          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.worktree/",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.worktree/ && !isWindows",
+          "group": "1_wt@3"
+        },
+        {
+          "command": "claudeProjects.revealInExplorer",
+          "when": "view == claudeProjects.scm && viewItem =~ /^scm\\.worktree/ && isWindows",
           "group": "1_wt@3"
         },
         {
@@ -931,7 +959,12 @@
         },
         {
           "command": "claudeProjects.revealInFinder",
-          "when": "view == claudeProjects.files && viewItem =~ /^files\\./",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./ && !isWindows",
+          "group": "1_open@2"
+        },
+        {
+          "command": "claudeProjects.revealInExplorer",
+          "when": "view == claudeProjects.files && viewItem =~ /^files\\./ && isWindows",
           "group": "1_open@2"
         },
         {
@@ -1155,12 +1188,12 @@
         "claudeProjects.notifications.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Show a macOS notification when a session needs you."
+          "description": "Show a system notification (macOS or Windows) when a session needs you."
         },
         "claudeProjects.notifications.onlyWhenUnfocused": {
           "type": "boolean",
           "default": true,
-          "description": "Only send macOS notifications while VS Code is in the background. Inside VS Code you get the badge and a small toast."
+          "description": "Only send system notifications while VS Code is in the background. Inside VS Code you get the badge and a small toast."
         },
         "claudeProjects.notifications.onTurnComplete": {
           "type": "boolean",
@@ -1175,7 +1208,7 @@
         "claudeProjects.notifications.sound": {
           "type": "boolean",
           "default": true,
-          "description": "Play a sound with macOS notifications."
+          "description": "Play a sound with system notifications."
         },
         "claudeProjects.notifications.inAppToasts": {
           "type": "boolean",

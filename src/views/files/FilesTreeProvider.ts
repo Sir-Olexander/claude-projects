@@ -148,7 +148,7 @@ export class FilesTreeProvider implements vscode.TreeDataProvider<FileNode>, vsc
       const item = new vscode.TreeItem(`${node.hidden!.toLocaleString()} more items not shown`, vscode.TreeItemCollapsibleState.None);
       item.id = `files:more:${node.path}`;
       item.iconPath = new vscode.ThemeIcon('ellipsis');
-      item.tooltip = 'This folder has too many entries to list here. Use Reveal in Finder or Quick Open (⌘P) instead.';
+      item.tooltip = `This folder has too many entries to list here. Use ${process.platform === 'win32' ? 'Reveal in File Explorer or Quick Open (Ctrl+P)' : process.platform === 'darwin' ? 'Reveal in Finder or Quick Open (⌘P)' : 'Quick Open (Ctrl+P)'} instead.`;
       return item;
     }
     const item = new vscode.TreeItem(

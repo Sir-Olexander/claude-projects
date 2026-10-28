@@ -76,10 +76,13 @@ export function registerCommonCommands(store: ProjectStore): vscode.Disposable {
       }
       await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), { forceNewWindow: true });
     }),
-    vscode.commands.registerCommand('claudeProjects.revealInFinder', async (arg?: unknown) => {
-      const p = resolvePathArg(arg, store);
-      if (p) await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(p));
-    }),
+    // Same command, titled "Reveal in Finder" on macOS and "Reveal in File Explorer" on Windows.
+    ...['claudeProjects.revealInFinder', 'claudeProjects.revealInExplorer'].map((id) =>
+      vscode.commands.registerCommand(id, async (arg?: unknown) => {
+        const p = resolvePathArg(arg, store);
+        if (p) await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(p));
+      }),
+    ),
     vscode.commands.registerCommand('claudeProjects.openTerminal', (arg?: unknown) => {
       const p = resolvePathArg(arg, store);
       if (p) openTerminalAt(p, store);
