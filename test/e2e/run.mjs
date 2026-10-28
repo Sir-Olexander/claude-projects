@@ -118,6 +118,8 @@ writeFileSync(
     'extensions.autoUpdate': false,
     'window.newWindowDimensions': 'maximized',
     'workbench.colorTheme': 'Default Dark Modern',
+    // Extra settings for a run, e.g. CP_E2E_SETTINGS='{"claudeProjects.chat.iconOnlyTabs":true}'.
+    ...JSON.parse(process.env.CP_E2E_SETTINGS || '{}'),
   }),
 );
 
