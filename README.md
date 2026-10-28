@@ -14,7 +14,7 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 **Files view**: the selected project's files and folders (respects `files.exclude`, dims git-ignored files, shows git status). Right-click a folder → *Open in New Window*.
 
 **Sessions**
-- **Open Here** (default): the session runs through the `claude` CLI on your machine (your Max plan login) and shows in a chat tab that looks and works like the official Claude Code extension: streaming answers, thinking, tool calls with diffs, permission prompts (1/2/3 keys, "don't ask again"), questions, plan review, todos, the mode picker (Manual / Edit automatically / Plan / Auto), model and effort pickers (change them mid-session), `/` commands, `@` file mentions, pasted images, Esc to interrupt, and messages queued while Claude works.
+- **Open Here** (default): the session runs through the `claude` CLI on your machine (your Max plan login) and shows in a chat tab that looks and works like the official Claude Code extension: streaming answers, thinking, tool calls with diffs, permission prompts (1/2/3 keys, "don't ask again"), questions, plan review, todos, the mode picker (Manual / Edit automatically / Plan / Auto / Yolo auto: auto mode where every permission prompt Claude still asks is answered yes for you), model and effort pickers (change them mid-session), `/` commands, `@` file mentions, pasted images, Esc to interrupt, and messages queued while Claude works.
   - **MCP input**: when an MCP server asks for something mid-session (a form or a sign-in link), a card shows the form or the link and sends your answer back to the server.
   - **Bookmarks**: hover a message (yours, Claude's, or a tool call) and click the bookmark icon. The bookmark button in the chat header lists them and jumps back; *Go to Bookmarked Message…* (Projects view `…` menu or the command palette) searches bookmarks across all sessions.
 - **Open in Claude Extension**: opens the session's folder in its own window and resumes the session in the official Claude Code extension there. Also in the chat tab's title bar.
@@ -57,6 +57,7 @@ Windows differences:
 | `claudeProjects.chat.defaultModel` | — | Model for new sessions here (empty = your Claude Code default). |
 | `claudeProjects.chat.defaultEffort` | — | Effort for new sessions here (empty = the model default). |
 | `claudeProjects.chat.allowBypassPermissions` | `false` | Offer "Bypass permissions" in the mode picker. |
+| `claudeProjects.chat.showYoloAutoMode` | `true` | Offer "Yolo auto" in the mode picker (turn off to hide it). |
 | `claudeProjects.chat.showThinking` | `true` | Show Claude's thinking summaries. |
 | `claudeProjects.followActiveSession` | `true` | Switching chat tabs switches Source Control and Files to that session's project. |
 | `claudeProjects.notifications.*` | on | System notifications on macOS and Windows (only while VS Code is in the background, sound, turn-complete, sessions outside this window, in-app toasts). |
