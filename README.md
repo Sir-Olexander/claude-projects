@@ -89,4 +89,4 @@ The chat UI can be developed in a browser: serve the repo (`python3 -m http.serv
 
 ## License
 
-[MIT](LICENSE.md)
+MIT. See `LICENSE.md`.
