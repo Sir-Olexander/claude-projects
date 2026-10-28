@@ -170,13 +170,18 @@ export class DashboardPanel implements vscode.Disposable {
       if (s) {
         const busy = s.status === 'running' || s.status === 'waiting' || s.status === 'starting' || s.pendingRequests.length > 0;
         this.deps.closeTab(key);
-        if (!busy) stops.push(s.stopProcess());
+        if (!busy) {
+          // A session stopped at a usage limit stays listed (and would auto-continue) until this is cleared.
+          s.dismissLimitStop();
+          stops.push(s.stopProcess());
+        }
         continue;
       }
       const v = attention.sessions.find((x) => x.key === key);
       if (v && !v.managed && v.closable && v.attention === 'idle' && v.pid) external.push(v);
     }
     await Promise.all(stops);
+    if (stops.length) sessions.syncAutoContinue();
     if (!external.length) return;
     const what = external.length === 1 ? `"${external[0].title}"` : `${external.length} sessions`;
     const pick = opts?.skipConfirm

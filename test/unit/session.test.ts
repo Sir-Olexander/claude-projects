@@ -549,6 +549,20 @@ describe('ManagedSession: continue automatically after a usage limit', () => {
     expect(s.getState().limit).toBeUndefined();
     await waitFor(() => s.status === 'idle');
   });
+
+  it('closing the session forgets the limit and never sends "continue"', async () => {
+    ManagedSession.autoContinueTiming = { ...timing, afterResetMs: 0, checkEveryMs: 50 };
+    process.env.FAKE_LIMIT_RESET_SECONDS = '1';
+    const { s } = newSession();
+    s.setAutoContinue(true);
+    await s.send('please hit-limit now');
+    await waitFor(() => !!s.limitStop?.continueAt);
+    s.dismissLimitStop();
+    expect(s.limitStop).toBeUndefined();
+    expect(s.getState().limit).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(s.getState().items.some((i) => i.kind === 'user' && i.text === 'continue')).toBe(false);
+  });
 });
 
 describe('ManagedSession: forking from a reply', () => {

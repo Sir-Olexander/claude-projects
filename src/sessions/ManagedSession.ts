@@ -720,6 +720,11 @@ export class ManagedSession {
     void this.send('continue');
   }
 
+  /** Forgets a usage-limit stop and cancels its auto-continue (the user closed the session). */
+  dismissLimitStop(): void {
+    this.clearLimitStop();
+  }
+
   private clearLimitStop(): void {
     this.stopAutoTimer();
     if (!this.limitStop) return;
