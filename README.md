@@ -6,7 +6,7 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 
 ## What you get
 
-**Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard. Chats open in this window get their own **Open in this window** section. Use the × on a card (or **Close all**) to close a tab or an idle session; idle Claude processes stop and resume on your next message. Idle sessions in a terminal can be ended too, after a confirm.
+**Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard. Use the × on an idle card (or **Close all**) to close it: its tab closes and idle Claude processes stop and resume on your next message. Idle sessions in a terminal can be ended too, after a confirm.
 
 ![The sessions dashboard with plan usage, sessions that need you, running and recent sessions](docs/images/dashboard.png)
 

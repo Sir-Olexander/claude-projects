@@ -354,7 +354,7 @@ export async function run(): Promise<void> {
     const live = api.attention.bySessionId(existingId);
     log('before dismiss:', live?.attention, 'recent:', api.attention.recent.map((r) => r.sessionId).join(','));
     if (live) api.attention.dismiss(live.key);
-    // While its tab is open it's listed under "Open in this window".
+    // While its tab is open it stays listed (as idle).
     if (live) api.panels.closeTab(live.key);
     await waitFor('session in Recent', () => api.attention.recent.some((r) => r.sessionId === existingId), 10_000);
     assert.ok(!api.attention.sessions.some((v) => v.sessionId === existingId), 'not listed as live too');

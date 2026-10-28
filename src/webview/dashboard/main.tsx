@@ -51,9 +51,8 @@ function App() {
     return {
       attention: s.filter((v) => v.attention === 'needs-input' || v.attention === 'error' || v.attention === 'done'),
       running: s.filter((v) => v.attention === 'running'),
-      // Every chat tab open in this window; idle ones are listed only here.
-      open: s.filter((v) => v.tabOpen),
-      idle: s.filter((v) => v.attention === 'idle' && !v.tabOpen),
+      // Each session shows once, under its state (open tabs included).
+      idle: s.filter((v) => v.attention === 'idle'),
     };
   }, [state]);
 
@@ -64,7 +63,6 @@ function App() {
     needs ? `${needs} waiting for you` : undefined,
     groups.attention.length - needs ? `${groups.attention.length - needs} finished` : undefined,
     groups.running.length ? `${groups.running.length} running` : undefined,
-    groups.open.length ? `${groups.open.length} open here` : undefined,
     groups.idle.length ? `${groups.idle.length} idle` : undefined,
   ].filter(Boolean);
 
@@ -105,7 +103,6 @@ function App() {
         <>
           <Section title="Needs you" items={groups.attention} now={now} accent="attention" />
           <Section title="Running" items={groups.running} now={now} accent="running" />
-          <Section title="Open in this window" items={groups.open} now={now} accent="open" collapsible canClose closeAllTitle="Close all tabs in this window" />
           <Section title="Idle" items={groups.idle} now={now} accent="idle" collapsible canClose closeAllTitle="Close all idle sessions" />
         </>
       )}
