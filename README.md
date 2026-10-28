@@ -2,6 +2,8 @@
 
 Work on all your projects with Claude Code from one VS Code window: no more one window per project and alt-tabbing to find the session that is waiting for you.
 
+![A tour: a chat waiting for permission, a finished chat with a diff, plan review, a question, an MCP form and the sessions dashboard](docs/images/tour.gif)
+
 ## What you get
 
 **Projects view** (the folder-with-asterisk icon in the activity bar)
@@ -9,22 +11,47 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 - Under each project: its git worktrees and its Claude sessions, newest first. Sessions that need you are pinned to the top with an orange bell, running ones spin, finished-but-unread ones get a green check.
 - Clicking a project or worktree switches the **Source Control** and **Files** views to it. Clicking a session opens it.
 
+![Projects, Source Control and Files views beside a chat waiting for permission](docs/images/chat-permission.png)
+
 **Source Control view**: current branch (ahead/behind), staged and unstaged changes, branches, worktrees and recent commits for the selected project only. Clicking a changed file opens VS Code's normal diff. Stage, unstage, discard, commit, checkout, create branches and worktrees, pull, push and fetch from the view and its `…` menu.
 
 **Files view**: the selected project's files and folders (respects `files.exclude`, dims git-ignored files, shows git status). Right-click a folder → *Open in New Window*.
 
+![Files view with the New File box](docs/images/files-new-file.png)
+
 **Sessions**
 - **Open Here** (default): the session runs through the `claude` CLI on your machine (your Max plan login) and shows in a chat tab that looks and works like the official Claude Code extension: streaming answers, thinking, tool calls with diffs, permission prompts (1/2/3 keys, "don't ask again"), questions, plan review, todos, the mode picker (Manual / Edit automatically / Plan / Auto), model and effort pickers (change them mid-session), `/` commands, `@` file mentions, pasted images, Esc to interrupt, and messages queued while Claude works.
+
+  ![A finished chat with an inline diff, todos and the model and effort pickers](docs/images/chat-diff.png)
+
+  | Plan review | Questions |
+  |---|---|
+  | ![Plan review card](docs/images/plan-review.png) | ![Question card](docs/images/question.png) |
+
   - **MCP input**: when an MCP server asks for something mid-session (a form or a sign-in link), a card shows the form or the link and sends your answer back to the server.
+
+    ![An MCP server asking for deploy settings](docs/images/mcp-input.png)
+
   - **Bookmarks**: hover a message (yours, Claude's, or a tool call) and click the bookmark icon. The bookmark button in the chat header lists them and jumps back; *Go to Bookmarked Message…* (Projects view `…` menu or the command palette) searches bookmarks across all sessions.
+
+    ![Bookmarked messages in a chat](docs/images/bookmarks.png)
+
 - **Open in Claude Extension**: opens the session's folder in its own window and resumes the session in the official Claude Code extension there. Also in the chat tab's title bar.
 - Change the default with `claudeProjects.sessions.defaultOpenMode`.
 
 **Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard.
 
+![The sessions dashboard with plan usage, sessions that need you, running and recent sessions](docs/images/dashboard.png)
+
 **Attention**: a badge on the activity bar icon, a "waiting" item in the status bar (click it to jump to the next session that needs you), a dot in the chat tab title, and a macOS notification when a session needs you while VS Code is in the background. If [terminal-notifier](https://github.com/julienXX/terminal-notifier) is installed (`brew install terminal-notifier`), clicking the notification opens the session.
 
 **Usage bar**: your plan's 5-hour and weekly usage with reset times in the status bar (hover for details, including per-model weekly limits). The numbers come from Claude Code itself (the same as `/usage`); the extension never reads your credentials.
+
+![A chat stopped by the session limit, set to continue automatically](docs/images/usage-limit.png)
+
+It follows your VS Code theme:
+
+![The chat in a light theme](docs/images/light-theme.png)
 
 ## Install
 
