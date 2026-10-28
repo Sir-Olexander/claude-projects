@@ -2,6 +2,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Emitter, type Event, debounce } from '../util/events';
+import { normalizeDrive } from '../util/paths';
 import { run } from '../util/exec';
 import type { Logger } from '../util/log';
 import { silentLogger } from '../util/log';
@@ -41,7 +42,7 @@ export function parseLiveEntry(raw: unknown): LiveEntry | undefined {
   return {
     pid,
     sessionId: str('sessionId'),
-    cwd: o.cwd,
+    cwd: normalizeDrive(o.cwd),
     status: str('status'),
     waitingFor: str('waitingFor'),
     name: str('name'),
@@ -158,6 +159,8 @@ export class LiveRegistry {
 
   /** A file left behind by a crashed process can point at a pid the OS gave to something else. */
   private async dropReusedPids(entries: Map<number, LiveEntry>): Promise<void> {
+    // procStart is `ps` output; Windows has no `ps` to compare it with.
+    if (process.platform === 'win32') return;
     const unverified = [...entries.values()].filter((e) => e.procStart && !this.verified.has(e.pid));
     if (unverified.length) {
       try {

@@ -1719,7 +1719,7 @@ const EFFORT_NAMES: Record<EffortLevel, string> = { low: 'low', medium: 'medium'
 
 function describeTarget(toolName: string, input: Record<string, unknown>): string {
   if (toolName === 'Bash' && typeof input.command === 'string') return `: ${clip(input.command, 100)}`;
-  if (typeof input.file_path === 'string') return `: ${input.file_path.split('/').pop()}`;
+  if (typeof input.file_path === 'string') return `: ${input.file_path.split(/[\\/]/).pop()}`;
   if (typeof input.url === 'string') return `: ${input.url}`;
   return '';
 }

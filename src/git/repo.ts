@@ -110,7 +110,8 @@ export async function getStatus(root: string, opts: { ignored?: boolean } = {}):
 export async function getBranches(root: string): Promise<BranchInfo[]> {
   const r = await runGit(root, ['for-each-ref', `--format=${BRANCH_FORMAT}`, 'refs/heads', 'refs/remotes'], { timeoutMs: 20_000 });
   if (r.code !== 0) return [];
-  return parseBranches(r.stdout);
+  // Git for Windows prints C:/x; spell worktree paths like the rest of the extension.
+  return parseBranches(r.stdout).map((b) => (b.worktreePath ? { ...b, worktreePath: realPath(b.worktreePath) } : b));
 }
 
 export async function getLog(root: string, count = 30): Promise<CommitInfo[]> {
@@ -295,5 +296,5 @@ export async function ensureExcluded(commonDir: string, pattern: string): Promis
 /** Extracts the worktree path from git's "already checked out at" style errors. */
 export function parseCheckedOutElsewhere(stderr: string): string | undefined {
   const m = /(?:already checked out at|is already used by worktree at|already used by worktree at) '([^']+)'/.exec(stderr);
-  return m?.[1];
+  return m ? realPath(m[1]) : undefined;
 }

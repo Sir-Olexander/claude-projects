@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { basename, dirname } from 'node:path';
 import type { Logger } from '../../util/log';
 import { errorMessage } from '../../util/log';
-import { isSameOrInside } from '../../util/paths';
+import { fsPathOf, isSameOrInside } from '../../util/paths';
 import type { FileNode, FilesTreeProvider } from './FilesTreeProvider';
 import { transferInto, type TransferMode } from './moveFiles';
 import { dropFolder } from './transferRules';
@@ -52,7 +52,7 @@ export class FilesDragAndDrop implements vscode.TreeDragAndDropController<FileNo
         .map((l) => {
           try {
             const u = vscode.Uri.parse(l);
-            return u.scheme === 'file' ? u.fsPath : '';
+            return u.scheme === 'file' ? fsPathOf(u) : '';
           } catch {
             return '';
           }

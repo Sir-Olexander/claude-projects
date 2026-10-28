@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import type { ProjectStore } from '../../projects/ProjectStore';
 import type { Logger } from '../../util/log';
 import { errorMessage } from '../../util/log';
-import { isSameOrInside, tildify } from '../../util/paths';
+import { fsPathOf, isSameOrInside, tildify } from '../../util/paths';
 import { filesResourceUri } from '../../git/GitDecorationProvider';
 import type { RepoStateService } from '../../git/RepoStateService';
 import { buildExcludeMatcher, listDirectory, type ExcludeConfig, type ExcludeMatcher } from './fsModel';
@@ -42,7 +42,7 @@ export class FilesTreeProvider implements vscode.TreeDataProvider<FileNode>, vsc
     this.setRoot(store.selection?.path);
     this.disposables.push(
       store.onDidChangeSelection((sel) => this.setRoot(sel?.path)),
-      state.onDidCreateOrDelete((uri) => this.queueRefresh(dirname(uri.fsPath))),
+      state.onDidCreateOrDelete((uri) => this.queueRefresh(dirname(fsPathOf(uri)))),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('files.exclude')) {
           this.rebuildExclude();
@@ -148,7 +148,7 @@ export class FilesTreeProvider implements vscode.TreeDataProvider<FileNode>, vsc
       const item = new vscode.TreeItem(`${node.hidden!.toLocaleString()} more items not shown`, vscode.TreeItemCollapsibleState.None);
       item.id = `files:more:${node.path}`;
       item.iconPath = new vscode.ThemeIcon('ellipsis');
-      item.tooltip = 'This folder has too many entries to list here. Use Reveal in Finder or Quick Open (⌘P) instead.';
+      item.tooltip = `This folder has too many entries to list here. Use ${process.platform === 'win32' ? 'Reveal in File Explorer or Quick Open (Ctrl+P)' : process.platform === 'darwin' ? 'Reveal in Finder or Quick Open (⌘P)' : 'Quick Open (Ctrl+P)'} instead.`;
       return item;
     }
     const item = new vscode.TreeItem(

@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { Project, ProjectSelection } from '../shared/types';
-import { folderName, isSameOrInside, realPath, stripTrailingSep } from '../util/paths';
+import { normalize } from 'node:path';
+import { folderName, isSameOrInside, normalizeDrive, realPath, stripTrailingSep } from '../util/paths';
 
 const PROJECTS_KEY = 'claudeProjects.projects.v1';
 const SELECTION_KEY = 'claudeProjects.selection.v1';
@@ -77,7 +78,7 @@ export class ProjectStore implements vscode.Disposable {
     let next: ProjectSelection | undefined;
     if (projectId) {
       const p = this.get(projectId);
-      if (p) next = { projectId, path: stripTrailingSep(path ?? p.path) };
+      if (p) next = { projectId, path: stripTrailingSep(path ? normalizeDrive(process.platform === 'win32' ? normalize(path) : path) : p.path) };
     }
     if (next?.projectId === this._selection?.projectId && next?.path === this._selection?.path) return;
     this._selection = next;

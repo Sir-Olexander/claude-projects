@@ -12,20 +12,41 @@ export function dirname(p: string): string {
   return i > 0 ? clean.slice(0, i) : '';
 }
 
-/** Home directory guessed from the cwd (/Users/name/... or /home/name/...). */
+/** Home directory guessed from the cwd (/Users/name/…, /home/name/… or C:\Users\name\…). */
 function guessHome(cwd: string): string | undefined {
-  const m = /^(\/Users\/[^/]+|\/home\/[^/]+)/.exec(cwd);
+  const m = /^(\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[\\/]Users[\\/][^\\/]+)/.exec(cwd);
   return m?.[1];
+}
+
+/** "C:\…", "C:/…" or "\\server\share\…". */
+export function isWindowsPath(p: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\');
+}
+
+/**
+ * `dir`'s length when `p` is `dir` or inside it, else undefined. Windows paths
+ * compare without regard to case or slash direction (Claude writes both C:\x and C:/x).
+ */
+function insideLength(p: string, dir: string): number | undefined {
+  if (!dir) return undefined;
+  const win = isWindowsPath(dir) || isWindowsPath(p);
+  const norm = (s: string) => (win ? s.replace(/\//g, '\\').toLowerCase() : s);
+  const a = norm(p);
+  const d = norm(dir);
+  if (a === d) return dir.length;
+  const sep = win ? '\\' : '/';
+  return a.startsWith(d + sep) ? dir.length : undefined;
 }
 
 /** Path relative to the session cwd when inside it, else ~-shortened absolute path. */
 export function displayPath(p: string | undefined, cwd: string): string {
   if (!p) return '';
-  const c = cwd.replace(/\/+$/, '');
-  if (p === c) return '.';
-  if (c && p.startsWith(c + '/')) return p.slice(c.length + 1);
+  const c = cwd.replace(/[\\/]+$/, '');
+  const inCwd = insideLength(p, c);
+  if (inCwd !== undefined) return p.length === inCwd ? '.' : p.slice(inCwd + 1);
   const home = guessHome(cwd);
-  if (home && (p === home || p.startsWith(home + '/'))) return '~' + p.slice(home.length);
+  const inHome = home ? insideLength(p, home) : undefined;
+  if (inHome !== undefined) return '~' + p.slice(inHome);
   return p;
 }
 
@@ -61,18 +82,19 @@ export function parsePathRef(raw: string): PathRef | undefined {
 }
 
 function looksLikeFile(path: string): boolean {
-  if (!path || path.endsWith('/')) return false;
+  if (!path || /[\\/]$/.test(path)) return false;
+  const hasDir = /[\\/]/.test(path);
   if (/^\.{1,2}$/.test(path)) return false;
   const name = basename(path);
   if (!name || name.startsWith('-')) return false;
   if (/^\d+(\.\d+)*$/.test(name)) return false; // version numbers like 1.2.3
   if (FILE_EXT.test(name)) {
     // Avoid things like "e.g" or "i.e" and plain domain names like "example.com" without a slash.
-    if (!path.includes('/') && /^[a-z]{1,3}\.[a-z]{1,3}$/i.test(name)) return false;
-    if (!path.includes('/') && /^(www\.)?[a-z0-9-]+\.(com|org|net|io|dev|ai|app|co)$/i.test(name)) return false;
+    if (!hasDir && /^[a-z]{1,3}\.[a-z]{1,3}$/i.test(name)) return false;
+    if (!hasDir && /^(www\.)?[a-z0-9-]+\.(com|org|net|io|dev|ai|app|co)$/i.test(name)) return false;
     return true;
   }
-  return KNOWN_BARE.test(name) && path.includes('/');
+  return KNOWN_BARE.test(name) && hasDir;
 }
 
 /** Link targets from markdown: decide whether a href is a web link or a local file. */
@@ -83,13 +105,15 @@ export function classifyHref(href: string): { kind: 'url'; url: string } | { kin
   if (/^file:\/\//i.test(h)) {
     try {
       const u = new URL(h);
-      const ref = parsePathRef(decodeURIComponent(u.pathname) + (u.hash || ''));
-      return ref ? { kind: 'file', ref } : { kind: 'file', ref: { path: decodeURIComponent(u.pathname) } };
+      // file:///C:/x has the path "/C:/x".
+      const path = decodeURIComponent(u.pathname).replace(/^\/([A-Za-z]:)/, '$1');
+      const ref = parsePathRef(path + (u.hash || ''));
+      return ref ? { kind: 'file', ref } : { kind: 'file', ref: { path } };
     } catch {
       return undefined;
     }
   }
-  if (/^[a-z][a-z0-9+.-]*:/i.test(h)) return undefined; // other schemes: ignore
+  if (!isWindowsPath(h) && /^[a-z][a-z0-9+.-]*:/i.test(h)) return undefined; // other schemes (but not C:\): ignore
   let decoded = h;
   try {
     decoded = decodeURI(h);
@@ -99,6 +123,6 @@ export function classifyHref(href: string): { kind: 'url'; url: string } | { kin
   const ref = parsePathRef(decoded);
   if (ref) return { kind: 'file', ref };
   // Directory or extension-less path: still try to open it.
-  if (decoded.includes('/')) return { kind: 'file', ref: { path: decoded.replace(/#.*$/, '') } };
+  if (/[\\/]/.test(decoded)) return { kind: 'file', ref: { path: decoded.replace(/#.*$/, '') } };
   return undefined;
 }

@@ -11,7 +11,8 @@ afterEach(() => {
 });
 
 describe('LiveRegistry', () => {
-  it('keeps live entries whose start time matches (UTC, C locale) and drops reused pids', async () => {
+  // Windows has no ps; the registry skips this check there.
+  it.skipIf(process.platform === 'win32')('keeps live entries whose start time matches (UTC, C locale) and drops reused pids', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cp-reg-'));
     dirs.push(dir);
     const pid = process.pid;

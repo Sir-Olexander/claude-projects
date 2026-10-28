@@ -1,7 +1,7 @@
 // Runs test/e2e/suite.ts inside the installed VS Code with a throwaway profile.
 //   node test/e2e/run.mjs
-// (Build first: npm run build.) Needs VS Code at /Applications/Visual Studio Code.app
-// or $VSCODE_PATH. Uses the fake Claude CLI and a temporary CLAUDE_CONFIG_DIR.
+// (Build first: npm run build.) Uses VS Code at $VSCODE_PATH, else on macOS
+// /Applications/Visual Studio Code.app, else a copy @vscode/test-electron downloads. Uses the fake Claude CLI and a temporary CLAUDE_CONFIG_DIR.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,7 +18,8 @@ const real = process.argv.includes('--real');
 const visual = process.argv.includes('--visual') || real;
 const cdpPort = 9339;
 const root = join(here, '..', '..');
-const base = realpathSync(mkdtempSync(join(tmpdir(), 'cp-e2e-')));
+// .native: on Windows it also expands 8.3 short names (C:\Users\RUNNER~1), like the extension does.
+const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'cp-e2e-')));
 const repo = join(base, 'repo');
 const claudeHome = join(base, 'claude-home');
 mkdirSync(repo);
@@ -129,7 +130,8 @@ if (process.argv.includes('--with-official')) {
   const src = join(homedir(), '.vscode', 'extensions');
   const official = readdirSync(src).filter((d) => d.startsWith('anthropic.claude-code-')).sort().pop();
   if (official) {
-    symlinkSync(join(src, official), join(extensionsDir, official));
+    // A junction on Windows: directory symlinks there need admin rights.
+    symlinkSync(join(src, official), join(extensionsDir, official), process.platform === 'win32' ? 'junction' : 'dir');
     console.log('linked', official);
   }
 }
@@ -143,13 +145,13 @@ for (const k of Object.keys(process.env)) if (k.startsWith('VSCODE_') || k.start
 
 try {
   await runTests({
-    vscodeExecutablePath: process.env.VSCODE_PATH ?? '/Applications/Visual Studio Code.app/Contents/MacOS/Code',
+    vscodeExecutablePath: process.env.VSCODE_PATH ?? (process.platform === 'darwin' ? '/Applications/Visual Studio Code.app/Contents/MacOS/Code' : undefined),
     extensionDevelopmentPath: root,
     extensionTestsPath: suiteOut,
     launchArgs: [...(visual ? [`--remote-debugging-port=${cdpPort}`] : []), repo, '--user-data-dir', userData, '--extensions-dir', extensionsDir, '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', '--disable-telemetry', '--new-window'],
     extensionTestsEnv: {
-      CP_E2E_REPO: realpathSync(repo),
-      CP_E2E_REPO2: realpathSync(repo2),
+      CP_E2E_REPO: realpathSync.native(repo),
+      CP_E2E_REPO2: realpathSync.native(repo2),
       CP_E2E_SESSION: sessionId,
       ...(real ? {} : { CLAUDE_CONFIG_DIR: claudeHome }),
       CP_REAL_PROJECTS: process.env.CP_REAL_PROJECTS ?? '',

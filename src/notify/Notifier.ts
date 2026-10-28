@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import { accessSync, constants } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { delimiter, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { run } from '../util/exec';
+import { toastScript, toastXml } from './windowsToast';
 import type { Logger } from '../util/log';
 
 export interface NotificationRequest {
@@ -17,10 +19,16 @@ export interface NotificationRequest {
 }
 
 /**
- * Native macOS notifications. Uses terminal-notifier when installed (click
- * opens the right session through our URI handler); otherwise AppleScript's
- * `display notification` (click just focuses Script Editor's sender, so we
- * keep it informative).
+ * Native system notifications.
+ *
+ * macOS: terminal-notifier when installed (click opens the right session
+ * through our URI handler); otherwise AppleScript's `display notification`
+ * (click just focuses Script Editor's sender, so we keep it informative).
+ *
+ * Windows: a toast shown through Windows PowerShell; clicking it opens our URI
+ * like terminal-notifier does.
+ *
+ * Elsewhere: VS Code's own notification.
  */
 export class Notifier {
   private terminalNotifier: string | undefined | null = null;
@@ -50,6 +58,11 @@ export class Notifier {
   }
 
   async notify(req: NotificationRequest): Promise<void> {
+    if (process.platform === 'win32') {
+      if (await this.windowsToast(req)) return;
+      void vscode.window.showInformationMessage(`${req.title}: ${req.message}`);
+      return;
+    }
     if (process.platform !== 'darwin') {
       // Elsewhere VS Code's own notification is the best we have.
       void vscode.window.showInformationMessage(`${req.title}: ${req.message}`);
@@ -75,6 +88,31 @@ export class Notifier {
     } catch (err) {
       this.log.warn(`notification failed: ${(err as Error).message}`);
     }
+  }
+
+  /** Shows a Windows toast; false when it could not be shown. */
+  private async windowsToast(req: NotificationRequest): Promise<boolean> {
+    const xml = toastXml({
+      title: req.title,
+      lines: [req.subtitle, req.message].filter((l): l is string => !!l),
+      launch: req.openPath ? this.uriFor(req.openPath) : undefined,
+      image: this.iconPath ? pathToFileURL(this.iconPath).toString() : undefined,
+      sound: !!req.sound,
+    });
+    // Toasts with the same tag replace each other (one per session), like terminal-notifier's -group.
+    const tag = req.group ? createHash('sha1').update(req.group).digest('hex').slice(0, 32) : undefined;
+    const script = toastScript(xml, tag);
+    // Windows PowerShell 5.1 (not pwsh): it is always installed and can load the WinRT toast types.
+    const powershell = join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    try {
+      // The script goes in on stdin (plain ASCII); -Command needs no execution-policy override.
+      const r = await run(powershell, ['-NoProfile', '-NonInteractive', '-Command', '-'], { timeoutMs: 15_000, input: script });
+      if (r.code === 0) return true;
+      this.log.warn(`Windows toast failed (${r.code}): ${r.stderr.trim().slice(0, 500)}`);
+    } catch (err) {
+      this.log.warn(`Windows toast failed: ${(err as Error).message}`);
+    }
+    return false;
   }
 }
 

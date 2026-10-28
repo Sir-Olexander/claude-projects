@@ -1,0 +1,5 @@
+# Keep LF line endings on Windows checkouts too (tests compare text, and the
+# fake CLI and fixtures are parsed line by line).
+* text=auto eol=lf
+*.png binary
+*.ico binary

@@ -1,5 +1,5 @@
 import { readdir } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { runGit } from '../git/gitCli';
 
 interface CacheEntry {
@@ -54,7 +54,7 @@ async function walk(root: string): Promise<string[]> {
       const p = join(dir, e.name);
       if (e.isDirectory()) {
         if (!SKIP_DIRS.has(e.name)) queue.push(p);
-      } else out.push(relative(root, p));
+      } else out.push(relative(root, p).split(sep).join('/'));
     }
   }
   return out;
