@@ -32,7 +32,7 @@
           { label: 'PR', prompt: 'Open a PR and cleanup \n\n' },
           { label: 'Branch', prompt: 'Create a new branch and work on it. Commit as you go. Dont push. \n\n' },
         ],
-        availableModes: ['default', 'acceptEdits', 'plan', 'auto'],
+        availableModes: ['default', 'acceptEdits', 'plan', 'auto', 'yolo'],
         availableModels: [
           { value: 'default', displayName: 'Default (recommended)', description: 'Sonnet 5.5 · Efficient for routine tasks' },
           { value: 'opus', displayName: 'Opus 5.5', description: 'For complex work and everyday tasks' },
