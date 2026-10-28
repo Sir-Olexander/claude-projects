@@ -49,7 +49,7 @@ async function screenshot(name: string): Promise<void> {
 export async function run(): Promise<void> {
   const repo = process.env.CP_E2E_REPO!;
   const existingId = process.env.CP_E2E_SESSION!;
-  const ext = vscode.extensions.getExtension('febundi.claude-projects')!;
+  const ext = vscode.extensions.getExtension('Sir-Olexander.claude-projects')!;
   const api = (await ext.activate()) as ClaudeProjectsApi;
   const project = await api.store.add(repo);
   await api.store.add(process.env.CP_E2E_REPO2!);

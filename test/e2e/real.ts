@@ -52,7 +52,7 @@ export async function run(): Promise<void> {
     await c.update('chat.defaultModel', process.env.CP_REAL_DEFAULT_MODEL, vscode.ConfigurationTarget.Global);
     await c.update('chat.defaultEffort', process.env.CP_REAL_DEFAULT_EFFORT ?? '', vscode.ConfigurationTarget.Global);
   }
-  const ext = vscode.extensions.getExtension('febundi.claude-projects')!;
+  const ext = vscode.extensions.getExtension('Sir-Olexander.claude-projects')!;
   const api = (await ext.activate()) as ClaudeProjectsApi;
   await api.store.addMany(projects);
   api.store.select(api.store.projects[0].id);
