@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { launchFor, quoteForCmd, setEnv, shimTarget } from '../../src/claude/launch';
+import { launchFor, quoteForCmd, scoopShimTarget, setEnv, shimTarget } from '../../src/claude/launch';
 import { reservedName } from '../../src/sessions/globalEnv';
 
 // npm's cmd-shim output for a script and for a native binary.
@@ -79,5 +79,16 @@ describe('launching claude', () => {
     expect(reservedName('anthropic_api_key')).toBeDefined();
     expect(reservedName('USERPROFILE')).toBeDefined();
     expect(reservedName('MY_TOKEN')).toBeUndefined();
+  });
+});
+
+describe('scoop shims', () => {
+  it('reads the real exe from claude.shim', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cp-scoop-'));
+    const real = join(dir, 'claude.exe');
+    writeFileSync(real, '');
+    expect(scoopShimTarget('C:\\scoop\\shims\\claude.exe', () => `path = "${real}"\r\nargs = \r\n`)).toBe(real);
+    expect(scoopShimTarget('C:\\scoop\\shims\\claude.exe', () => 'nothing here')).toBeUndefined();
+    expect(scoopShimTarget(join(dir, 'none.exe'))).toBeUndefined();
   });
 });

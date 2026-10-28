@@ -26,21 +26,24 @@ function xmlEscape(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
 }
 
-/** A PowerShell single-quoted string literal. */
-function psString(s: string): string {
-  return `'${s.replace(/'/g, "''")}'`;
-}
-
-/** PowerShell that shows the toast. Toasts with the same tag replace each other. */
+/**
+ * PowerShell that shows the toast. Toasts with the same tag replace each other.
+ *
+ * The XML carries text from the session (titles, the command Claude wants to
+ * run), so it goes in as base64: PowerShell also ends strings at curly quotes
+ * (‘ ’), and escaping by hand is easy to get wrong. The tag is hex.
+ */
 export function toastScript(xml: string, tag?: string): string {
+  const xml64 = Buffer.from(xml, 'utf8').toString('base64');
+  if (tag && !/^[0-9a-f]+$/.test(tag)) throw new Error('toast tag must be hex');
   return [
     `$ErrorActionPreference = 'Stop'`,
     `[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null`,
     `[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null`,
     `$xml = New-Object Windows.Data.Xml.Dom.XmlDocument`,
-    `$xml.LoadXml(${psString(xml)})`,
+    `$xml.LoadXml([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${xml64}')))`,
     `$toast = New-Object Windows.UI.Notifications.ToastNotification $xml`,
-    ...(tag ? [`$toast.Tag = ${psString(tag)}`, `$toast.Group = 'claude-projects'`] : []),
-    `[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(${psString(POWERSHELL_APP_ID)}).Show($toast)`,
-  ].join('\n');
+    ...(tag ? [`$toast.Tag = '${tag}'`, `$toast.Group = 'claude-projects'`] : []),
+    `[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('${POWERSHELL_APP_ID}').Show($toast)`,
+  ].join('\r\n') + '\r\n';
 }

@@ -24,6 +24,7 @@ export function launchFor(cliPath: string, args: string[], platform: NodeJS.Plat
   const ext = extname(cliPath).toLowerCase();
   // A script (e.g. the tests' fake CLI): Windows can't run it directly.
   if (SCRIPT_EXT.includes(ext)) return { command: 'node', args: [cliPath, ...args] };
+  if (ext === '.exe') return { command: scoopShimTarget(cliPath) ?? cliPath, args };
   if (ext !== '.cmd' && ext !== '.bat') return { command: cliPath, args };
   const target = shimTarget(cliPath);
   if (target) {
@@ -48,6 +49,22 @@ export function shimTarget(shimPath: string, read: (p: string) => string = (p) =
   if (!found) return undefined;
   const target = resolve(dirname(shimPath), found);
   return existsSync(target) ? target : undefined;
+}
+
+/**
+ * Scoop's shims\claude.exe is a launcher that starts the real claude.exe as a
+ * child; its claude.shim says where that is. Running the real one directly
+ * keeps the pid we know equal to the pid in Claude's live-session list.
+ */
+export function scoopShimTarget(exePath: string, read: (p: string) => string = (p) => readFileSync(p, 'utf8')): string | undefined {
+  let text: string;
+  try {
+    text = read(exePath.replace(/\.exe$/i, '.shim'));
+  } catch {
+    return undefined;
+  }
+  const m = /^\s*path\s*=\s*"?([^"\r\n]+?\.exe)"?\s*$/im.exec(text);
+  return m && existsSync(m[1]) ? m[1] : undefined;
 }
 
 // Characters cmd.exe treats specially; escaped with ^.

@@ -105,8 +105,8 @@ export class Notifier {
     // Windows PowerShell 5.1 (not pwsh): it is always installed and can load the WinRT toast types.
     const powershell = join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
     try {
-      const encoded = Buffer.from(script, 'utf16le').toString('base64');
-      const r = await run(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { timeoutMs: 15_000 });
+      // The script goes in on stdin (plain ASCII); -Command needs no execution-policy override.
+      const r = await run(powershell, ['-NoProfile', '-NonInteractive', '-Command', '-'], { timeoutMs: 15_000, input: script });
       if (r.code === 0) return true;
       this.log.warn(`Windows toast failed (${r.code}): ${r.stderr.trim().slice(0, 500)}`);
     } catch (err) {

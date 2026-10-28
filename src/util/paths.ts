@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, isAbsolute, join, normalize, relative, sep } from 'node:path';
+import { basename, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 
 /**
  * One spelling per folder on Windows: an upper-case drive letter. VS Code's
@@ -16,8 +16,16 @@ export function fsPathOf(uri: { fsPath: string }): string {
   return normalizeDrive(uri.fsPath);
 }
 
-/** Resolves symlinks when the path exists; otherwise returns it normalized. */
+/**
+ * Resolves symlinks when the path exists; otherwise returns it normalized.
+ *
+ * On Windows the path is only normalized (slashes, drive letter): resolving
+ * would turn junctions, subst and mapped drives into other paths (Z:\x into
+ * \\server\share\x), while Claude Code keeps the path it was started in, and
+ * sessions are matched to projects by that path.
+ */
 export function realPath(p: string): string {
+  if (process.platform === 'win32') return normalizeDrive(resolve(p));
   try {
     return normalizeDrive(realpathSync.native(p));
   } catch {
