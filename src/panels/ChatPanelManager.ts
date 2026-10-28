@@ -7,6 +7,7 @@ import type { SessionIndex } from '../claude/SessionIndex';
 import { forkTitle, type ForkSource, type ManagedSession } from '../sessions/ManagedSession';
 import type { SessionManager } from '../sessions/SessionManager';
 import { getCurrentBranch } from '../git/gitCli';
+import { Emitter } from '../util/events';
 import type { Logger } from '../util/log';
 import { folderName } from '../util/paths';
 import { CHAT_VIEW_TYPE, ChatPanel } from './ChatPanel';
@@ -41,6 +42,10 @@ export class ChatPanelManager implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private activeKey: string | undefined;
 
+  private readonly _onDidChangeTabs = new Emitter<void>();
+  /** A chat tab was opened or closed. */
+  readonly onDidChangeTabs = this._onDidChangeTabs.event;
+
   constructor(private readonly deps: ChatPanelManagerDeps) {
     this.disposables.push(this.proposed, vscode.workspace.registerTextDocumentContentProvider(PROPOSED_SCHEME, this.proposed));
     this.disposables.push(
@@ -62,7 +67,10 @@ export class ChatPanelManager implements vscode.Disposable {
       fork: (s: ManagedSession, itemId: string) => void this.fork(s, itemId),
       onActive: (s: ManagedSession) => this.onActive(s),
       onDispose: (p: ChatPanel) => {
-        if (this.panels.get(p.session.key) === p) this.panels.delete(p.session.key);
+        if (this.panels.get(p.session.key) === p) {
+          this.panels.delete(p.session.key);
+          this._onDidChangeTabs.fire();
+        }
       },
     };
   }
@@ -107,6 +115,7 @@ export class ChatPanelManager implements vscode.Disposable {
   private attach(panel: vscode.WebviewPanel, session: ManagedSession): ChatPanel {
     const cp = new ChatPanel(panel, session, this.host);
     this.panels.set(session.key, cp);
+    this._onDidChangeTabs.fire();
     return cp;
   }
 
@@ -235,5 +244,6 @@ export class ChatPanelManager implements vscode.Disposable {
     for (const p of [...this.panels.values()]) p.dispose();
     this.panels.clear();
     for (const d of this.disposables) d.dispose();
+    this._onDidChangeTabs.dispose();
   }
 }

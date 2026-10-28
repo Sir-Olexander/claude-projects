@@ -31,6 +31,8 @@ export interface AttentionDeps {
   utilityCwd: string;
   /** Opens a managed session's panel (for toast "Open" buttons). */
   reveal(key: string): void;
+  /** Chat tabs open in this window. */
+  tabs: { has(key: string): boolean; onDidChange(listener: () => void): { dispose(): void } };
 }
 
 interface ExternalTrack {
@@ -63,6 +65,7 @@ export class AttentionService implements vscode.Disposable {
     sub((l) => deps.sessions.onDidChange(l));
     sub((l) => deps.store.onDidChangeProjects(l));
     sub((l) => deps.index.onDidChange(l));
+    sub((l) => deps.tabs.onDidChange(l));
     this.disposables.push({ dispose: deps.registry.onDidChange(() => this.onRegistryChange()).dispose });
     this.disposables.push({ dispose: deps.sessions.onNeedsAttention((a) => void this.onManagedAttention(a.session, a.reason, a.detail)).dispose });
     this.compute();
@@ -167,6 +170,8 @@ export class AttentionService implements vscode.Disposable {
         attention,
         waitingFor: e.status === 'waiting' ? capitalize(e.waitingFor ?? 'input needed') : undefined,
         since: (attention === 'done' ? track?.doneAt : undefined) ?? e.statusUpdatedAt ?? e.updatedAt ?? e.startedAt ?? Date.now(),
+        // Only a terminal CLI can be ended safely from here; other apps own their processes.
+        closable: source === 'terminal',
       });
     }
 
@@ -205,10 +210,13 @@ export class AttentionService implements vscode.Disposable {
     else if (s.status === 'running' || s.status === 'starting') attention = 'running';
     else if (s.unread && !this.dismissed.has(s.key)) attention = 'done';
     else attention = 'idle';
+    const tabOpen = this.deps.tabs.has(s.key);
     // Sessions that are only being read (no process, nothing pending) are not "running",
-    // unless they're stopped at a usage limit.
-    if (attention === 'idle' && !s.processAlive && !s.limitStop) return undefined;
-    if (s.status === 'new' && !s.processAlive) return undefined;
+    // unless they're stopped at a usage limit. They still show while their tab is open.
+    if (!tabOpen) {
+      if (attention === 'idle' && !s.processAlive && !s.limitStop) return undefined;
+      if (s.status === 'new' && !s.processAlive) return undefined;
+    }
 
     let waitingFor: string | undefined;
     let detail: string | undefined;
@@ -255,6 +263,8 @@ export class AttentionService implements vscode.Disposable {
       activity: attention === 'running' ? s.activity : undefined,
       since: pending?.createdAt ?? s.statusSince,
       quickPermission,
+      tabOpen,
+      closable: true,
     };
   }
 

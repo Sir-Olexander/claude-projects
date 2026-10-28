@@ -558,6 +558,10 @@ export interface LiveSessionView {
   since: number;
   /** For managed permission requests that can be answered from the dashboard. */
   quickPermission?: { requestId: string; allowOptionId: string };
+  /** It has a chat tab open in this window. */
+  tabOpen?: boolean;
+  /** The dashboard can close it: sessions of this window, and terminal sessions (ends their process). */
+  closable?: boolean;
 }
 
 export interface UsageWindowView {
@@ -611,6 +615,8 @@ export type DashboardToExtMessage =
   | { type: 'deny'; key: string; requestId: string }
   | { type: 'stop'; key: string }
   | { type: 'dismiss'; key: string }
+  /** Close sessions: tabs here close, idle processes stop, terminal sessions end (after a confirm). */
+  | { type: 'close'; keys: string[] }
   | { type: 'new-session' }
   | { type: 'refresh-usage' }
   | { type: 'add-project' };

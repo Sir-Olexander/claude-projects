@@ -97,7 +97,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
     vscode.window.onDidChangeWindowState((s) => presence.setFocused(s.focused)),
     { dispose: sessions.onDidChange(() => presence.setClaudePids([...sessions.ownPids()])).dispose },
   );
-  const attention = new AttentionService({ store, sessions, registry, index, notifier, presence, log, utilityCwd: storageDir, reveal: (key) => panels.reveal(key) });
+  const attention = new AttentionService({ store, sessions, registry, index, notifier, presence, log, utilityCwd: storageDir, reveal: (key) => panels.reveal(key), tabs: { has: (key) => panels.hasPanel(key), onDidChange: (l) => panels.onDidChangeTabs(l) } });
   context.subscriptions.push(attention);
 
   let openExternal: OpenExternal = async () => {};
@@ -110,6 +110,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
     store,
     handoff,
     revealSession: (key) => panels.reveal(key),
+    closeTab: (key) => panels.closeTab(key),
     openExternal: (v) => openExternal(v),
   });
   context.subscriptions.push(dashboard);

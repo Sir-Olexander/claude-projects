@@ -20,6 +20,7 @@ export interface DashboardDeps {
   store: ProjectStore;
   handoff: HandoffService;
   revealSession(key: string): void;
+  closeTab(key: string): void;
   openExternal(view: LiveSessionView): Promise<void>;
 }
 
@@ -122,6 +123,9 @@ export class DashboardPanel implements vscode.Disposable {
         case 'dismiss':
           attention.dismiss(m.key);
           break;
+        case 'close':
+          await this.close(m.keys);
+          break;
         case 'new-session':
           await vscode.commands.executeCommand('claudeProjects.newSession');
           break;
@@ -135,6 +139,48 @@ export class DashboardPanel implements vscode.Disposable {
     } catch (err) {
       this.deps.log.error(`dashboard ${m.type} failed: ${errorMessage(err)}`);
       void vscode.window.showErrorMessage(`Claude Projects: ${errorMessage(err)}`);
+    }
+  }
+
+  /**
+   * Sessions of this window: the tab closes and the Claude process stops, unless
+   * a turn is in progress (then it keeps running in the background).
+   * Idle terminal sessions: their CLI process is ended after a confirm.
+   */
+  private async close(keys: string[]): Promise<void> {
+    const { sessions, attention } = this.deps;
+    const external: LiveSessionView[] = [];
+    const stops: Promise<void>[] = [];
+    for (const key of keys) {
+      const s = sessions.get(key);
+      if (s) {
+        const busy = s.status === 'running' || s.status === 'waiting' || s.status === 'starting' || s.pendingRequests.length > 0;
+        this.deps.closeTab(key);
+        if (!busy) stops.push(s.stopProcess());
+        continue;
+      }
+      const v = attention.sessions.find((x) => x.key === key);
+      if (v && !v.managed && v.closable && v.attention === 'idle' && v.pid) external.push(v);
+    }
+    await Promise.all(stops);
+    if (!external.length) return;
+    const what = external.length === 1 ? `"${external[0].title}"` : `${external.length} sessions`;
+    const pick = await vscode.window.showWarningMessage(
+      `End ${what} running in a terminal?`,
+      { modal: true, detail: 'This stops the Claude process in that terminal. You can resume the conversation later from Recent.' },
+      'End Session',
+    );
+    if (pick !== 'End Session') return;
+    for (const v of external) {
+      // The registry may have changed while the dialog was open (pid gone or reused).
+      const still = attention.sessions.find((x) => x.key === v.key);
+      if (!still || still.pid !== v.pid || still.attention !== 'idle') continue;
+      try {
+        process.kill(v.pid!, 'SIGTERM');
+        this.deps.log.info(`ended idle terminal session pid ${v.pid}`);
+      } catch (err) {
+        this.deps.log.warn(`could not end pid ${v.pid}: ${errorMessage(err)}`);
+      }
     }
   }
 
