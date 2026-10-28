@@ -21,6 +21,8 @@ export interface DashboardDeps {
   handoff: HandoffService;
   revealSession(key: string): void;
   closeTab(key: string): void;
+  closeUnloadedTab(key: string): Promise<void>;
+  showUnloadedTab(key: string): Promise<void>;
   openExternal(view: LiveSessionView): Promise<void>;
 }
 
@@ -90,6 +92,10 @@ export class DashboardPanel implements vscode.Disposable {
           this.postState();
           break;
         case 'open': {
+          if (m.key.startsWith('tab:')) {
+            await this.deps.showUnloadedTab(m.key);
+            break;
+          }
           const view = attention.sessions.find((v) => v.key === m.key);
           if (!view) break;
           if (view.managed) this.deps.revealSession(view.key);
@@ -152,7 +158,11 @@ export class DashboardPanel implements vscode.Disposable {
     const { sessions, attention } = this.deps;
     const external: LiveSessionView[] = [];
     const stops: Promise<void>[] = [];
+    // Indexes of unloaded tabs shift as tabs close: close from the last one.
+    const unloaded = keys.filter((k) => k.startsWith('tab:')).sort((a, b) => Number(b.split(':')[2]) - Number(a.split(':')[2]));
+    for (const key of unloaded) await this.deps.closeUnloadedTab(key);
     for (const key of keys) {
+      if (key.startsWith('tab:')) continue;
       const s = sessions.get(key);
       if (s) {
         const busy = s.status === 'running' || s.status === 'waiting' || s.status === 'starting' || s.pendingRequests.length > 0;

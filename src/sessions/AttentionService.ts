@@ -32,7 +32,12 @@ export interface AttentionDeps {
   /** Opens a managed session's panel (for toast "Open" buttons). */
   reveal(key: string): void;
   /** Chat tabs open in this window. */
-  tabs: { has(key: string): boolean; onDidChange(listener: () => void): { dispose(): void } };
+  tabs: {
+    has(key: string): boolean;
+    /** Chat tabs VS Code restored but hasn't loaded yet (no session attached). */
+    unloaded(): { key: string; label: string }[];
+    onDidChange(listener: () => void): { dispose(): void };
+  };
 }
 
 interface ExternalTrack {
@@ -140,6 +145,22 @@ export class AttentionService implements vscode.Disposable {
       managedIds.add(s.sessionId);
       const v = this.viewForManaged(s);
       if (v) views.push(v);
+    }
+
+    for (const t of this.deps.tabs.unloaded()) {
+      views.push({
+        key: t.key,
+        cwd: '',
+        projectName: 'Not loaded yet',
+        title: t.label || 'Claude chat',
+        detail: 'VS Code loads this tab when you open it.',
+        source: 'here',
+        managed: false,
+        attention: 'idle',
+        since: Date.now(),
+        tabOpen: true,
+        closable: true,
+      });
     }
 
     const own = this.deps.sessions.ownPids();

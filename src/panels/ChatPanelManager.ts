@@ -12,6 +12,7 @@ import type { Logger } from '../util/log';
 import { folderName } from '../util/paths';
 import { CHAT_VIEW_TYPE, ChatPanel } from './ChatPanel';
 import { PROPOSED_SCHEME, ProposedContentProvider } from './diffs';
+import { findUnloadedTabs, type UnloadedTab } from './unloadedTabs';
 
 /**
  * Folder of cached chat images as a plain file: URI. globalStorageUri can use
@@ -52,6 +53,8 @@ export class ChatPanelManager implements vscode.Disposable {
       vscode.window.registerWebviewPanelSerializer(CHAT_VIEW_TYPE, {
         deserializeWebviewPanel: async (panel, state: PersistedPanelState | undefined) => this.restore(panel, state),
       }),
+      vscode.window.tabGroups.onDidChangeTabs(() => this._onDidChangeTabs.fire()),
+      vscode.window.tabGroups.onDidChangeTabGroups(() => this._onDidChangeTabs.fire()),
     );
   }
 
@@ -88,6 +91,37 @@ export class ChatPanelManager implements vscode.Disposable {
   /** Closes a session's tab, if it has one. */
   closeTab(key: string): void {
     this.panels.get(key)?.panel.dispose();
+  }
+
+  /** Chat tabs restored from the last session that VS Code hasn't loaded yet (it does on first show). */
+  unloadedTabs(): UnloadedTab[] {
+    const groups = vscode.window.tabGroups.all.map((g) => ({
+      viewColumn: g.viewColumn,
+      tabs: g.tabs.map((t) => ({ label: t.label, viewType: t.input instanceof vscode.TabInputWebview ? t.input.viewType : undefined })),
+    }));
+    const loaded = [...this.panels.values()].map((p) => ({ viewColumn: p.panel.viewColumn, title: p.panel.title }));
+    return findUnloadedTabs(groups, loaded, CHAT_VIEW_TYPE);
+  }
+
+  private unloadedTab(key: string): { info: UnloadedTab; tab: vscode.Tab } | undefined {
+    const info = this.unloadedTabs().find((t) => t.key === key);
+    const tab = info && vscode.window.tabGroups.all.find((g) => g.viewColumn === info.viewColumn)?.tabs[info.index];
+    return info && tab ? { info, tab } : undefined;
+  }
+
+  async closeUnloadedTab(key: string): Promise<void> {
+    const t = this.unloadedTab(key);
+    if (t) await vscode.window.tabGroups.close(t.tab, true);
+  }
+
+  /** Shows an unloaded tab, which makes VS Code load it. */
+  async showUnloadedTab(key: string): Promise<void> {
+    const t = this.unloadedTab(key);
+    if (!t) return;
+    const groups = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth'];
+    const group = groups[t.info.viewColumn - 1];
+    if (group) await vscode.commands.executeCommand(`workbench.action.focus${group}EditorGroup`);
+    await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', t.info.index);
   }
 
   /** Shows a session in its tab (creating the tab if needed). */

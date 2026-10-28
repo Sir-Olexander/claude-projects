@@ -175,6 +175,19 @@ export async function run(): Promise<void> {
     await waitFor('no longer listed', () => !api.attention.sessions.some((v) => v.key === s.key && v.tabOpen), 10_000);
   });
 
+  await check('commands used to show a not-yet-loaded chat tab exist', async () => {
+    const all = await vscode.commands.getCommands(true);
+    for (const c of ['workbench.action.openEditorAtIndex', 'workbench.action.focusFirstEditorGroup']) assert.ok(all.includes(c), c);
+    assert.deepEqual(api.panels.unloadedTabs(), [], 'every chat tab here is loaded');
+    // openEditorAtIndex takes the tab index as its argument.
+    const group = vscode.window.tabGroups.activeTabGroup;
+    if (group.tabs.length > 1) {
+      const target = group.tabs.findIndex((t) => !t.isActive);
+      await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', target);
+      await waitFor('tab at index active', () => vscode.window.tabGroups.activeTabGroup.tabs[target]?.isActive);
+    }
+  });
+
   await check('an idle terminal session can be ended from the dashboard', async () => {
     const { spawn } = await import('node:child_process');
     const child = spawn(process.platform === 'win32' ? 'ping' : 'sleep', process.platform === 'win32' ? ['-n', '60', '127.0.0.1'] : ['60'], { stdio: 'ignore' });
