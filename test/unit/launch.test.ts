@@ -1,9 +1,19 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { launchFor, quoteForCmd, scoopShimTarget, setEnv, shimTarget } from '../../src/claude/launch';
 import { reservedName } from '../../src/sessions/globalEnv';
+
+const dirs: string[] = [];
+const tempDir = (prefix: string) => {
+  const d = mkdtempSync(join(tmpdir(), prefix));
+  dirs.push(d);
+  return d;
+};
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 // npm's cmd-shim output for a script and for a native binary.
 const JS_SHIM = `@ECHO off
@@ -43,7 +53,7 @@ describe('launching claude', () => {
   });
 
   it('finds what an npm shim runs', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cp-shim-'));
+    const dir = tempDir('cp-shim-');
     // On macOS/Linux the backslashes in the shim are just characters; build the target with them.
     const pkg = join(dir, 'node_modules', '@anthropic-ai', 'claude-code');
     mkdirSync(pkg, { recursive: true });
@@ -84,7 +94,7 @@ describe('launching claude', () => {
 
 describe('scoop shims', () => {
   it('reads the real exe from claude.shim', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'cp-scoop-'));
+    const dir = tempDir('cp-scoop-');
     const real = join(dir, 'claude.exe');
     writeFileSync(real, '');
     expect(scoopShimTarget('C:\\scoop\\shims\\claude.exe', () => `path = "${real}"\r\nargs = \r\n`)).toBe(real);
