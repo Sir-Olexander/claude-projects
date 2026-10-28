@@ -56,6 +56,8 @@ export async function run(): Promise<void> {
   api.store.select(project.id);
   await vscode.commands.executeCommand('workbench.view.extension.claudeProjects');
   await waitFor('index', () => api.index.isReady);
+  // Keep the screenshots on this extension: hide VS Code's own Chat panel.
+  await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
   await sleep(1500);
 
   // 1) A session with rich history, then a pending Bash permission.
