@@ -88,6 +88,45 @@ export async function run(): Promise<void> {
   await sleep(1500);
   await screenshot('3-chat-finished');
 
+  // README: the extras this extension adds to a chat.
+  if (process.env.CP_E2E_FEATURES) {
+    const click = (sel: string) => webviewQuery(`(d) => { const b = [...d.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.offsetParent); if (!b) return null; b.click(); return true; }`);
+    // Prompt presets menu.
+    await click('.presets-btn');
+    await sleep(800);
+    await screenshot('13-presets');
+    await click('.presets-btn');
+    await sleep(300);
+    // Shared .env menu.
+    const envFile = join(process.env.CLAUDE_CONFIG_DIR ?? '/tmp', 'shared.env');
+    writeFileSync(envFile, 'STRIPE_SECRET_KEY=sk_test_123\nOPENAI_API_KEY=abc\nDATABASE_URL=postgres://localhost/app\n');
+    await vscode.workspace.getConfiguration('claudeProjects').update('chat.globalEnvFile', envFile, vscode.ConfigurationTarget.Global);
+    await sleep(1500);
+    await webviewQuery(`(d) => { const b = [...d.querySelectorAll('.icon-btn')].find((x) => x.querySelector('.codicon-key') && x.offsetParent); b?.click(); return !!b; }`);
+    await sleep(500);
+    await webviewQuery(`(d) => { const m = d.querySelector('.env-menu'); if (!m || !m.offsetParent) return null; m.querySelector('.env-master .switch')?.click(); return true; }`);
+    await sleep(500);
+    await webviewQuery(`(d) => { const m = d.querySelector('.env-menu'); if (!m || !m.offsetParent) return null; const boxes = [...m.querySelectorAll('.env-check input')]; boxes.forEach((b) => { if (b.checked !== !b.closest('.env-check').innerText.includes('DATABASE')) b.click(); }); return boxes.length; }`);
+    await sleep(600);
+    await screenshot('14-shared-env');
+    await webviewQuery(`(d) => { const b = [...d.querySelectorAll('.icon-btn')].find((x) => x.querySelector('.codicon-key') && x.offsetParent); b?.click(); return !!b; }`);
+    await sleep(300);
+    // The reply buttons (fork, copy, bookmark), shown as if hovered.
+    await webviewQuery(`(d) => { const f = [...d.querySelectorAll('.bm-frame')].filter((x) => x.querySelector('.bm-fork') && x.innerText.includes('The command printed hi')).pop(); if (!f) return null; f.querySelectorAll(':scope > .bm-toggle, :scope > .bm-used-wrap > .bm-toggle').forEach((b) => (b.style.opacity = '1')); f.querySelector('.bm-fork').style.background = 'var(--vscode-toolbar-hoverBackground)'; f.scrollIntoView({ block: 'center' }); return true; }`);
+    await sleep(600);
+    await screenshot('15-fork-button');
+    // Fork from that reply: a new chat with the conversation up to there.
+    const before = api.sessions.all.length;
+    await webviewQuery(`(d) => { const f = [...d.querySelectorAll('.bm-frame')].filter((x) => x.querySelector('.bm-fork') && x.innerText.includes('The command printed hi')).pop(); f?.querySelector('.bm-fork').click(); return !!f; }`);
+    await waitFor('fork', () => api.sessions.all.length > before, 15_000).catch(() => log('fork did not open'));
+    const fork = api.sessions.all[api.sessions.all.length - 1];
+    api.panels.show(fork);
+    await sleep(2500);
+    await screenshot('16-forked');
+    api.panels.show(s);
+    await sleep(800);
+  }
+
   // Files view: the New File box shows the selected folder's path.
   {
     const views = api.gitViews();
