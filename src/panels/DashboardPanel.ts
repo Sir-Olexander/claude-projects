@@ -124,7 +124,7 @@ export class DashboardPanel implements vscode.Disposable {
           attention.dismiss(m.key);
           break;
         case 'close':
-          await this.close(m.keys);
+          await this.closeSessions(m.keys);
           break;
         case 'new-session':
           await vscode.commands.executeCommand('claudeProjects.newSession');
@@ -146,8 +146,9 @@ export class DashboardPanel implements vscode.Disposable {
    * Sessions of this window: the tab closes and the Claude process stops, unless
    * a turn is in progress (then it keeps running in the background).
    * Idle terminal sessions: their CLI process is ended after a confirm.
+   * `skipConfirm` is for tests only (the dialog is modal).
    */
-  private async close(keys: string[]): Promise<void> {
+  async closeSessions(keys: string[], opts?: { skipConfirm?: boolean }): Promise<void> {
     const { sessions, attention } = this.deps;
     const external: LiveSessionView[] = [];
     const stops: Promise<void>[] = [];
@@ -165,7 +166,9 @@ export class DashboardPanel implements vscode.Disposable {
     await Promise.all(stops);
     if (!external.length) return;
     const what = external.length === 1 ? `"${external[0].title}"` : `${external.length} sessions`;
-    const pick = await vscode.window.showWarningMessage(
+    const pick = opts?.skipConfirm
+      ? 'End Session'
+      : await vscode.window.showWarningMessage(
       `End ${what} running in a terminal?`,
       { modal: true, detail: 'This stops the Claude process in that terminal. You can resume the conversation later from Recent.' },
       'End Session',

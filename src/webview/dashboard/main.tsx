@@ -51,7 +51,9 @@ function App() {
     return {
       attention: s.filter((v) => v.attention === 'needs-input' || v.attention === 'error' || v.attention === 'done'),
       running: s.filter((v) => v.attention === 'running'),
-      idle: s.filter((v) => v.attention === 'idle'),
+      // Every chat tab open in this window; idle ones are listed only here.
+      open: s.filter((v) => v.tabOpen),
+      idle: s.filter((v) => v.attention === 'idle' && !v.tabOpen),
     };
   }, [state]);
 
@@ -62,6 +64,7 @@ function App() {
     needs ? `${needs} waiting for you` : undefined,
     groups.attention.length - needs ? `${groups.attention.length - needs} finished` : undefined,
     groups.running.length ? `${groups.running.length} running` : undefined,
+    groups.open.length ? `${groups.open.length} open here` : undefined,
     groups.idle.length ? `${groups.idle.length} idle` : undefined,
   ].filter(Boolean);
 
@@ -102,7 +105,8 @@ function App() {
         <>
           <Section title="Needs you" items={groups.attention} now={now} accent="attention" />
           <Section title="Running" items={groups.running} now={now} accent="running" />
-          <Section title="Idle" items={groups.idle} now={now} accent="idle" collapsible />
+          <Section title="Open in this window" items={groups.open} now={now} accent="open" collapsible canClose closeAllTitle="Close all tabs in this window" />
+          <Section title="Idle" items={groups.idle} now={now} accent="idle" collapsible canClose closeAllTitle="Close all idle sessions" />
         </>
       )}
       <RecentSection items={state.recent ?? []} now={now} />
@@ -231,10 +235,22 @@ function RecentCard({ r, now }: { r: RecentSessionView; now: number }) {
   );
 }
 
-function Section({ title, items, now, accent, collapsible }: { title: string; items: LiveSessionView[]; now: number; accent: string; collapsible?: boolean }) {
+interface SectionProps {
+  title: string;
+  items: LiveSessionView[];
+  now: number;
+  accent: string;
+  collapsible?: boolean;
+  /** Cards get a close button, and the header a "Close all" button. */
+  canClose?: boolean;
+  closeAllTitle?: string;
+}
+
+function Section({ title, items, now, accent, collapsible, canClose, closeAllTitle }: SectionProps) {
   // Long idle lists start collapsed; the user's choice is remembered.
   const [collapsed, toggle] = useCollapsed(accent, !!collapsible && items.length > 4);
   if (!items.length) return null;
+  const closable = canClose ? items.filter((v) => v.closable) : [];
   return (
     <section class={`group ${accent}`}>
       <h2>
@@ -248,11 +264,16 @@ function Section({ title, items, now, accent, collapsible }: { title: string; it
             {title} <span class="count">{items.length}</span>
           </>
         )}
+        {closable.length > 1 ? (
+          <button class="link-btn" title={closeAllTitle} onClick={() => post({ type: 'close', keys: closable.map((v) => v.key) })}>
+            Close all
+          </button>
+        ) : null}
       </h2>
       {collapsed && collapsible ? null : (
         <ul class="cards">
           {items.map((v) => (
-            <Card key={v.key} v={v} now={now} />
+            <Card key={v.key} v={v} now={now} canClose={canClose} />
           ))}
         </ul>
       )}
@@ -260,7 +281,14 @@ function Section({ title, items, now, accent, collapsible }: { title: string; it
   );
 }
 
-function Card({ v, now }: { v: LiveSessionView; now: number }) {
+function closeTitle(v: LiveSessionView): string {
+  if (!v.managed) return 'End this terminal session';
+  const busy = v.attention === 'running' || v.attention === 'needs-input';
+  if (v.tabOpen) return busy ? 'Close tab (Claude keeps working in the background)' : 'Close tab';
+  return 'Close (stops its Claude process; resume it any time)';
+}
+
+function Card({ v, now, canClose }: { v: LiveSessionView; now: number; canClose?: boolean }) {
   const open = () => post({ type: 'open', key: v.key });
   const stop = (e: Event) => e.stopPropagation();
   const line = v.waitingFor ? (v.detail ? `${v.waitingFor} — ${v.detail}` : v.waitingFor) : v.activity ?? v.detail;
@@ -326,6 +354,11 @@ function Card({ v, now }: { v: LiveSessionView; now: number }) {
         <button class={`btn ${v.quickPermission ? '' : v.attention === 'needs-input' ? 'primary' : ''}`} onClick={open}>
           Open
         </button>
+        {canClose && v.closable ? (
+          <button class="icon-btn" title={closeTitle(v)} aria-label={closeTitle(v)} onClick={() => post({ type: 'close', keys: [v.key] })}>
+            <i class="codicon codicon-close" />
+          </button>
+        ) : null}
       </div>
     </li>
   );

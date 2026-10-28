@@ -164,6 +164,41 @@ export async function run(): Promise<void> {
     assert.equal(s.title, 'first message in new session');
   });
 
+  await check('the dashboard lists open tabs and closes them', async () => {
+    const s = api.sessions.all[api.sessions.all.length - 1];
+    const view = await waitFor('open tab listed', () => api.attention.sessions.find((v) => v.key === s.key && v.tabOpen));
+    assert.ok(view.closable, 'closable');
+    assert.ok(s.processAlive, 'process running before close');
+    await api.dashboard.closeSessions([s.key]);
+    assert.ok(!api.panels.hasPanel(s.key), 'tab closed');
+    await waitFor('process stopped', () => !s.processAlive, 10_000);
+    await waitFor('no longer listed', () => !api.attention.sessions.some((v) => v.key === s.key && v.tabOpen), 10_000);
+  });
+
+  await check('an idle terminal session can be ended from the dashboard', async () => {
+    const { spawn } = await import('node:child_process');
+    const child = spawn(process.platform === 'win32' ? 'ping' : 'sleep', process.platform === 'win32' ? ['-n', '60', '127.0.0.1'] : ['60'], { stdio: 'ignore' });
+    const pid = child.pid!;
+    const exited = new Promise<void>((r) => child.once('exit', () => r()));
+    const file = join(claudeHome, 'sessions', `${pid}.json`);
+    const entry = { pid, sessionId: '55555555-5555-5555-5555-555555555555', cwd: repo, startedAt: Date.now(), kind: 'interactive', entrypoint: 'cli', name: 'idle terminal', nameSource: 'user', status: 'idle', updatedAt: Date.now(), statusUpdatedAt: Date.now() };
+    writeFileSync(file, JSON.stringify(entry));
+    try {
+      const v = await waitFor('external idle', () => api.attention.sessions.find((x) => x.key === `pid:${pid}` && x.attention === 'idle'), 15_000).catch((err) => {
+        log('registry:', JSON.stringify(api.registry.entries.map((e) => [e.pid, e.status])), 'views:', JSON.stringify(api.attention.sessions.map((x) => [x.key, x.attention])));
+        throw err;
+      });
+      assert.ok(v.closable, 'terminal sessions are closable');
+      await api.dashboard.closeSessions([v.key], { skipConfirm: true });
+      await Promise.race([exited, new Promise((_, rej) => setTimeout(() => rej(new Error('process not ended')), 5_000))]);
+    } finally {
+      child.kill();
+      try {
+        unlinkSync(file);
+      } catch {}
+    }
+  });
+
   if (process.env.CP_E2E_OFFICIAL) {
     await check('first hand-off right after start opens the official tab', async () => {
       const officialTabs = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeVSCodePanel/i.test((t.input as { viewType?: string })?.viewType ?? ''));
@@ -247,6 +282,8 @@ export async function run(): Promise<void> {
     const live = api.attention.bySessionId(existingId);
     log('before dismiss:', live?.attention, 'recent:', api.attention.recent.map((r) => r.sessionId).join(','));
     if (live) api.attention.dismiss(live.key);
+    // While its tab is open it's listed under "Open in this window".
+    if (live) api.panels.closeTab(live.key);
     await waitFor('session in Recent', () => api.attention.recent.some((r) => r.sessionId === existingId), 10_000);
     assert.ok(!api.attention.sessions.some((v) => v.sessionId === existingId), 'not listed as live too');
     assert.ok(api.attention.recent.length <= 10);

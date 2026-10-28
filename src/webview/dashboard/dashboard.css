@@ -173,6 +173,25 @@ h2 {
   cursor: pointer;
 }
 
+.link-btn {
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.95em;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.link-btn:focus-visible,
 .section-toggle:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: 2px;
