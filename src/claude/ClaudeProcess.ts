@@ -1,10 +1,11 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
 import { Emitter, type Event } from '../util/events';
 import type { Logger } from '../util/log';
 import { silentLogger } from '../util/log';
 import type { PermissionMode } from '../shared/protocol';
+import { launchFor, setEnv } from './launch';
 import type { ControlRequestInner, InitializeResponse, SdkMessage, SdkUserMessageIn } from './sdkTypes';
 
 /**
@@ -94,12 +95,12 @@ export function buildChildEnv(base: NodeJS.ProcessEnv, opts: Pick<ClaudeProcessO
     if (STRIP_ENV.some((re) => re.test(k))) continue;
     env[k] = v;
   }
-  if (opts.pathEnv) env.PATH = opts.pathEnv;
+  if (opts.pathEnv) setEnv(env, 'PATH', opts.pathEnv);
   env.CLAUDE_CODE_ENTRYPOINT = 'sdk-ts';
   env.CLAUDE_CODE_SDK_READS_SESSION_STATE = '1';
   if (base.TERM_PROGRAM === 'vscode') delete env.TERM_PROGRAM;
   delete env.TERM_PROGRAM_VERSION;
-  Object.assign(env, opts.extraEnv ?? {});
+  for (const [k, v] of Object.entries(opts.extraEnv ?? {})) setEnv(env, k, v);
   return env;
 }
 
@@ -176,7 +177,14 @@ export class ClaudeProcess {
     let resolveExit!: (e: ExitEvent) => void;
     this.exitPromise = new Promise((r) => (resolveExit = r));
 
-    const child = spawn(this.options.cliPath, args, { cwd: this.options.cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const launch = launchFor(this.options.cliPath, args);
+    const child = spawn(launch.command, launch.args, {
+      cwd: this.options.cwd,
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
+    });
     this.child = child;
 
     const finish = (e: ExitEvent) => {
@@ -360,6 +368,20 @@ export class ClaudeProcess {
 
   kill(signal: NodeJS.Signals = 'SIGTERM'): void {
     if (!this.child || this.exited) return;
+    const pid = this.child.pid;
+    if (process.platform === 'win32' && pid) {
+      // Windows has no signals: kill the whole tree (node, shells, MCP servers) at once.
+      execFile('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true }, (err) => {
+        if (err && !this.exited) {
+          try {
+            this.child?.kill(signal);
+          } catch {
+            // ignore
+          }
+        }
+      });
+      return;
+    }
     try {
       this.child.kill(signal);
     } catch {

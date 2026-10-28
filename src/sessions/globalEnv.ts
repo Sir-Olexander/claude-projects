@@ -16,9 +16,17 @@ export interface GlobalEnv {
  * are never taken from the file. ANTHROPIC_API_KEY in particular would switch
  * Claude Code from the subscription to API billing.
  */
+const SYSTEM_NAMES = [
+  'PATH', 'HOME', 'SHELL', 'USER', 'LOGNAME', 'PWD', 'TMPDIR', 'NODE_OPTIONS',
+  // Windows
+  'PATHEXT', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'TEMP', 'TMP', 'HOMEDRIVE', 'HOMEPATH',
+];
+
 export function reservedName(name: string): string | undefined {
-  if (/^(ANTHROPIC|CLAUDE|CLAUDECODE)_|^CLAUDECODE$/.test(name)) return 'used by Claude Code itself';
-  if (['PATH', 'HOME', 'SHELL', 'USER', 'LOGNAME', 'PWD', 'TMPDIR', 'NODE_OPTIONS'].includes(name)) return 'needed by the system';
+  // Upper-cased: Windows variable names ignore case ("Path" is PATH there).
+  const upper = name.toUpperCase();
+  if (/^(ANTHROPIC|CLAUDE|CLAUDECODE)_|^CLAUDECODE$/.test(upper)) return 'used by Claude Code itself';
+  if (SYSTEM_NAMES.includes(upper)) return 'needed by the system';
   return undefined;
 }
 

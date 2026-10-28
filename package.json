@@ -1009,7 +1009,7 @@
         "claudeProjects.claudePath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Path to the `claude` CLI. Leave empty to find it automatically (`~/.local/bin/claude`, your shell `PATH`, Homebrew, or the binary bundled with the official Claude Code extension)."
+          "markdownDescription": "Path to the `claude` CLI. Leave empty to find it automatically (`~/.local/bin/claude`, your shell `PATH`, Homebrew, npm's `claude.cmd` on Windows, or the binary bundled with the official Claude Code extension)."
         },
         "claudeProjects.sessions.defaultOpenMode": {
           "type": "string",
