@@ -6,7 +6,7 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 
 ## What you get
 
-**Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard.
+**Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard. Use the × on an idle card (or **Close all**) to close it: its tab closes and idle Claude processes stop and resume on your next message. Idle sessions in a terminal can be ended too, after a confirm.
 
 ![The sessions dashboard with plan usage, sessions that need you, running and recent sessions](docs/images/dashboard.png)
 
@@ -51,7 +51,7 @@ Click a session to open it in a chat tab here (**Open Here**). It runs through t
 
 - **Yolo auto mode** (band-aid icon in the mode picker): auto mode, and when Claude still asks for permission, the extension answers yes for you. Questions and plan reviews still wait for you, and each approval leaves a line in the chat. Hide it with `claudeProjects.chat.showYoloAutoMode`.
 - **Header shortcuts**: click the project name at the top of a chat to show its project (or worktree) in the Projects view. Click the session name to rename it right there (Enter saves, Esc cancels).
-- **Icon-only tabs**: turn on `claudeProjects.chat.iconOnlyTabs` to show chat tabs as just their icon, to fit more of them. A dot still marks a chat that is waiting for you.
+- **Icon-only tabs**: turn on `claudeProjects.chat.iconOnlyTabs` to show chat tabs as just their icon and a number (0, 1, 2… from left to right), to fit more of them. The Claude Sessions dashboard shows the same numbers. A dot still marks a chat that is waiting for you.
 - **Remote Control**: a header button lets you continue the chat from claude.ai or the Claude app.
 - **Finding your way in long chats**: dots along the chat's right edge jump to each of your messages. A badge shows how many agents are running, and each reply lists the skills and agents it used.
 - **Copying**: a copy button on each reply (as Markdown), plus Cmd+C, Cmd+X and right-click for any part of the chat.
@@ -100,7 +100,7 @@ Windows differences:
 | `claudeProjects.chat.autoContinueAfterLimit` | `false` | Start new chats with *Continue automatically when limits reset* on. |
 | `claudeProjects.chat.globalEnvFile` | `~/.claude-projects/.env` | The shared `.env` file for chats. |
 | `claudeProjects.chat.allowBypassPermissions` | `false` | Offer "Bypass permissions" in the mode picker. |
-| `claudeProjects.chat.iconOnlyTabs` | `false` | Show chat tabs as just their icon, without the session name. |
+| `claudeProjects.chat.iconOnlyTabs` | `false` | Show chat tabs as just their icon and a number, without the session name. |
 | `claudeProjects.chat.showYoloAutoMode` | `true` | Offer "Yolo auto" in the mode picker (turn off to hide it). |
 | `claudeProjects.chat.showThinking` | `true` | Show Claude's thinking summaries. |
 | `claudeProjects.followActiveSession` | `true` | Switching chat tabs switches Source Control and Files to that session's project. |

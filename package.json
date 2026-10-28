@@ -1172,7 +1172,7 @@
         "claudeProjects.chat.iconOnlyTabs": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Show **Open here** chat tabs as just their icon, without the session name, to fit more tabs. A dot still marks a session that is waiting for you or has news. The name stays everywhere else (Projects view, dashboard, the chat's own header)."
+          "markdownDescription": "Show **Open here** chat tabs as just their icon and a number (0, 1, 2… from left to right), without the session name, to fit more tabs. The **Claude Sessions** dashboard shows the same numbers. A dot still marks a session that is waiting for you or has news. The name stays everywhere else (Projects view, dashboard, the chat's own header)."
         },
         "claudeProjects.chat.showThinking": {
           "type": "boolean",

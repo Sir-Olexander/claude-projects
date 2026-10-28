@@ -89,6 +89,8 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
 
   const panels = new ChatPanelManager({ context, log, sessions, store, index, handoff });
   context.subscriptions.push(panels);
+  // Restored chat tabs load only when shown; load them so each shows its name and number.
+  panels.scheduleLoadTabs(1500);
 
   const notifier = new Notifier(context.extension.id, join(context.extensionPath, 'media', 'notification.png'), log);
   const presence = new WindowPresence(storageDir);
@@ -98,7 +100,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
     vscode.window.onDidChangeWindowState((s) => presence.setFocused(s.focused)),
     { dispose: sessions.onDidChange(() => presence.setClaudePids([...sessions.ownPids()])).dispose },
   );
-  const attention = new AttentionService({ store, sessions, registry, index, notifier, presence, log, utilityCwd: storageDir, reveal: (key) => panels.reveal(key) });
+  const attention = new AttentionService({ store, sessions, registry, index, notifier, presence, log, utilityCwd: storageDir, reveal: (key) => panels.reveal(key), tabs: { has: (key) => panels.hasPanel(key), unloaded: () => panels.unloadedTabs(), number: (key) => panels.tabNumber(key), get numberingOn() { return panels.numberingOn; }, onDidChange: (l) => panels.onDidChangeTabs(l) } });
   context.subscriptions.push(attention);
 
   let openExternal: OpenExternal = async () => {};
@@ -111,6 +113,9 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
     store,
     handoff,
     revealSession: (key) => panels.reveal(key),
+    closeTab: (key) => panels.closeTab(key),
+    closeUnloadedTab: (key) => panels.closeUnloadedTab(key),
+    showUnloadedTab: (key) => panels.showUnloadedTab(key),
     openExternal: (v) => openExternal(v),
   });
   context.subscriptions.push(dashboard);

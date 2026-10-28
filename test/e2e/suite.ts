@@ -125,7 +125,7 @@ export async function run(): Promise<void> {
         return t && !t.label.includes(s.title) ? t : undefined;
       });
       log('icon-only tab label:', JSON.stringify(tab.label));
-      assert.ok(/^[●•⚠]?$/.test(tab.label), `label is only a marker: ${JSON.stringify(tab.label)}`);
+      assert.ok(/^\d+( [●•⚠])?$/.test(tab.label), `label is only the tab number and a marker: ${JSON.stringify(tab.label)}`);
       assert.ok(s.title, 'the session keeps its name');
     } finally {
       await config.update('chat.iconOnlyTabs', undefined, vscode.ConfigurationTarget.Global);
@@ -201,6 +201,74 @@ export async function run(): Promise<void> {
     assert.equal(s.title, 'Renamed in place');
     assert.equal(api.index.rememberedTitle(s.sessionId), 'Renamed in place');
     await waitFor('tab shows the new name', () => tabLabels().some((l) => l.includes('Renamed in place')));
+  });
+
+  await check('icon-only tabs are numbered 0, 1, 2… left to right; the dashboard shows the same numbers', async () => {
+    const chatLabels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '')).map((t) => t.label);
+    const config = vscode.workspace.getConfiguration('claudeProjects');
+    await config.update('chat.iconOnlyTabs', true, vscode.ConfigurationTarget.Global);
+    try {
+      const labels = await waitFor(`numbered (have: ${JSON.stringify(chatLabels())})`, () => {
+        const l = chatLabels();
+        return l.length >= 2 && l.every((x, i) => new RegExp(`^${i}( [●•⚠])?$`).test(x)) ? l : undefined;
+      }, 10_000);
+      log('icon-only chat tabs:', JSON.stringify(labels));
+      const s = api.sessions.all[api.sessions.all.length - 1];
+      const v = await waitFor('number on the dashboard card', () => api.attention.sessions.find((x) => x.key === s.key && x.tabNumber !== undefined));
+      assert.ok(labels[v.tabNumber!].startsWith(String(v.tabNumber)));
+    } finally {
+      await config.update('chat.iconOnlyTabs', undefined, vscode.ConfigurationTarget.Global);
+    }
+    await waitFor(`names back, no numbers (have: ${JSON.stringify(chatLabels())})`, () => chatLabels().every((l) => !/^\d/.test(l) && l.length > 2));
+    assert.ok(api.attention.sessions.every((x) => x.tabNumber === undefined), 'no numbers on the dashboard');
+  });
+
+  await check('the dashboard lists open tabs and closes them', async () => {
+    const s = api.sessions.all[api.sessions.all.length - 1];
+    const view = await waitFor('open tab listed', () => api.attention.sessions.find((v) => v.key === s.key && v.tabOpen));
+    assert.ok(view.closable, 'closable');
+    assert.ok(s.processAlive, 'process running before close');
+    await api.dashboard.closeSessions([s.key]);
+    assert.ok(!api.panels.hasPanel(s.key), 'tab closed');
+    await waitFor('process stopped', () => !s.processAlive, 10_000);
+    await waitFor('no longer listed', () => !api.attention.sessions.some((v) => v.key === s.key && v.tabOpen), 10_000);
+  });
+
+  await check('commands used to show a not-yet-loaded chat tab exist', async () => {
+    const all = await vscode.commands.getCommands(true);
+    for (const c of ['workbench.action.openEditorAtIndex', 'workbench.action.focusFirstEditorGroup']) assert.ok(all.includes(c), c);
+    assert.deepEqual(api.panels.unloadedTabs(), [], 'every chat tab here is loaded');
+    // openEditorAtIndex takes the tab index as its argument.
+    const group = vscode.window.tabGroups.activeTabGroup;
+    if (group.tabs.length > 1) {
+      const target = group.tabs.findIndex((t) => !t.isActive);
+      await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', target);
+      await waitFor('tab at index active', () => vscode.window.tabGroups.activeTabGroup.tabs[target]?.isActive);
+    }
+  });
+
+  await check('an idle terminal session can be ended from the dashboard', async () => {
+    const { spawn } = await import('node:child_process');
+    const child = spawn(process.platform === 'win32' ? 'ping' : 'sleep', process.platform === 'win32' ? ['-n', '60', '127.0.0.1'] : ['60'], { stdio: 'ignore' });
+    const pid = child.pid!;
+    const exited = new Promise<void>((r) => child.once('exit', () => r()));
+    const file = join(claudeHome, 'sessions', `${pid}.json`);
+    const entry = { pid, sessionId: '55555555-5555-5555-5555-555555555555', cwd: repo, startedAt: Date.now(), kind: 'interactive', entrypoint: 'cli', name: 'idle terminal', nameSource: 'user', status: 'idle', updatedAt: Date.now(), statusUpdatedAt: Date.now() };
+    writeFileSync(file, JSON.stringify(entry));
+    try {
+      const v = await waitFor('external idle', () => api.attention.sessions.find((x) => x.key === `pid:${pid}` && x.attention === 'idle'), 15_000).catch((err) => {
+        log('registry:', JSON.stringify(api.registry.entries.map((e) => [e.pid, e.status])), 'views:', JSON.stringify(api.attention.sessions.map((x) => [x.key, x.attention])));
+        throw err;
+      });
+      assert.ok(v.closable, 'terminal sessions are closable');
+      await api.dashboard.closeSessions([v.key], { skipConfirm: true });
+      await Promise.race([exited, new Promise((_, rej) => setTimeout(() => rej(new Error('process not ended')), 5_000))]);
+    } finally {
+      child.kill();
+      try {
+        unlinkSync(file);
+      } catch {}
+    }
   });
 
   if (process.env.CP_E2E_OFFICIAL) {
@@ -286,6 +354,8 @@ export async function run(): Promise<void> {
     const live = api.attention.bySessionId(existingId);
     log('before dismiss:', live?.attention, 'recent:', api.attention.recent.map((r) => r.sessionId).join(','));
     if (live) api.attention.dismiss(live.key);
+    // While its tab is open it stays listed (as idle).
+    if (live) api.panels.closeTab(live.key);
     await waitFor('session in Recent', () => api.attention.recent.some((r) => r.sessionId === existingId), 10_000);
     assert.ok(!api.attention.sessions.some((v) => v.sessionId === existingId), 'not listed as live too');
     assert.ok(api.attention.recent.length <= 10);

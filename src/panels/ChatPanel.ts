@@ -70,12 +70,28 @@ export class ChatPanel implements vscode.Disposable {
     this.onViewState();
   }
 
+  /** Position among this window's chat tabs; shown as the tab title in icon-only mode. */
+  private tabNumber: number | undefined;
+
+  get number(): number | undefined {
+    return this.tabNumber;
+  }
+
+  setNumber(n: number | undefined): void {
+    if (n === this.tabNumber) return;
+    this.tabNumber = n;
+    this.updateTitle();
+  }
+
   updateTitle(): void {
     if (this.disposed) return;
     const s = this.session;
     const marker = s.status === 'waiting' || s.pendingRequests.length ? '●' : s.status === 'error' ? '⚠' : s.unread ? '•' : '';
-    // Icon-only tabs keep just the status marker; the name still shows everywhere else.
-    this.panel.title = iconOnlyTabs() ? marker : `${marker ? marker + ' ' : ''}${clip(s.title, 42)}`;
+    // Icon-only tabs show the tab's number and status marker; the name still shows everywhere else.
+    const title = iconOnlyTabs()
+      ? [this.tabNumber === undefined ? '' : String(this.tabNumber), marker].filter(Boolean).join(' ')
+      : `${marker ? marker + ' ' : ''}${clip(s.title, 42)}`;
+    if (this.panel.title !== title) this.panel.title = title;
   }
 
   private onViewState(): void {
@@ -201,6 +217,9 @@ export class ChatPanel implements vscode.Disposable {
           break;
         case 'new-session':
           this.host.newSession(s.cwd);
+          break;
+        case 'delete-session':
+          await vscode.commands.executeCommand('claudeProjects.deleteSession', { sessionId: s.sessionId, cwd: s.cwd, title: s.title });
           break;
         case 'fork':
           this.host.fork(s, m.itemId);
