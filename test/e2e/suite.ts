@@ -164,6 +164,18 @@ export async function run(): Promise<void> {
     assert.equal(s.title, 'first message in new session');
   });
 
+  await check('chat tabs are numbered 0, 1, 2… left to right', async () => {
+    const chatLabels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '')).map((t) => t.label);
+    const labels = await waitFor(`numbered (have: ${JSON.stringify(chatLabels())})`, () => {
+      const l = chatLabels();
+      return l.length >= 2 && l.every((x, i) => x.startsWith(`${i} · `)) ? l : undefined;
+    }, 10_000);
+    log('chat tabs:', JSON.stringify(labels));
+    const s = api.sessions.all[api.sessions.all.length - 1];
+    const v = await waitFor('number on the dashboard card', () => api.attention.sessions.find((x) => x.key === s.key && x.tabNumber !== undefined));
+    assert.ok(labels[v.tabNumber!].startsWith(`${v.tabNumber} · `));
+  });
+
   await check('the dashboard lists open tabs and closes them', async () => {
     const s = api.sessions.all[api.sessions.all.length - 1];
     const view = await waitFor('open tab listed', () => api.attention.sessions.find((v) => v.key === s.key && v.tabOpen));

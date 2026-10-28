@@ -311,6 +311,11 @@ function Card({ v, now, canClose }: { v: LiveSessionView; now: number; canClose?
       <i class={`state codicon ${STATE_ICON[v.attention]}`} title={STATE_LABEL[v.attention]} />
       <div class="body">
         <div class="meta">
+          {v.tabNumber !== undefined ? (
+            <span class="chip tab-number" title="Number of its chat tab in this window (0 is the leftmost)">
+              Tab {v.tabNumber}
+            </span>
+          ) : null}
           <span class="project">{v.projectName}</span>
           {v.branch ? (
             <span class="chip branch" title="Branch">

@@ -97,7 +97,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
     vscode.window.onDidChangeWindowState((s) => presence.setFocused(s.focused)),
     { dispose: sessions.onDidChange(() => presence.setClaudePids([...sessions.ownPids()])).dispose },
   );
-  const attention = new AttentionService({ store, sessions, registry, index, notifier, presence, log, utilityCwd: storageDir, reveal: (key) => panels.reveal(key), tabs: { has: (key) => panels.hasPanel(key), unloaded: () => panels.unloadedTabs(), onDidChange: (l) => panels.onDidChangeTabs(l) } });
+  const attention = new AttentionService({ store, sessions, registry, index, notifier, presence, log, utilityCwd: storageDir, reveal: (key) => panels.reveal(key), tabs: { has: (key) => panels.hasPanel(key), unloaded: () => panels.unloadedTabs(), number: (key) => panels.tabNumber(key), get numberingOn() { return panels.numberingOn; }, onDidChange: (l) => panels.onDidChangeTabs(l) } });
   context.subscriptions.push(attention);
 
   let openExternal: OpenExternal = async () => {};

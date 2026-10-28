@@ -89,6 +89,7 @@ Windows differences:
 |---|---|---|
 | `claudeProjects.sessions.defaultOpenMode` | `here` | What clicking a session does (`here` or `claudeExtension`). |
 | `claudeProjects.sessions.maxPerProject` | `8` | Sessions listed per project/worktree before "Show more". |
+| `claudeProjects.chat.numberTabs` | `true` | Number chat tabs 0, 1, 2… left to right; the dashboard shows the same numbers. |
 | `claudeProjects.sessions.idleProcessTimeoutMinutes` | `30` | Stop an idle Claude process whose tab is closed (it resumes on your next message). |
 | `claudeProjects.chat.defaultPermissionMode` | `default` | Mode for new sessions here. |
 | `claudeProjects.chat.defaultModel` | — | Model for new sessions here (empty = your Claude Code default). |

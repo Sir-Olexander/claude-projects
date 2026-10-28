@@ -562,6 +562,8 @@ export interface LiveSessionView {
   quickPermission?: { requestId: string; allowOptionId: string };
   /** It has a chat tab open in this window. */
   tabOpen?: boolean;
+  /** Number of that tab (0, 1, 2… left to right), when chat tabs are numbered. */
+  tabNumber?: number;
   /** The dashboard can close it: sessions of this window, and terminal sessions (ends their process). */
   closable?: boolean;
 }

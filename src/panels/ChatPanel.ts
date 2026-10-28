@@ -63,11 +63,25 @@ export class ChatPanel implements vscode.Disposable {
     this.onViewState();
   }
 
+  /** Position among this window's chat tabs (shown at the start of the title), if numbering is on. */
+  private tabNumber: number | undefined;
+
+  get number(): number | undefined {
+    return this.tabNumber;
+  }
+
+  setNumber(n: number | undefined): void {
+    if (n === this.tabNumber) return;
+    this.tabNumber = n;
+    this.updateTitle();
+  }
+
   private updateTitle(): void {
     if (this.disposed) return;
     const s = this.session;
     const marker = s.status === 'waiting' || s.pendingRequests.length ? '● ' : s.status === 'error' ? '⚠ ' : s.unread ? '• ' : '';
-    this.panel.title = `${marker}${clip(s.title, 42)}`;
+    const title = `${this.tabNumber === undefined ? '' : `${this.tabNumber} · `}${marker}${clip(s.title, 42)}`;
+    if (this.panel.title !== title) this.panel.title = title;
   }
 
   private onViewState(): void {

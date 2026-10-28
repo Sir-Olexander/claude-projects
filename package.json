@@ -1069,6 +1069,11 @@
           "minimum": 0,
           "markdownDescription": "Stop a session's Claude process after it has been idle this many minutes with its panel closed. It resumes automatically on your next message. `0` keeps processes until you close VS Code."
         },
+        "claudeProjects.chat.numberTabs": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Number chat tabs 0, 1, 2… from left to right (the number starts the tab title). The Claude Sessions dashboard shows the same numbers, which also tells apart tabs VS Code hasn't loaded yet (those show only an icon until you click them)."
+        },
         "claudeProjects.chat.defaultPermissionMode": {
           "type": "string",
           "enum": [

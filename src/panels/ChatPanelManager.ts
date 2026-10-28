@@ -12,7 +12,7 @@ import type { Logger } from '../util/log';
 import { folderName } from '../util/paths';
 import { CHAT_VIEW_TYPE, ChatPanel } from './ChatPanel';
 import { PROPOSED_SCHEME, ProposedContentProvider } from './diffs';
-import { findUnloadedTabs, type UnloadedTab } from './unloadedTabs';
+import { mapChatTabs, type UnloadedTab } from './unloadedTabs';
 
 /**
  * Folder of cached chat images as a plain file: URI. globalStorageUri can use
@@ -55,6 +55,10 @@ export class ChatPanelManager implements vscode.Disposable {
       }),
       vscode.window.tabGroups.onDidChangeTabs(() => this._onDidChangeTabs.fire()),
       vscode.window.tabGroups.onDidChangeTabGroups(() => this._onDidChangeTabs.fire()),
+      this._onDidChangeTabs.event(() => this.renumber()),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('claudeProjects.chat.numberTabs')) this.renumber();
+      }),
     );
   }
 
@@ -93,14 +97,36 @@ export class ChatPanelManager implements vscode.Disposable {
     this.panels.get(key)?.panel.dispose();
   }
 
-  /** Chat tabs restored from the last session that VS Code hasn't loaded yet (it does on first show). */
-  unloadedTabs(): UnloadedTab[] {
+  private mapTabs(): { unloaded: UnloadedTab[]; numbers: Map<ChatPanel, number | undefined> } {
     const groups = vscode.window.tabGroups.all.map((g) => ({
       viewColumn: g.viewColumn,
       tabs: g.tabs.map((t) => ({ label: t.label, viewType: t.input instanceof vscode.TabInputWebview ? t.input.viewType : undefined })),
     }));
-    const loaded = [...this.panels.values()].map((p) => ({ viewColumn: p.panel.viewColumn, title: p.panel.title }));
-    return findUnloadedTabs(groups, loaded, CHAT_VIEW_TYPE);
+    const panels = [...this.panels.values()];
+    const map = mapChatTabs(groups, panels.map((p) => ({ viewColumn: p.panel.viewColumn, title: p.panel.title })), CHAT_VIEW_TYPE);
+    return { unloaded: map.unloaded, numbers: new Map(panels.map((p, i) => [p, map.panelNumbers[i]])) };
+  }
+
+  /** Chat tabs restored from the last session that VS Code hasn't loaded yet (it does on first show). */
+  unloadedTabs(): UnloadedTab[] {
+    return this.mapTabs().unloaded;
+  }
+
+  /** Number shown on a session's tab (0, 1, 2… left to right), if numbering is on. */
+  tabNumber(key: string): number | undefined {
+    return this.panels.get(key)?.number;
+  }
+
+  get numberingOn(): boolean {
+    return vscode.workspace.getConfiguration('claudeProjects').get<boolean>('chat.numberTabs', true);
+  }
+
+  /** Puts each chat tab's number at the start of its title. */
+  private renumber(): void {
+    const on = this.numberingOn;
+    const { numbers } = this.mapTabs();
+    // A tab VS Code hasn't reported yet keeps its number until the next tab event.
+    for (const [p, n] of numbers) p.setNumber(on ? (n ?? p.number) : undefined);
   }
 
   private unloadedTab(key: string): { info: UnloadedTab; tab: vscode.Tab } | undefined {

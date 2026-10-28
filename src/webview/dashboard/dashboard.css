@@ -422,6 +422,14 @@ h2 {
   flex: none;
 }
 
+.tab-number {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  border-color: transparent;
+}
+
 .src-here {
   border-color: var(--vscode-focusBorder);
   color: var(--vscode-foreground);

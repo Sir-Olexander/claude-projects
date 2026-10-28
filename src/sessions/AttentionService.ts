@@ -35,7 +35,10 @@ export interface AttentionDeps {
   tabs: {
     has(key: string): boolean;
     /** Chat tabs VS Code restored but hasn't loaded yet (no session attached). */
-    unloaded(): { key: string; label: string }[];
+    unloaded(): { key: string; label: string; number: number }[];
+    /** Number shown on a session's tab, when chat tabs are numbered. */
+    number(key: string): number | undefined;
+    readonly numberingOn: boolean;
     onDidChange(listener: () => void): { dispose(): void };
   };
 }
@@ -147,12 +150,14 @@ export class AttentionService implements vscode.Disposable {
       if (v) views.push(v);
     }
 
+    const numbering = this.deps.tabs.numberingOn;
     for (const t of this.deps.tabs.unloaded()) {
       views.push({
         key: t.key,
         cwd: '',
         projectName: 'Not loaded yet',
-        title: t.label || 'Claude chat',
+        title: t.label || (numbering ? `Tab ${t.number}` : 'Claude chat'),
+        tabNumber: numbering ? t.number : undefined,
         detail: 'VS Code loads this tab when you open it.',
         source: 'here',
         managed: false,
@@ -285,6 +290,7 @@ export class AttentionService implements vscode.Disposable {
       since: pending?.createdAt ?? s.statusSince,
       quickPermission,
       tabOpen,
+      tabNumber: tabOpen ? this.deps.tabs.number(s.key) : undefined,
       closable: true,
     };
   }
