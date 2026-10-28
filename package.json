@@ -2,10 +2,14 @@
   "name": "claude-projects",
   "displayName": "Claude Projects",
   "description": "Work on all your projects with Claude Code from one window: projects, worktrees, sessions, per-project source control and files, an attention dashboard and a usage bar.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "Sir-Olexander",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sir-Olexander/claude-projects.git"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -1288,7 +1292,7 @@
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p . --noEmit",
     "test": "vitest run",
-    "package": "node scripts/build.mjs --production && vsce package --no-dependencies --allow-missing-repository -o dist-vsix/claude-projects.vsix"
+    "package": "node scripts/build.mjs --production && vsce package --no-dependencies -o dist-vsix/claude-projects.vsix"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
