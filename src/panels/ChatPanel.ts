@@ -193,6 +193,9 @@ export class ChatPanel implements vscode.Disposable {
         case 'open-in-claude-extension':
           await this.host.openInClaudeExtension(s);
           break;
+        case 'rename':
+          await vscode.commands.executeCommand('claudeProjects.renameSession', { sessionId: s.sessionId, cwd: s.cwd, title: s.title }, m.title);
+          break;
         case 'reveal-project':
           await vscode.commands.executeCommand('claudeProjects.revealInProjects', s.cwd);
           break;

@@ -510,6 +510,8 @@ export type ChatToExtMessage =
   | { type: 'open-in-claude-extension' }
   /** Show this chat's project (or worktree) in the Projects view. */
   | { type: 'reveal-project' }
+  /** Rename the session (from its name in the header). */
+  | { type: 'rename'; title: string }
   | { type: 'new-session' }
   /** Restart after an error. */
   | { type: 'restart' }

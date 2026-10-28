@@ -236,13 +236,14 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
       await managed.stopProcess();
     }),
 
-    reg('claudeProjects.renameSession', async (arg?: SessionArg) => {
+    // `newTitle` renames without asking (the chat header edits the name in place).
+    reg('claudeProjects.renameSession', async (arg?: SessionArg, newTitle?: string) => {
       const s = resolveSession(arg);
       if (!s) return;
       const managed = sessions.findBySessionId(s.sessionId);
       const current = managed?.title ?? index.get(s.sessionId)?.title ?? s.title ?? '';
-      const title = (await vscode.window.showInputBox({ prompt: 'Session name', value: current, valueSelection: [0, current.length] }))?.trim();
-      if (!title) return;
+      const title = (typeof newTitle === 'string' ? newTitle : await vscode.window.showInputBox({ prompt: 'Session name', value: current, valueSelection: [0, current.length] }))?.replace(/\s+/g, ' ').trim();
+      if (!title || title === current) return;
       const path = index.get(s.sessionId)?.filePath ?? transcriptPathFor(s.cwd, s.sessionId);
       index.rememberTitle(s.sessionId, title);
       if (!existsSync(path)) {

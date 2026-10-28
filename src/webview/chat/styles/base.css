@@ -280,6 +280,41 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  /* A button (click to rename) that looks like plain text. */
+  padding: 1px 4px;
+  margin-left: -4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+.header-title:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.header-title:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 0;
+}
+
+.header-title-input {
+  flex: 1 1 auto;
+  min-width: 80px;
+  max-width: 420px;
+  padding: 1px 4px;
+  margin-left: -4px;
+  border: 1px solid var(--focus);
+  border-radius: 3px;
+  outline: none;
+  background: var(--input-bg);
+  color: var(--input-fg);
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .header-actions {

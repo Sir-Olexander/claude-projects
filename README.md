@@ -15,7 +15,7 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 
 **Sessions**
 - **Open Here** (default): the session runs through the `claude` CLI on your machine (your Max plan login) and shows in a chat tab that looks and works like the official Claude Code extension: streaming answers, thinking, tool calls with diffs, permission prompts (1/2/3 keys, "don't ask again"), questions, plan review, todos, the mode picker (Manual / Edit automatically / Plan / Auto / Yolo auto: auto mode where every permission prompt Claude still asks is answered yes for you), model and effort pickers (change them mid-session), `/` commands, `@` file mentions, pasted images, Esc to interrupt, and messages queued while Claude works.
-  - **Header**: click the project name at the top of a chat to show its project (or worktree) in the Projects view.
+  - **Header**: click the project name at the top of a chat to show its project (or worktree) in the Projects view, or click the session name to rename it right there (Enter saves, Esc cancels).
   - **Icon-only tabs**: turn on `claudeProjects.chat.iconOnlyTabs` to show chat tabs as just their icon (a dot still marks one waiting for you), to fit more tabs.
   - **MCP input**: when an MCP server asks for something mid-session (a form or a sign-in link), a card shows the form or the link and sends your answer back to the server.
   - **Bookmarks**: hover a message (yours, Claude's, or a tool call) and click the bookmark icon. The bookmark button in the chat header lists them and jumps back; *Go to Bookmarked Message…* (Projects view `…` menu or the command palette) searches bookmarks across all sessions.

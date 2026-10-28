@@ -194,6 +194,15 @@ export async function run(): Promise<void> {
     assert.equal(s.title, 'first message in new session');
   });
 
+  await check("renaming from the chat header's session name saves the new name", async () => {
+    const s = api.sessions.all[api.sessions.all.length - 1];
+    // The header sends this when you edit the name in place.
+    await vscode.commands.executeCommand('claudeProjects.renameSession', { sessionId: s.sessionId, cwd: s.cwd, title: s.title }, '  Renamed   in place ');
+    assert.equal(s.title, 'Renamed in place');
+    assert.equal(api.index.rememberedTitle(s.sessionId), 'Renamed in place');
+    await waitFor('tab shows the new name', () => tabLabels().some((l) => l.includes('Renamed in place')));
+  });
+
   if (process.env.CP_E2E_OFFICIAL) {
     await check('first hand-off right after start opens the official tab', async () => {
       const officialTabs = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeVSCodePanel/i.test((t.input as { viewType?: string })?.viewType ?? ''));

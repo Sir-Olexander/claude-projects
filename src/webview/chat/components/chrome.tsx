@@ -23,11 +23,7 @@ export function Header({ state }: { state: ChatState }) {
             <span>{state.branch}</span>
           </span>
         ) : null}
-        {state.title ? (
-          <span class="header-title" title={state.title}>
-            {state.title}
-          </span>
-        ) : null}
+        <SessionName title={state.title} />
       </div>
       <div class="header-actions">
         {state.agents?.length ? <AgentsChip agents={state.agents} /> : null}
@@ -43,6 +39,54 @@ export function Header({ state }: { state: ChatState }) {
         <IconButton icon="add" title="New session" onClick={() => send({ type: 'new-session' })} />
       </div>
     </header>
+  );
+}
+
+/** The session's name in the header: click it to rename in place (Enter saves, Esc cancels). */
+function SessionName({ title }: { title: string }) {
+  const [editing, setEditing] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  // Set once Enter/Esc/blur ended the edit, so a blur that follows doesn't save again.
+  const done = useRef(false);
+  useEffect(() => {
+    if (!editing) return;
+    done.current = false;
+    input.current?.focus();
+    input.current?.select();
+  }, [editing]);
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    const value = input.current?.value.replace(/\s+/g, ' ').trim() ?? '';
+    setEditing(false);
+    if (save && value && value !== title) send({ type: 'rename', title: value });
+  };
+  if (editing) {
+    return (
+      <input
+        ref={input}
+        class="header-title-input"
+        defaultValue={title}
+        aria-label="Session name"
+        maxLength={200}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.isComposing) {
+            e.preventDefault();
+            finish(true);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            finish(false);
+          }
+        }}
+        onBlur={() => finish(true)}
+      />
+    );
+  }
+  return (
+    <button type="button" class="header-title" title={`${title || 'Untitled session'}\nClick to rename`} onClick={() => setEditing(true)}>
+      {title || 'Untitled session'}
+    </button>
   );
 }
 

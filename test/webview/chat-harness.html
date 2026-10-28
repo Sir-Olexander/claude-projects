@@ -52,6 +52,10 @@
               deliver({ type: 'items', items: [item] });
               break;
             }
+            case 'rename':
+              state.title = m.title;
+              deliver({ type: 'patch', patch: { title: m.title } });
+              break;
             case 'set-mode':
               state.permissionMode = m.mode;
               deliver({ type: 'patch', patch: { permissionMode: m.mode } });
