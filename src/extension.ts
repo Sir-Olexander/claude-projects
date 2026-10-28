@@ -19,6 +19,7 @@ import { Notifier } from './notify/Notifier';
 import { WindowPresence } from './notify/WindowPresence';
 import { childPath } from './claude/cliLocator';
 import type { Logger } from './util/log';
+import { folderName } from './util/paths';
 
 let sessionsRef: SessionManager | undefined;
 
@@ -118,6 +119,18 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   const tree = new ProjectsTreeProvider(store, index, sessions, attention);
   const treeView = vscode.window.createTreeView<ProjectsNode>('claudeProjects.projects', { treeDataProvider: tree, showCollapseAll: true });
   context.subscriptions.push(tree, treeView);
+  // Shows a folder (a session's cwd) in the Projects view: its project, or its worktree.
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudeProjects.revealInProjects', async (path: string) => {
+      const node = typeof path === 'string' ? await tree.nodeForPath(path) : undefined;
+      if (!node) {
+        void vscode.window.showInformationMessage(`${typeof path === 'string' ? folderName(path) : 'This folder'} isn't in your Claude Projects list.`);
+        return;
+      }
+      store.select(node.projectId, node.path);
+      await treeView.reveal(node, { select: true, focus: true, expand: true });
+    }),
+  );
 
   const commands = registerProjectCommands({ context, log, store, index, sessions, panels, handoff, attention, dashboard, usage, tree, utilityDir: storageDir });
   openExternal = commands.openExternal;

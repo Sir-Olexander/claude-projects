@@ -230,6 +230,24 @@ kbd {
   max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* A button (shows the project in the Projects view) that looks like the title text. */
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.header-project:hover {
+  text-decoration: underline;
+}
+
+.header-project:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .branch-chip {

@@ -508,6 +508,8 @@ export type ChatToExtMessage =
   | { type: 'open-diff'; toolUseId: string }
   | { type: 'open-url'; url: string }
   | { type: 'open-in-claude-extension' }
+  /** Show this chat's project (or worktree) in the Projects view. */
+  | { type: 'reveal-project' }
   | { type: 'new-session' }
   /** Restart after an error. */
   | { type: 'restart' }

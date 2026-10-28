@@ -14,9 +14,9 @@ export function Header({ state }: { state: ChatState }) {
     <header class="header">
       <div class="header-main">
         <Icon name={state.isWorktree ? 'worktree' : 'repo'} class="header-icon" />
-        <span class="header-project" title={state.cwd}>
+        <button type="button" class="header-project" title={`${state.cwd}\nShow in the Projects view`} onClick={() => send({ type: 'reveal-project' })}>
           {state.projectName}
-        </span>
+        </button>
         {state.branch ? (
           <span class="branch-chip" title={state.isWorktree ? `Worktree on ${state.branch}` : `Branch ${state.branch}`}>
             <Icon name="git-branch" />

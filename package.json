@@ -1169,6 +1169,11 @@
           "default": true,
           "markdownDescription": "Offer the **Yolo auto** mode in the chat mode picker. It is auto mode, and when Claude still asks for permission, the extension answers yes for you. Questions from Claude and plan reviews still wait for you. Turn this off to hide the mode (a chat already in Yolo auto keeps it until you switch)."
         },
+        "claudeProjects.chat.iconOnlyTabs": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show **Open here** chat tabs as just their icon, without the session name, to fit more tabs. A dot still marks a session that is waiting for you or has news. The name stays everywhere else (Projects view, dashboard, the chat's own header)."
+        },
         "claudeProjects.chat.showThinking": {
           "type": "boolean",
           "default": true,
