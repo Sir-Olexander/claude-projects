@@ -4,7 +4,10 @@
  * (with an empty label, so only its icon shows) and no session is attached to it.
  *
  * Chat tabs are numbered 0, 1, 2… left to right (editor group by group), loaded or
- * not, so a tab can be told apart in the dashboard even before it loads.
+ * not. In icon-only mode the number is the tab's title.
+ *
+ * Tabs and panels are matched by their exact title. Numbered titles ("0", "1 •")
+ * are unique, so the match stays stable as numbers change.
  */
 
 export interface TabLike {
@@ -44,11 +47,6 @@ export function isChatTab(tab: TabLike, chatViewType: string): boolean {
   return !!tab.viewType && (tab.viewType === chatViewType || tab.viewType.endsWith(`-${chatViewType}`));
 }
 
-/** "3 · Fix login" → "Fix login" (the number changes as tabs move). */
-export function stripTabNumber(title: string): string {
-  return title.replace(/^\d+ · /, '');
-}
-
 /** Matches chat tabs to loaded panels (by column and title) and numbers them. */
 export function mapChatTabs(groups: readonly GroupLike[], loaded: readonly LoadedPanel[], chatViewType: string): ChatTabMap {
   const unloaded: UnloadedTab[] = [];
@@ -59,8 +57,8 @@ export function mapChatTabs(groups: readonly GroupLike[], loaded: readonly Loade
     g.tabs.forEach((tab, index) => {
       if (!isChatTab(tab, chatViewType)) return;
       const number = n++;
-      const label = stripTabNumber(tab.label);
-      const at = free.findIndex((i) => stripTabNumber(loaded[i].title) === label);
+      const label = tab.label;
+      const at = free.findIndex((i) => loaded[i].title === label);
       if (at >= 0) {
         panelNumbers[free[at]] = number;
         free.splice(at, 1);

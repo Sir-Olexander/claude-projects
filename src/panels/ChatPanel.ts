@@ -12,6 +12,13 @@ import { fileSuggestions } from './fileSuggestions';
 
 export const CHAT_VIEW_TYPE = 'claudeProjects.chat';
 
+/** Setting: chat tabs show only their icon (and status marker), not the session name. */
+export const ICON_ONLY_TABS_SETTING = 'chat.iconOnlyTabs';
+
+function iconOnlyTabs(): boolean {
+  return vscode.workspace.getConfiguration('claudeProjects').get<boolean>(ICON_ONLY_TABS_SETTING, false);
+}
+
 export interface ChatPanelHost {
   extensionUri: vscode.Uri;
   imageDir: vscode.Uri;
@@ -63,7 +70,7 @@ export class ChatPanel implements vscode.Disposable {
     this.onViewState();
   }
 
-  /** Position among this window's chat tabs (shown at the start of the title), if numbering is on. */
+  /** Position among this window's chat tabs; shown as the tab title in icon-only mode. */
   private tabNumber: number | undefined;
 
   get number(): number | undefined {
@@ -76,11 +83,14 @@ export class ChatPanel implements vscode.Disposable {
     this.updateTitle();
   }
 
-  private updateTitle(): void {
+  updateTitle(): void {
     if (this.disposed) return;
     const s = this.session;
-    const marker = s.status === 'waiting' || s.pendingRequests.length ? '● ' : s.status === 'error' ? '⚠ ' : s.unread ? '• ' : '';
-    const title = `${this.tabNumber === undefined ? '' : `${this.tabNumber} · `}${marker}${clip(s.title, 42)}`;
+    const marker = s.status === 'waiting' || s.pendingRequests.length ? '●' : s.status === 'error' ? '⚠' : s.unread ? '•' : '';
+    // Icon-only tabs show the tab's number and status marker; the name still shows everywhere else.
+    const title = iconOnlyTabs()
+      ? [this.tabNumber === undefined ? '' : String(this.tabNumber), marker].filter(Boolean).join(' ')
+      : `${marker ? marker + ' ' : ''}${clip(s.title, 42)}`;
     if (this.panel.title !== title) this.panel.title = title;
   }
 
@@ -198,6 +208,12 @@ export class ChatPanel implements vscode.Disposable {
           break;
         case 'open-in-claude-extension':
           await this.host.openInClaudeExtension(s);
+          break;
+        case 'rename':
+          await vscode.commands.executeCommand('claudeProjects.renameSession', { sessionId: s.sessionId, cwd: s.cwd, title: s.title }, m.title);
+          break;
+        case 'reveal-project':
+          await vscode.commands.executeCommand('claudeProjects.revealInProjects', s.cwd);
           break;
         case 'new-session':
           this.host.newSession(s.cwd);

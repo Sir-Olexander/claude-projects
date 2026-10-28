@@ -114,6 +114,36 @@ export async function run(): Promise<void> {
     await waitFor('idle', () => s.status === 'idle' && s.getState().items.some((i) => i.kind === 'text' && i.text === 'Echo: hello e2e'), 20_000);
   });
 
+  await check('icon-only tabs drop the session name from the chat tab, and bring it back', async () => {
+    const s = api.sessions.findBySessionId(existingId)!;
+    const chatTab = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).find((t) => (t.input as { viewType?: string })?.viewType?.endsWith('claudeProjects.chat') && api.panels.hasPanel(s.key));
+    const config = vscode.workspace.getConfiguration('claudeProjects');
+    await config.update('chat.iconOnlyTabs', true, vscode.ConfigurationTarget.Global);
+    try {
+      const tab = await waitFor('icon-only tab', () => {
+        const t = chatTab();
+        return t && !t.label.includes(s.title) ? t : undefined;
+      });
+      log('icon-only tab label:', JSON.stringify(tab.label));
+      assert.ok(/^\d+( [●•⚠])?$/.test(tab.label), `label is only the tab number and a marker: ${JSON.stringify(tab.label)}`);
+      assert.ok(s.title, 'the session keeps its name');
+    } finally {
+      await config.update('chat.iconOnlyTabs', undefined, vscode.ConfigurationTarget.Global);
+    }
+    await waitFor('name back on the tab', () => chatTab()?.label.includes(s.title));
+  });
+
+  await check("clicking a chat's project name reveals it in the Projects view", async () => {
+    const worktree = join(repo, '.claude', 'worktrees', 'feature-x');
+    await vscode.commands.executeCommand('claudeProjects.revealInProjects', worktree);
+    const wt = await waitFor('worktree selected', () => api.treeView.selection.find((n) => n.kind === 'worktree'));
+    assert.equal(wt.kind === 'worktree' && wt.path, worktree);
+    assert.equal(api.store.selection?.path, worktree);
+    await vscode.commands.executeCommand('claudeProjects.revealInProjects', repo);
+    await waitFor('project selected', () => api.treeView.selection.find((n) => n.kind === 'project' && n.path === repo));
+    assert.equal(api.store.selection?.path, repo);
+  });
+
   await check('permission requests raise attention, badge and dashboard entry', async () => {
     const s = api.sessions.findBySessionId(existingId)!;
     await s.send('please use a tool');
@@ -164,16 +194,33 @@ export async function run(): Promise<void> {
     assert.equal(s.title, 'first message in new session');
   });
 
-  await check('chat tabs are numbered 0, 1, 2… left to right', async () => {
-    const chatLabels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '')).map((t) => t.label);
-    const labels = await waitFor(`numbered (have: ${JSON.stringify(chatLabels())})`, () => {
-      const l = chatLabels();
-      return l.length >= 2 && l.every((x, i) => x.startsWith(`${i} · `)) ? l : undefined;
-    }, 10_000);
-    log('chat tabs:', JSON.stringify(labels));
+  await check("renaming from the chat header's session name saves the new name", async () => {
     const s = api.sessions.all[api.sessions.all.length - 1];
-    const v = await waitFor('number on the dashboard card', () => api.attention.sessions.find((x) => x.key === s.key && x.tabNumber !== undefined));
-    assert.ok(labels[v.tabNumber!].startsWith(`${v.tabNumber} · `));
+    // The header sends this when you edit the name in place.
+    await vscode.commands.executeCommand('claudeProjects.renameSession', { sessionId: s.sessionId, cwd: s.cwd, title: s.title }, '  Renamed   in place ');
+    assert.equal(s.title, 'Renamed in place');
+    assert.equal(api.index.rememberedTitle(s.sessionId), 'Renamed in place');
+    await waitFor('tab shows the new name', () => tabLabels().some((l) => l.includes('Renamed in place')));
+  });
+
+  await check('icon-only tabs are numbered 0, 1, 2… left to right; the dashboard shows the same numbers', async () => {
+    const chatLabels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '')).map((t) => t.label);
+    const config = vscode.workspace.getConfiguration('claudeProjects');
+    await config.update('chat.iconOnlyTabs', true, vscode.ConfigurationTarget.Global);
+    try {
+      const labels = await waitFor(`numbered (have: ${JSON.stringify(chatLabels())})`, () => {
+        const l = chatLabels();
+        return l.length >= 2 && l.every((x, i) => new RegExp(`^${i}( [●•⚠])?$`).test(x)) ? l : undefined;
+      }, 10_000);
+      log('icon-only chat tabs:', JSON.stringify(labels));
+      const s = api.sessions.all[api.sessions.all.length - 1];
+      const v = await waitFor('number on the dashboard card', () => api.attention.sessions.find((x) => x.key === s.key && x.tabNumber !== undefined));
+      assert.ok(labels[v.tabNumber!].startsWith(String(v.tabNumber)));
+    } finally {
+      await config.update('chat.iconOnlyTabs', undefined, vscode.ConfigurationTarget.Global);
+    }
+    await waitFor(`names back, no numbers (have: ${JSON.stringify(chatLabels())})`, () => chatLabels().every((l) => !/^\d/.test(l) && l.length > 2));
+    assert.ok(api.attention.sessions.every((x) => x.tabNumber === undefined), 'no numbers on the dashboard');
   });
 
   await check('the dashboard lists open tabs and closes them', async () => {

@@ -230,6 +230,24 @@ kbd {
   max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* A button (shows the project in the Projects view) that looks like the title text. */
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.header-project:hover {
+  text-decoration: underline;
+}
+
+.header-project:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .branch-chip {
@@ -262,6 +280,41 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  /* A button (click to rename) that looks like plain text. */
+  padding: 1px 4px;
+  margin-left: -4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+.header-title:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.header-title:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 0;
+}
+
+.header-title-input {
+  flex: 1 1 auto;
+  min-width: 80px;
+  max-width: 420px;
+  padding: 1px 4px;
+  margin-left: -4px;
+  border: 1px solid var(--focus);
+  border-radius: 3px;
+  outline: none;
+  background: var(--input-bg);
+  color: var(--input-fg);
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .header-actions {
@@ -899,4 +952,12 @@ kbd {
   color: var(--warn);
   font-size: 11.5px;
   line-height: 1.4;
+}
+
+/* Drawn icons (see SVG_ICONS in ui.tsx) sized like codicon glyphs. */
+.svg-icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  overflow: visible;
 }

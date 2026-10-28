@@ -11,7 +11,7 @@ import type { AttentionState, LiveSessionView } from '../shared/protocol';
 import { SESSION_SOURCE_LABELS } from '../shared/protocol';
 import type { Project, Worktree } from '../shared/types';
 import { debounce } from '../util/events';
-import { folderName, isSameOrInside, tildify } from '../util/paths';
+import { folderName, isSameOrInside, realPath, stripTrailingSep, tildify } from '../util/paths';
 import { longAgo, shortAgo } from '../util/time';
 import type { ProjectStore } from './ProjectStore';
 
@@ -163,6 +163,31 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     if (parentPath === project.path) return projectNode;
     const w = this.linkedWorktrees(project).find((x) => x.path === parentPath);
     return w ? { kind: 'worktree', project, projectId: project.id, worktree: w, path: w.path } : projectNode;
+  }
+
+  /**
+   * The project or worktree row for a folder (a session's cwd): a linked
+   * worktree of a project when it is one (they can live outside the project
+   * folder), else the project that contains the folder.
+   */
+  async nodeForPath(path: string): Promise<ProjectNode | WorktreeNode | undefined> {
+    const target = stripTrailingSep(realPath(path));
+    const containing = this.store.findContaining(target);
+    const projectNode = (p: Project): ProjectNode => ({ kind: 'project', project: p, projectId: p.id, path: p.path });
+    if (containing && stripTrailingSep(containing.path) === target) return projectNode(containing);
+    const candidates = containing ? [containing] : this.store.projects.filter((p) => existsSync(p.path));
+    await Promise.all(candidates.map((p) => this.gitReady(p.path)));
+    for (const project of candidates) {
+      const w = this.linkedWorktrees(project).find((x) => isSameOrInside(target, stripTrailingSep(realPath(x.path))));
+      if (w) return { kind: 'worktree', project, projectId: project.id, worktree: w, path: w.path };
+    }
+    return containing ? projectNode(containing) : undefined;
+  }
+
+  /** Waits for a project's git info (branches, worktrees) when it isn't loaded yet. */
+  private async gitReady(path: string): Promise<void> {
+    if (this.gitInfo(path)) return;
+    await this.gitLoading.get(path)?.catch(() => {});
   }
 
   private linkedWorktrees(project: Project): Worktree[] {

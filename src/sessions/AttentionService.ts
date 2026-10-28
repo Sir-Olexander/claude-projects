@@ -156,7 +156,8 @@ export class AttentionService implements vscode.Disposable {
         key: t.key,
         cwd: '',
         projectName: 'Not loaded yet',
-        title: t.label || (numbering ? `Tab ${t.number}` : 'Claude chat'),
+        // In icon-only mode a not-yet-loaded tab's saved title is an old number: use its current one.
+        title: numbering ? `Tab ${t.number}` : t.label || 'Claude chat',
         tabNumber: numbering ? t.number : undefined,
         detail: 'VS Code loads this tab when you open it.',
         source: 'here',

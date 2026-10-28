@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapChatTabs, stripTabNumber } from '../../src/panels/unloadedTabs';
+import { mapChatTabs } from '../../src/panels/unloadedTabs';
 
 const chat = (label: string) => ({ label, viewType: 'mainThreadWebview-claudeProjects.chat' });
 const VT = 'claudeProjects.chat';
@@ -15,9 +15,12 @@ describe('mapChatTabs', () => {
     expect(map.panelNumbers).toEqual([1]);
   });
 
-  it('matches titles that already carry an (old) number', () => {
-    const groups = [{ viewColumn: 1, tabs: [chat('5 · Fix login')] }];
-    expect(mapChatTabs(groups, [{ viewColumn: 1, title: '5 · Fix login' }], VT).panelNumbers).toEqual([0]);
+  it('follows numbered icon-only titles when tabs are reordered', () => {
+    // The tabs titled "1" and "0" were swapped: each panel gets its new position.
+    const groups = [{ viewColumn: 1, tabs: [chat('1'), chat('0 •')] }];
+    const map = mapChatTabs(groups, [{ viewColumn: 1, title: '0 •' }, { viewColumn: 1, title: '1' }], VT);
+    expect(map.panelNumbers).toEqual([1, 0]);
+    expect(map.unloaded).toEqual([]);
   });
 
   it('matches by column, counts duplicate titles and numbers across groups', () => {
@@ -33,10 +36,5 @@ describe('mapChatTabs', () => {
   it('ignores other webviews and text tabs; panels without a tab get no number', () => {
     const groups = [{ viewColumn: 1, tabs: [{ label: 'x', viewType: 'mainThreadWebview-other.chat' }, { label: 'b.ts' }] }];
     expect(mapChatTabs(groups, [{ viewColumn: 1, title: 'New' }], VT)).toEqual({ unloaded: [], panelNumbers: [undefined] });
-  });
-
-  it('strips only a leading tab number', () => {
-    expect(stripTabNumber('12 · Fix 3 · bugs')).toBe('Fix 3 · bugs');
-    expect(stripTabNumber('Fix')).toBe('Fix');
   });
 });

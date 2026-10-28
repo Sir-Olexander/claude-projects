@@ -10,7 +10,7 @@ import { getCurrentBranch } from '../git/gitCli';
 import { Emitter } from '../util/events';
 import type { Logger } from '../util/log';
 import { folderName } from '../util/paths';
-import { CHAT_VIEW_TYPE, ChatPanel } from './ChatPanel';
+import { CHAT_VIEW_TYPE, ChatPanel, ICON_ONLY_TABS_SETTING } from './ChatPanel';
 import { PROPOSED_SCHEME, ProposedContentProvider } from './diffs';
 import { mapChatTabs, type UnloadedTab } from './unloadedTabs';
 
@@ -60,8 +60,9 @@ export class ChatPanelManager implements vscode.Disposable {
         this.scheduleLoadTabs(500);
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (!e.affectsConfiguration('claudeProjects.chat.numberTabs')) return;
+        if (!e.affectsConfiguration(`claudeProjects.${ICON_ONLY_TABS_SETTING}`)) return;
         this.renumber();
+        for (const p of this.panels.values()) p.updateTitle();
         this.scheduleLoadTabs(0);
       }),
     );
@@ -117,16 +118,17 @@ export class ChatPanelManager implements vscode.Disposable {
     return this.mapTabs().unloaded;
   }
 
-  /** Number shown on a session's tab (0, 1, 2… left to right), if numbering is on. */
+  /** Number shown on a session's tab (0, 1, 2… left to right) in icon-only mode. */
   tabNumber(key: string): number | undefined {
     return this.panels.get(key)?.number;
   }
 
+  /** Tabs are numbered in icon-only mode, where the number is all a tab shows. */
   get numberingOn(): boolean {
-    return vscode.workspace.getConfiguration('claudeProjects').get<boolean>('chat.numberTabs', true);
+    return vscode.workspace.getConfiguration('claudeProjects').get<boolean>(ICON_ONLY_TABS_SETTING, false);
   }
 
-  /** Puts each chat tab's number at the start of its title. */
+  /** Gives each chat tab its number (its title in icon-only mode). */
   private renumber(): void {
     const on = this.numberingOn;
     const { numbers } = this.mapTabs();

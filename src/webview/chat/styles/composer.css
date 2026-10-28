@@ -33,6 +33,7 @@
 }
 
 .composer[data-mode='auto'],
+.composer[data-mode='yolo'],
 .composer[data-mode='bypassPermissions'] {
   --ring: var(--error);
 }
@@ -143,6 +144,7 @@
 }
 
 .mode-btn.mode-auto,
+.mode-btn.mode-yolo,
 .mode-btn.mode-bypassPermissions {
   color: var(--error);
 }
@@ -203,6 +205,7 @@
 }
 
 .send-btn[data-mode='auto'],
+.send-btn[data-mode='yolo'],
 .send-btn[data-mode='bypassPermissions'] {
   background: var(--error);
   color: var(--btn-fg);

@@ -106,7 +106,7 @@ function services(overrides: Partial<SessionServices> = {}): SessionServices {
     log: silentLogger,
     getCliPath: async () => FAKE,
     getPathEnv: async () => process.env.PATH ?? '',
-    settings: () => ({ defaultPermissionMode: 'default', defaultModel: '', allowBypass: false, showThinking: false, defaultEffort: '', promptPresets: [], autoContinue: false }),
+    settings: () => ({ defaultPermissionMode: 'default', defaultModel: '', allowBypass: false, showYolo: true, showThinking: false, defaultEffort: '', promptPresets: [], autoContinue: false }),
     imageSink: (i) => i,
     sharedInit: {},
     onInitialized: () => {},
@@ -199,6 +199,58 @@ describe('ManagedSession', () => {
     s.respondPlan(p.requestId, 'accept-auto');
     await waitFor(() => s.status === 'idle');
     expect(s.permissionMode).toBe('acceptEdits');
+  });
+
+  it('Yolo auto runs the CLI in auto mode and answers permission prompts itself', async () => {
+    const dir = tempDir();
+    const logFile = join(dir, 'log.jsonl');
+    process.env.FAKE_CLAUDE_LOG = logFile;
+    try {
+      const { s, attention } = newSession(dir);
+      await s.setMode('yolo');
+      await s.send('please use a tool');
+      await waitFor(() => s.status === 'idle');
+      const tool = s.getState().items.find((i): i is ToolItem => i.kind === 'tool');
+      expect(tool).toMatchObject({ status: 'done', result: { text: 'hi', isError: false } });
+      expect(attention).not.toContain('permission');
+      expect(s.getState().items.some((i) => i.kind === 'system' && i.text === 'Yolo auto approved: Bash: echo hi')).toBe(true);
+      // The CLI reports "auto": the chat stays in Yolo auto.
+      expect(s.permissionMode).toBe('yolo');
+      const args: string[] = JSON.parse(readFileSync(logFile, 'utf8').trim().split('\n')[0]).args;
+      expect(args[args.indexOf('--permission-mode') + 1]).toBe('auto');
+    } finally {
+      delete process.env.FAKE_CLAUDE_LOG;
+    }
+  });
+
+  it('Yolo auto still waits for questions', async () => {
+    const { s } = newSession();
+    await s.setMode('yolo');
+    await s.send('ask me a question');
+    await waitFor(() => s.pendingRequests.length === 1);
+    expect(s.pendingRequests[0].kind).toBe('question');
+    expect(s.status).toBe('waiting');
+  });
+
+  it('switching to Yolo auto approves a prompt that is already waiting', async () => {
+    const { s } = newSession();
+    await s.send('please use a tool');
+    await waitFor(() => s.pendingRequests.length === 1);
+    await s.setMode('yolo');
+    expect(s.pendingRequests).toEqual([]);
+    await waitFor(() => s.status === 'idle');
+    expect(s.getState().items.find((i): i is ToolItem => i.kind === 'tool')).toMatchObject({ status: 'done' });
+  });
+
+  it('hides Yolo auto when the setting is off', () => {
+    const base = services().settings();
+    const off = (defaultPermissionMode: 'yolo' | 'default') => services({ settings: () => ({ ...base, defaultPermissionMode, showYolo: false }) });
+    const a = new ManagedSession({ cwd: tempDir(), projectName: 'Test' }, off('default'));
+    expect(a.getState().availableModes).toEqual(['default', 'acceptEdits', 'plan', 'auto']);
+    const b = new ManagedSession({ cwd: tempDir(), projectName: 'Test' }, off('yolo'));
+    expect(b.permissionMode).toBe('auto');
+    const c = new ManagedSession({ cwd: tempDir(), projectName: 'Test' }, services());
+    expect(c.getState().availableModes).toContain('yolo');
   });
 
   it('interrupts a running turn', async () => {

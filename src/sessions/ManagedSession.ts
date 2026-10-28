@@ -20,8 +20,10 @@ import type {
   SlashCommand,
 } from '../claude/sdkTypes';
 import { loadTranscriptFile } from '../claude/transcript';
+import { cliMode } from '../shared/protocol';
 import type {
   ChatState,
+  CliPermissionMode,
   ChatStatePatch,
   ContextUsageView,
   EffortLevel,
@@ -56,6 +58,8 @@ export interface SessionSettings {
   defaultPermissionMode: PermissionMode;
   defaultModel: string;
   allowBypass: boolean;
+  /** Offer the "Yolo auto" mode (auto mode, with every permission prompt answered yes). */
+  showYolo: boolean;
   showThinking: boolean;
   /** Effort for new sessions ('' = the model's default). */
   defaultEffort: EffortLevel | '';
@@ -249,7 +253,9 @@ export class ManagedSession {
     this.branch = init.branch === 'HEAD' ? undefined : init.branch;
     this.isWorktree = !!init.isWorktree;
     const settings = services.settings();
-    this.permissionMode = init.permissionMode ?? settings.defaultPermissionMode;
+    const startMode = init.permissionMode ?? settings.defaultPermissionMode;
+    // A hidden Yolo mode isn't picked for new sessions: they start in plain auto.
+    this.permissionMode = startMode === 'yolo' && !settings.showYolo && !init.permissionMode ? 'auto' : startMode;
     this.modelValue = init.model ?? (settings.defaultModel || undefined);
     this.effortChoice = settings.defaultEffort || undefined;
     this.effort = settings.defaultEffort || undefined;
@@ -397,7 +403,7 @@ export class ManagedSession {
       effort: this.effort,
       availableEfforts: this.availableEfforts(),
       permissionMode: this.permissionMode,
-      availableModes: this.availableModes(settings.allowBypass),
+      availableModes: this.availableModes(),
       availableModels: this.models,
       slashCommands: this.commands,
       items: snap.items,
@@ -425,10 +431,19 @@ export class ManagedSession {
     this._onUiMessage.fire({ type: 'state', state: this.getState() });
   }
 
-  private availableModes(allowBypass: boolean): PermissionMode[] {
+  private availableModes(): PermissionMode[] {
+    const { allowBypass, showYolo } = this.services.settings();
     const modes: PermissionMode[] = ['default', 'acceptEdits', 'plan', 'auto'];
+    if (showYolo || this.permissionMode === 'yolo') modes.push('yolo');
     if (allowBypass || this.permissionMode === 'bypassPermissions') modes.push('bypassPermissions');
     return modes;
+  }
+
+  /** A mode the CLI reported. Plain "auto" doesn't end Yolo auto: the CLI runs in auto for it. */
+  private adoptCliMode(mode: CliPermissionMode): void {
+    if (mode === cliMode(this.permissionMode)) return;
+    this.permissionMode = mode;
+    this.patchUi({ permissionMode: mode, availableModes: this.availableModes() });
   }
 
   private patchUi(patch: ChatStatePatch): void {
@@ -822,17 +837,20 @@ export class ManagedSession {
     if (mode === this.permissionMode) return;
     const prev = this.permissionMode;
     this.permissionMode = mode;
-    this.patchUi({ permissionMode: mode, availableModes: this.availableModes(this.services.settings().allowBypass) });
-    if (this.proc?.alive && !this.procStarting) {
+    this.patchUi({ permissionMode: mode, availableModes: this.availableModes() });
+    if (mode === 'yolo') this.approvePendingPermissions();
+    // Auto and Yolo auto are the same mode for the CLI.
+    if (cliMode(mode) !== cliMode(prev) && this.proc?.alive && !this.procStarting) {
       try {
-        await this.proc.setPermissionMode(mode);
+        await this.proc.setPermissionMode(cliMode(mode));
       } catch (err) {
         this.permissionMode = prev;
-        this.patchUi({ permissionMode: prev });
+        this.patchUi({ permissionMode: prev, availableModes: this.availableModes() });
         this.builder.addSystem('error', `Could not switch mode: ${errorMessage(err)}`);
         this.flush();
       }
     }
+    this.flush();
   }
 
   async setModel(model: string): Promise<void> {
@@ -876,7 +894,7 @@ export class ManagedSession {
   /** Settings changed: refresh what the panel shows from them. */
   settingsChanged(): void {
     const settings = this.services.settings();
-    this.patchUi({ promptPresets: settings.promptPresets, allowBypass: settings.allowBypass, availableModes: this.availableModes(settings.allowBypass), sharedEnv: this.sharedEnvView() });
+    this.patchUi({ promptPresets: settings.promptPresets, allowBypass: settings.allowBypass, availableModes: this.availableModes(), sharedEnv: this.sharedEnvView() });
     this.flush();
   }
 
@@ -1027,10 +1045,7 @@ export class ManagedSession {
       result = { behavior: 'allow', updatedInput: raw.input, updatedPermissions, toolUseID: raw.tool_use_id, decisionClassification: always ? 'user_permanent' : 'user_temporary' };
       this.builder.setToolStatus(raw.tool_use_id, 'running');
       const mode = updatedPermissions?.find((u) => u.type === 'setMode')?.mode;
-      if (mode) {
-        this.permissionMode = mode;
-        this.patchUi({ permissionMode: mode });
-      }
+      if (mode) this.adoptCliMode(mode);
     }
     this.proc.respond(requestId, result as unknown as Record<string, unknown>);
     this.resolvePending(requestId);
@@ -1173,7 +1188,7 @@ export class ManagedSession {
       sessionId: this.hasTranscript ? undefined : this.sessionId,
       forkSession: fork || !!forkStart,
       resumeSessionAt: forkStart?.at,
-      permissionMode: this.permissionMode,
+      permissionMode: cliMode(this.permissionMode),
       model: this.modelValue,
       effort: this.effortChoice && this.effortChoice !== 'default' ? this.effortChoice : undefined,
       allowDangerouslySkipPermissions: settings.allowBypass || this.permissionMode === 'bypassPermissions',
@@ -1218,10 +1233,7 @@ export class ManagedSession {
     this.services.onInitialized(init);
     if (init.models?.length) this.setModels(init.models);
     if (init.commands?.length) this.setCommands(init.commands);
-    if (init.current_permission_mode && init.current_permission_mode !== this.permissionMode) {
-      this.permissionMode = init.current_permission_mode;
-      this.patchUi({ permissionMode: this.permissionMode });
-    }
+    if (init.current_permission_mode) this.adoptCliMode(init.current_permission_mode);
     this.flush();
   }
 
@@ -1414,10 +1426,7 @@ export class ManagedSession {
           this.patchUi({ sessionId: this.sessionId, forkFrom: undefined });
         }
         if (m.model) this.setResolvedModel(m.model);
-        if (m.permissionMode && m.permissionMode !== this.permissionMode) {
-          this.permissionMode = m.permissionMode;
-          this.patchUi({ permissionMode: m.permissionMode });
-        }
+        if (m.permissionMode) this.adoptCliMode(m.permissionMode);
         if (Array.isArray(m.slash_commands) && m.slash_commands.length) {
           const known = new Map(this.commands.map((c) => [c.name, c]));
           const merged = m.slash_commands.map((n) => known.get(n.replace(/^\//, '')) ?? { name: n.replace(/^\//, '') });
@@ -1431,17 +1440,15 @@ export class ManagedSession {
         if (state === 'running') {
           if (this.pending.size === 0) this.setStatus('running');
         } else if (state === 'requires_action') {
-          this.setStatus('waiting');
+          // In Yolo auto a permission prompt is answered at once: don't flash "waiting" for it.
+          if (this.permissionMode !== 'yolo' || this.pending.size > 0) this.setStatus('waiting');
         } else if (state === 'idle') {
           this.onTurnIdle();
         }
         break;
       }
       case 'status': {
-        if (m.permissionMode && m.permissionMode !== this.permissionMode) {
-          this.permissionMode = m.permissionMode as PermissionMode;
-          this.patchUi({ permissionMode: this.permissionMode });
-        }
+        if (m.permissionMode) this.adoptCliMode(m.permissionMode as CliPermissionMode);
         if (m.status === 'compacting') this.setActivity('Compacting the conversation');
         if (m.compact_result === 'failed') this.builder.addSystem('error', `Compaction failed${m.compact_error ? `: ${String(m.compact_error)}` : ''}`);
         break;
@@ -1607,6 +1614,11 @@ export class ManagedSession {
   }
 
   private async onCanUseTool(requestId: string, req: CanUseToolRequest): Promise<void> {
+    if (this.permissionMode === 'yolo' && isPermissionPrompt(req.tool_name)) {
+      this.autoApprove(requestId, req);
+      this.flush();
+      return;
+    }
     const createdAt = Date.now();
     let view: PendingRequestView;
     if (req.tool_name === 'AskUserQuestion') {
@@ -1667,6 +1679,26 @@ export class ManagedSession {
     this._onNeedsAttention.fire({ reason, detail });
   }
 
+  /** Yolo auto: says yes to a permission prompt (this time only, no rule is saved). */
+  private autoApprove(requestId: string, req: CanUseToolRequest): void {
+    if (!this.proc) return;
+    const result: PermissionResult = { behavior: 'allow', updatedInput: req.input ?? {}, toolUseID: req.tool_use_id, decisionClassification: 'user_temporary' };
+    this.builder.setToolStatus(req.tool_use_id, 'running');
+    this.proc.respond(requestId, result as unknown as Record<string, unknown>);
+    const what = `${req.display_name || req.tool_name}${describeTarget(req.tool_name, req.input ?? {})}`;
+    this.log.info(`yolo auto approved ${what} in ${this.sessionId}`);
+    this.builder.addSystem('info', `Yolo auto approved: ${clip(what, 200)}`);
+  }
+
+  /** Answers the permission prompts already waiting (on switching to Yolo auto). */
+  private approvePendingPermissions(): void {
+    for (const [requestId, entry] of [...this.pending]) {
+      if (entry.view.kind !== 'permission' || !entry.raw) continue;
+      this.autoApprove(requestId, entry.raw);
+      this.resolvePending(requestId);
+    }
+  }
+
   private onControlCancel(requestId: string): void {
     const entry = this.pending.get(requestId);
     if (!entry) return;
@@ -1687,6 +1719,11 @@ export class ManagedSession {
     this._onUiMessage.dispose();
     this._onNeedsAttention.dispose();
   }
+}
+
+/** Tool calls whose can_use_tool asks for permission (not a question or a plan for the user). */
+function isPermissionPrompt(toolName: string): boolean {
+  return toolName !== 'AskUserQuestion' && toolName !== 'ExitPlanMode';
 }
 
 type SystemFrame = Omit<Partial<SdkSystemInit>, 'subtype'> & { subtype: string; [k: string]: unknown };

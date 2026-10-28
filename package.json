@@ -1069,24 +1069,21 @@
           "minimum": 0,
           "markdownDescription": "Stop a session's Claude process after it has been idle this many minutes with its panel closed. It resumes automatically on your next message. `0` keeps processes until you close VS Code."
         },
-        "claudeProjects.chat.numberTabs": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Number chat tabs 0, 1, 2… from left to right (the number starts the tab title). The Claude Sessions dashboard shows the same numbers. Chat tabs restored when VS Code starts are loaded right away so they all get their name and number."
-        },
         "claudeProjects.chat.defaultPermissionMode": {
           "type": "string",
           "enum": [
             "default",
             "acceptEdits",
             "plan",
-            "auto"
+            "auto",
+            "yolo"
           ],
           "enumDescriptions": [
             "Manual: Claude asks before each edit and command.",
             "Edit automatically: file edits are accepted, commands still ask.",
             "Plan: Claude explores and presents a plan before editing.",
-            "Auto: a safety check approves actions and pauses for anything risky."
+            "Auto: a safety check approves actions and pauses for anything risky.",
+            "Yolo auto: auto mode, and every permission prompt is answered yes for you."
           ],
           "default": "default",
           "description": "Permission mode for new sessions opened here."
@@ -1166,6 +1163,16 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Offer the **Bypass permissions** mode in the chat mode picker. Claude then runs every command without asking."
+        },
+        "claudeProjects.chat.showYoloAutoMode": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Offer the **Yolo auto** mode in the chat mode picker. It is auto mode, and when Claude still asks for permission, the extension answers yes for you. Questions from Claude and plan reviews still wait for you. Turn this off to hide the mode (a chat already in Yolo auto keeps it until you switch)."
+        },
+        "claudeProjects.chat.iconOnlyTabs": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show **Open here** chat tabs as just their icon and a number (0, 1, 2… from left to right), without the session name, to fit more tabs. The **Claude Sessions** dashboard shows the same numbers. A dot still marks a session that is waiting for you or has news. The name stays everywhere else (Projects view, dashboard, the chat's own header)."
         },
         "claudeProjects.chat.showThinking": {
           "type": "boolean",
