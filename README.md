@@ -6,6 +6,10 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 
 ## What you get
 
+**Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard.
+
+![The sessions dashboard with plan usage, sessions that need you, running and recent sessions](docs/images/dashboard.png)
+
 **Projects view** (the folder-with-asterisk icon in the activity bar)
 - Your projects, saved by path only (folders are never moved or copied). Add them with **+** or import every folder you have used Claude Code in (`…` → *Import Projects from Claude History*).
 - Under each project: its git worktrees and its Claude sessions, newest first. Sessions that need you are pinned to the top with an orange bell, running ones spin, finished-but-unread ones get a green check.
@@ -54,10 +58,6 @@ Click a session to open it in a chat tab here (**Open Here**). It runs through t
 
 - **Names that stick**: renamed and forked chats keep their names, in the tab and after a restart.
 - **Open in Claude Extension**: opens the session in its own window, in the official Claude Code extension. This button is also in the chat tab's title bar. To make it what clicking a session does, set `claudeProjects.sessions.defaultOpenMode`.
-
-**Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard.
-
-![The sessions dashboard with plan usage, sessions that need you, running and recent sessions](docs/images/dashboard.png)
 
 **Attention**: a badge on the activity bar icon, a "waiting" item in the status bar (click it to jump to the next session that needs you), a dot in the chat tab title, and a macOS notification when a session needs you while VS Code is in the background. If [terminal-notifier](https://github.com/julienXX/terminal-notifier) is installed (`brew install terminal-notifier`), clicking the notification opens the session.
 
