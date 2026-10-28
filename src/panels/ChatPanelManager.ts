@@ -55,9 +55,14 @@ export class ChatPanelManager implements vscode.Disposable {
       }),
       vscode.window.tabGroups.onDidChangeTabs(() => this._onDidChangeTabs.fire()),
       vscode.window.tabGroups.onDidChangeTabGroups(() => this._onDidChangeTabs.fire()),
-      this._onDidChangeTabs.event(() => this.renumber()),
+      this._onDidChangeTabs.event(() => {
+        this.renumber();
+        this.scheduleLoadTabs(500);
+      }),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('claudeProjects.chat.numberTabs')) this.renumber();
+        if (!e.affectsConfiguration('claudeProjects.chat.numberTabs')) return;
+        this.renumber();
+        this.scheduleLoadTabs(0);
       }),
     );
   }
@@ -144,10 +149,58 @@ export class ChatPanelManager implements vscode.Disposable {
   async showUnloadedTab(key: string): Promise<void> {
     const t = this.unloadedTab(key);
     if (!t) return;
-    const groups = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth'];
-    const group = groups[t.info.viewColumn - 1];
-    if (group) await vscode.commands.executeCommand(`workbench.action.focus${group}EditorGroup`);
+    await focusGroup(t.info.viewColumn);
     await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', t.info.index);
+  }
+
+  private loadTimer: ReturnType<typeof setTimeout> | undefined;
+  private loadingTabs = false;
+  private attachCount = 0;
+  /** Tabs that didn't load when shown (`column:index:label`), so they aren't retried in a loop. */
+  private readonly failedLoads = new Set<string>();
+
+  /** Soon loads chat tabs VS Code restored but hasn't loaded, so they get their name and number. */
+  scheduleLoadTabs(delayMs: number): void {
+    if (!this.numberingOn || this.loadingTabs) return;
+    if (!this.unloadedTabs().some((t) => !this.failedLoads.has(`${t.viewColumn}:${t.index}:${t.label}`))) return;
+    clearTimeout(this.loadTimer);
+    this.loadTimer = setTimeout(() => void this.loadUnloadedTabs(), delayMs);
+  }
+
+  /**
+   * VS Code only loads a restored webview tab when it is shown, so until then it has
+   * no session, no up-to-date title and no number. Shows each one briefly, then goes
+   * back to the tab that was active in each group and to the group that had focus.
+   */
+  async loadUnloadedTabs(): Promise<void> {
+    if (this.loadingTabs) return;
+    this.loadingTabs = true;
+    try {
+      const startColumn = vscode.window.tabGroups.activeTabGroup.viewColumn;
+      const todo = this.unloadedTabs().filter((t) => !this.failedLoads.has(`${t.viewColumn}:${t.index}:${t.label}`));
+      if (!todo.length) return;
+      this.deps.log.info(`loading ${todo.length} restored chat tab(s)`);
+      for (const column of [...new Set(todo.map((t) => t.viewColumn))]) {
+        const group = () => vscode.window.tabGroups.all.find((g) => g.viewColumn === column);
+        const active = group()?.activeTab;
+        await focusGroup(column);
+        // Last first: a tab that can't be restored closes itself, which shifts the ones after it.
+        for (const t of todo.filter((x) => x.viewColumn === column).sort((a, b) => b.index - a.index)) {
+          const before = this.attachCount;
+          const tabCount = group()?.tabs.length ?? 0;
+          await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', t.index);
+          const loaded = await waitUntil(() => this.attachCount > before || (group()?.tabs.length ?? 0) !== tabCount, 3000);
+          if (!loaded) this.failedLoads.add(`${t.viewColumn}:${t.index}:${t.label}`);
+        }
+        const back = active ? group()?.tabs.indexOf(active) ?? -1 : -1;
+        if (back >= 0) await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', back);
+      }
+      await focusGroup(startColumn);
+    } catch (err) {
+      this.deps.log.warn(`loading restored chat tabs failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      this.loadingTabs = false;
+    }
   }
 
   /** Shows a session in its tab (creating the tab if needed). */
@@ -175,6 +228,7 @@ export class ChatPanelManager implements vscode.Disposable {
   private attach(panel: vscode.WebviewPanel, session: ManagedSession): ChatPanel {
     const cp = new ChatPanel(panel, session, this.host);
     this.panels.set(session.key, cp);
+    this.attachCount++;
     this._onDidChangeTabs.fire();
     return cp;
   }
@@ -301,9 +355,26 @@ export class ChatPanelManager implements vscode.Disposable {
   }
 
   dispose(): void {
+    clearTimeout(this.loadTimer);
     for (const p of [...this.panels.values()]) p.dispose();
     this.panels.clear();
     for (const d of this.disposables) d.dispose();
     this._onDidChangeTabs.dispose();
   }
+}
+
+const GROUP_NAMES = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth'];
+
+async function focusGroup(viewColumn: number): Promise<void> {
+  const name = GROUP_NAMES[viewColumn - 1];
+  if (name) await vscode.commands.executeCommand(`workbench.action.focus${name}EditorGroup`);
+}
+
+async function waitUntil(cond: () => boolean, timeoutMs: number): Promise<boolean> {
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    if (cond()) return true;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return cond();
 }

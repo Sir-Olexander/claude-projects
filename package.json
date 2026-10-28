@@ -1072,7 +1072,7 @@
         "claudeProjects.chat.numberTabs": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Number chat tabs 0, 1, 2… from left to right (the number starts the tab title). The Claude Sessions dashboard shows the same numbers, which also tells apart tabs VS Code hasn't loaded yet (those show only an icon until you click them)."
+          "markdownDescription": "Number chat tabs 0, 1, 2… from left to right (the number starts the tab title). The Claude Sessions dashboard shows the same numbers. Chat tabs restored when VS Code starts are loaded right away so they all get their name and number."
         },
         "claudeProjects.chat.defaultPermissionMode": {
           "type": "string",

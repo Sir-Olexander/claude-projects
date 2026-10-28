@@ -88,6 +88,8 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
 
   const panels = new ChatPanelManager({ context, log, sessions, store, index, handoff });
   context.subscriptions.push(panels);
+  // Restored chat tabs load only when shown; load them so each shows its name and number.
+  panels.scheduleLoadTabs(1500);
 
   const notifier = new Notifier(context.extension.id, join(context.extensionPath, 'media', 'notification.png'), log);
   const presence = new WindowPresence(storageDir);
