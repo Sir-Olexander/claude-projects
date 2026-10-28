@@ -14,7 +14,18 @@
 // ---------------------------------------------------------------------------
 
 /** Claude Code permission modes (the CLI's names). */
-export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto' | 'bypassPermissions' | 'dontAsk';
+export type CliPermissionMode = 'default' | 'acceptEdits' | 'plan' | 'auto' | 'bypassPermissions' | 'dontAsk';
+
+/**
+ * Modes offered in the chat: the CLI's, plus `yolo` (ours). In Yolo auto the
+ * CLI runs in `auto` and the extension answers every permission prompt with yes.
+ */
+export type PermissionMode = CliPermissionMode | 'yolo';
+
+/** The mode the Claude CLI runs in for a chat mode. */
+export function cliMode(mode: PermissionMode): CliPermissionMode {
+  return mode === 'yolo' ? 'auto' : mode;
+}
 
 /** Labels used by the official extension's mode picker. */
 export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
@@ -22,6 +33,7 @@ export const PERMISSION_MODE_LABELS: Record<PermissionMode, string> = {
   acceptEdits: 'Edit automatically',
   plan: 'Plan',
   auto: 'Auto',
+  yolo: 'Yolo auto',
   bypassPermissions: 'Bypass permissions',
   dontAsk: "Don't ask",
 };
@@ -31,6 +43,7 @@ export const PERMISSION_MODE_DESCRIPTIONS: Record<PermissionMode, string> = {
   acceptEdits: 'Claude will edit files without asking first',
   plan: 'Claude will explore the code and present a plan before editing',
   auto: 'Claude will approve actions that pass a safety check and pause for anything risky',
+  yolo: 'Auto mode, and every permission prompt is answered yes for you',
   bypassPermissions: 'Claude will not ask for approval before running potentially dangerous commands',
   dontAsk: 'Claude will deny actions that need approval instead of asking',
 };
@@ -495,6 +508,10 @@ export type ChatToExtMessage =
   | { type: 'open-diff'; toolUseId: string }
   | { type: 'open-url'; url: string }
   | { type: 'open-in-claude-extension' }
+  /** Show this chat's project (or worktree) in the Projects view. */
+  | { type: 'reveal-project' }
+  /** Rename the session (from its name in the header). */
+  | { type: 'rename'; title: string }
   | { type: 'new-session' }
   /** Restart after an error. */
   | { type: 'restart' }

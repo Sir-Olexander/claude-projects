@@ -3,7 +3,7 @@
  * Shapes follow @anthropic-ai/claude-agent-sdk's sdk.d.ts; everything is
  * optional/loose on purpose so newer CLIs with extra fields keep working.
  */
-import type { PermissionMode } from '../shared/protocol';
+import type { CliPermissionMode as PermissionMode } from '../shared/protocol';
 
 // --- Anthropic content blocks ---------------------------------------------------
 

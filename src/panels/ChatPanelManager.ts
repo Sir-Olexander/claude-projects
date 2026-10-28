@@ -9,7 +9,7 @@ import type { SessionManager } from '../sessions/SessionManager';
 import { getCurrentBranch } from '../git/gitCli';
 import type { Logger } from '../util/log';
 import { folderName } from '../util/paths';
-import { CHAT_VIEW_TYPE, ChatPanel } from './ChatPanel';
+import { CHAT_VIEW_TYPE, ChatPanel, ICON_ONLY_TABS_SETTING } from './ChatPanel';
 import { PROPOSED_SCHEME, ProposedContentProvider } from './diffs';
 
 /**
@@ -46,6 +46,9 @@ export class ChatPanelManager implements vscode.Disposable {
     this.disposables.push(
       vscode.window.registerWebviewPanelSerializer(CHAT_VIEW_TYPE, {
         deserializeWebviewPanel: async (panel, state: PersistedPanelState | undefined) => this.restore(panel, state),
+      }),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration(`claudeProjects.${ICON_ONLY_TABS_SETTING}`)) for (const p of this.panels.values()) p.updateTitle();
       }),
     );
   }

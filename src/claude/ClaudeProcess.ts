@@ -4,7 +4,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { Emitter, type Event } from '../util/events';
 import type { Logger } from '../util/log';
 import { silentLogger } from '../util/log';
-import type { PermissionMode } from '../shared/protocol';
+import type { CliPermissionMode as PermissionMode } from '../shared/protocol';
 import { launchFor, setEnv } from './launch';
 import type { ControlRequestInner, InitializeResponse, SdkMessage, SdkUserMessageIn } from './sdkTypes';
 

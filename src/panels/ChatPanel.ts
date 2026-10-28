@@ -12,6 +12,13 @@ import { fileSuggestions } from './fileSuggestions';
 
 export const CHAT_VIEW_TYPE = 'claudeProjects.chat';
 
+/** Setting: chat tabs show only their icon (and status marker), not the session name. */
+export const ICON_ONLY_TABS_SETTING = 'chat.iconOnlyTabs';
+
+function iconOnlyTabs(): boolean {
+  return vscode.workspace.getConfiguration('claudeProjects').get<boolean>(ICON_ONLY_TABS_SETTING, false);
+}
+
 export interface ChatPanelHost {
   extensionUri: vscode.Uri;
   imageDir: vscode.Uri;
@@ -63,11 +70,12 @@ export class ChatPanel implements vscode.Disposable {
     this.onViewState();
   }
 
-  private updateTitle(): void {
+  updateTitle(): void {
     if (this.disposed) return;
     const s = this.session;
-    const marker = s.status === 'waiting' || s.pendingRequests.length ? '● ' : s.status === 'error' ? '⚠ ' : s.unread ? '• ' : '';
-    this.panel.title = `${marker}${clip(s.title, 42)}`;
+    const marker = s.status === 'waiting' || s.pendingRequests.length ? '●' : s.status === 'error' ? '⚠' : s.unread ? '•' : '';
+    // Icon-only tabs keep just the status marker; the name still shows everywhere else.
+    this.panel.title = iconOnlyTabs() ? marker : `${marker ? marker + ' ' : ''}${clip(s.title, 42)}`;
   }
 
   private onViewState(): void {
@@ -184,6 +192,12 @@ export class ChatPanel implements vscode.Disposable {
           break;
         case 'open-in-claude-extension':
           await this.host.openInClaudeExtension(s);
+          break;
+        case 'rename':
+          await vscode.commands.executeCommand('claudeProjects.renameSession', { sessionId: s.sessionId, cwd: s.cwd, title: s.title }, m.title);
+          break;
+        case 'reveal-project':
+          await vscode.commands.executeCommand('claudeProjects.revealInProjects', s.cwd);
           break;
         case 'new-session':
           this.host.newSession(s.cwd);

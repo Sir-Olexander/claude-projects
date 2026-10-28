@@ -15,6 +15,7 @@ export const MODE_ICONS: Record<PermissionMode, string> = {
   acceptEdits: 'edit',
   plan: 'checklist',
   auto: 'sparkle',
+  yolo: 'bandaid',
   bypassPermissions: 'warning',
   dontAsk: 'circle-slash',
 };
