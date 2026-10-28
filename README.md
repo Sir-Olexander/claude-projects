@@ -44,7 +44,7 @@ Windows differences:
 - Notifications are Windows toasts, shown through Windows PowerShell. If a toast can't be shown, you get VS Code's own notification instead.
 - Menus say *Reveal in File Explorer* instead of *Reveal in Finder*.
 - Stopping a session ends Claude's whole process tree (`taskkill /T`), because Windows has no signals.
-- Claude Code's check for leftover entries in its live-session list (pid reused by another program) is skipped, because it relies on `ps`.
+- The check that drops stale entries from Claude's live-session list (a pid reused by another program) is skipped, because it relies on `ps`.
 
 ## Settings
 
