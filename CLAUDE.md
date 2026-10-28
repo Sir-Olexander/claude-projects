@@ -2,9 +2,21 @@
 
 VS Code extension, published on the Marketplace as `Sir-Olexander.claude-projects`.
 
+## Before every PR: bump the version
+
+Every time you open a pull request, raise `"version"` first (in `package.json` and the top two `"version"` fields of `package-lock.json`) and commit it on the PR branch, right before creating the PR. The Marketplace rejects a version it already has.
+
+Pick the bump yourself from what the PR changes, and say which one you picked and why in the PR description:
+
+- **x.0.0 (major)**: breaking or sweeping changes: removed/renamed commands or settings, changed saved-data formats, a redesign users must relearn.
+- **0.x.0 (minor)**: new user-visible features or behavior: new commands, settings, UI sections, notable workflow changes. Reset patch to 0.
+- **0.0.x (patch)**: bug fixes, small tweaks, copy/styling polish, refactors, docs, internal changes.
+
+When in doubt between two levels, pick the smaller one.
+
 ## Releasing
 
-1. Raise `"version"` in `package.json` (e.g. `0.1.0` → `0.1.1`). The Marketplace rejects a version it already has.
+1. Make sure the version was bumped (see above).
 2. `npm run package` → builds `dist-vsix/claude-projects.vsix`.
 3. On https://marketplace.visualstudio.com/manage, use **⋯ → Update** on the extension and upload that file (not the "new extension" upload).
 
