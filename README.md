@@ -74,3 +74,7 @@ CLAUDE_INTEGRATION=1 npx vitest run --config vitest.integration.mts   # a few ch
 ```
 
 The chat UI can be developed in a browser: serve the repo (`python3 -m http.server 47391`) and open `http://127.0.0.1:47391/test/webview/chat-harness.html?fixture=conversation&theme=dark`.
+
+## License
+
+[MIT](LICENSE.md)
