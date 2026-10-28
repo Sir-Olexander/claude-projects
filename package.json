@@ -1075,13 +1075,15 @@
             "default",
             "acceptEdits",
             "plan",
-            "auto"
+            "auto",
+            "yolo"
           ],
           "enumDescriptions": [
             "Manual: Claude asks before each edit and command.",
             "Edit automatically: file edits are accepted, commands still ask.",
             "Plan: Claude explores and presents a plan before editing.",
-            "Auto: a safety check approves actions and pauses for anything risky."
+            "Auto: a safety check approves actions and pauses for anything risky.",
+            "Yolo auto: auto mode, and every permission prompt is answered yes for you."
           ],
           "default": "default",
           "description": "Permission mode for new sessions opened here."
@@ -1161,6 +1163,11 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Offer the **Bypass permissions** mode in the chat mode picker. Claude then runs every command without asking."
+        },
+        "claudeProjects.chat.showYoloAutoMode": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Offer the **Yolo auto** mode in the chat mode picker. It is auto mode, and when Claude still asks for permission, the extension answers yes for you. Questions from Claude and plan reviews still wait for you. Turn this off to hide the mode (a chat already in Yolo auto keeps it until you switch)."
         },
         "claudeProjects.chat.showThinking": {
           "type": "boolean",

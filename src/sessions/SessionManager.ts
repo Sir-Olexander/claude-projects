@@ -325,6 +325,7 @@ export function readSettings(): SessionSettings {
     defaultPermissionMode: c.get<PermissionMode>('chat.defaultPermissionMode', 'default'),
     defaultModel: c.get<string>('chat.defaultModel', ''),
     allowBypass: c.get<boolean>('chat.allowBypassPermissions', false),
+    showYolo: c.get<boolean>('chat.showYoloAutoMode', true),
     showThinking: c.get<boolean>('chat.showThinking', true),
     defaultEffort: asEffort(c.get<string>('chat.defaultEffort', '')) ?? '',
     autoContinue: c.get<boolean>('chat.autoContinueAfterLimit', false),
