@@ -221,7 +221,7 @@ rl.on('line', async (line) => {
         });
         return;
       case 'get_usage':
-        ok({ subscription_type: 'max', rate_limits_available: true, rate_limits: { five_hour: { utilization: 42, resets_at: '2030-01-01T00:00:00Z' }, seven_day: { utilization: 7, resets_at: '2030-01-05T00:00:00Z' }, model_scoped: [{ display_name: 'Fable', utilization: 1, resets_at: '2030-01-05T00:00:00Z' }] } });
+        ok({ subscription_type: 'max', rate_limits_available: true, rate_limits: { five_hour: { utilization: 42, resets_at: new Date(Date.now() + 2.2 * 3600e3).toISOString() }, seven_day: { utilization: 7, resets_at: new Date(Date.now() + 3.4 * 86400e3).toISOString() }, model_scoped: [{ display_name: 'Fable', utilization: 1, resets_at: new Date(Date.now() + 3.4 * 86400e3).toISOString() }] } });
         return;
       case 'rename_session':
         if (process.env.FAKE_RENAME_LOG) appendFileSync(process.env.FAKE_RENAME_LOG, JSON.stringify({ title: m.request.title, source: m.request.source, session_id: m.request.session_id }) + '\n');
