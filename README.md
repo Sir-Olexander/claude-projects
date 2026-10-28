@@ -2,7 +2,7 @@
 
 Work on all your projects with Claude Code from one VS Code window: no more one window per project and alt-tabbing to find the session that is waiting for you.
 
-![A tour: a chat waiting for permission, a finished chat with a diff, plan review, a question, an MCP form and the sessions dashboard](docs/images/tour.gif)
+![A tour: a chat waiting for permission, forking from a reply, the shared .env, prompt presets, continuing after a usage limit, and the sessions dashboard](docs/images/tour.gif)
 
 ## What you get
 
@@ -20,24 +20,40 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 ![Files view with the New File box](docs/images/files-new-file.png)
 
 **Sessions**
-- **Open Here** (default): the session runs through the `claude` CLI on your machine (your Max plan login) and shows in a chat tab that looks and works like the official Claude Code extension: streaming answers, thinking, tool calls with diffs, permission prompts (1/2/3 keys, "don't ask again"), questions, plan review, todos, the mode picker (Manual / Edit automatically / Plan / Auto), model and effort pickers (change them mid-session), `/` commands, `@` file mentions, pasted images, Esc to interrupt, and messages queued while Claude works.
 
-  ![A finished chat with an inline diff, todos and the model and effort pickers](docs/images/chat-diff.png)
+Click a session to open it in a chat tab here (**Open Here**). It runs through the `claude` CLI on your machine with your own login and works like the official Claude Code extension. On top of that, it adds:
 
-  | Plan review | Questions |
+- **Fork from any reply**: hover one of Claude's replies and click the fork icon. You get a new chat with the conversation up to that point, and the original stays as it was. Forks show up in Projects right away and keep their own name.
+
+  | The fork, copy and bookmark buttons on a reply | The fork, cut at that reply |
   |---|---|
-  | ![Plan review card](docs/images/plan-review.png) | ![Question card](docs/images/question.png) |
+  | ![Fork, copy and bookmark buttons on a reply](docs/images/fork-button.png) | ![A forked chat](docs/images/forked.png) |
 
-  - **MCP input**: when an MCP server asks for something mid-session (a form or a sign-in link), a card shows the form or the link and sends your answer back to the server.
+- **Shared .env**: keep API keys in one `.env` file (`claudeProjects.chat.globalEnvFile`, edit it with *Open Shared .env for Chats*). The key button in the chat header chooses which variables each chat gets. Claude can use them in commands (`$STRIPE_SECRET_KEY`), but it only knows their names, so the values never show in the chat.
 
-    ![An MCP server asking for deploy settings](docs/images/mcp-input.png)
+  ![The shared .env menu with a variable turned on per chat](docs/images/shared-env.png)
 
-  - **Bookmarks**: hover a message (yours, Claude's, or a tool call) and click the bookmark icon. The bookmark button in the chat header lists them and jumps back; *Go to Bookmarked Message…* (Projects view `…` menu or the command palette) searches bookmarks across all sessions.
+- **Continue when limits reset**: when a chat stops at your plan's usage limit, turn on *Continue automatically when limits reset*. About a minute after the reset, the chat sends `continue` for you. To have it on for every new chat, set `claudeProjects.chat.autoContinueAfterLimit`.
 
-    ![Bookmarked messages in a chat](docs/images/bookmarks.png)
+  ![A chat stopped by the session limit, set to continue automatically](docs/images/usage-limit.png)
 
-- **Open in Claude Extension**: opens the session's folder in its own window and resumes the session in the official Claude Code extension there. Also in the chat tab's title bar.
-- Change the default with `claudeProjects.sessions.defaultOpenMode`.
+- **Prompt presets**: a button in the message box inserts prompts you use often, like "create a worktree, commit as you go, don't push", in front of what you type. Set your own in `claudeProjects.chat.promptPresets`.
+
+  ![The prompt presets menu](docs/images/prompt-presets.png)
+
+- **Bookmarks**: bookmark any message (yours, Claude's, or a tool call). The bookmark button in the chat header lists them and jumps back. *Go to Bookmarked Message…* searches bookmarks across all sessions.
+
+  ![Bookmarked messages in a chat](docs/images/bookmarks.png)
+
+- **Remote Control**: a header button lets you continue the chat from claude.ai or the Claude app.
+- **Finding your way in long chats**: dots along the chat's right edge jump to each of your messages. A badge shows how many agents are running, and each reply lists the skills and agents it used.
+- **Copying**: a copy button on each reply (as Markdown), plus Cmd+C, Cmd+X and right-click for any part of the chat.
+- **MCP input**: when an MCP server asks for something mid-session (a form or a sign-in link), a card shows it and sends your answer to the server, not to Claude.
+
+  ![An MCP server asking for deploy settings](docs/images/mcp-input.png)
+
+- **Names that stick**: renamed and forked chats keep their names, in the tab and after a restart.
+- **Open in Claude Extension**: opens the session in its own window, in the official Claude Code extension. This button is also in the chat tab's title bar. To make it what clicking a session does, set `claudeProjects.sessions.defaultOpenMode`.
 
 **Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard.
 
@@ -46,12 +62,6 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 **Attention**: a badge on the activity bar icon, a "waiting" item in the status bar (click it to jump to the next session that needs you), a dot in the chat tab title, and a macOS notification when a session needs you while VS Code is in the background. If [terminal-notifier](https://github.com/julienXX/terminal-notifier) is installed (`brew install terminal-notifier`), clicking the notification opens the session.
 
 **Usage bar**: your plan's 5-hour and weekly usage with reset times in the status bar (hover for details, including per-model weekly limits). The numbers come from Claude Code itself (the same as `/usage`); the extension never reads your credentials.
-
-![A chat stopped by the session limit, set to continue automatically](docs/images/usage-limit.png)
-
-It follows your VS Code theme:
-
-![The chat in a light theme](docs/images/light-theme.png)
 
 ## Install
 
@@ -73,6 +83,9 @@ Then reload VS Code. The extension finds `claude` automatically (`~/.local/bin/c
 | `claudeProjects.chat.defaultPermissionMode` | `default` | Mode for new sessions here. |
 | `claudeProjects.chat.defaultModel` | — | Model for new sessions here (empty = your Claude Code default). |
 | `claudeProjects.chat.defaultEffort` | — | Effort for new sessions here (empty = the model default). |
+| `claudeProjects.chat.promptPresets` | a few | Prompts in the presets menu of the message box. |
+| `claudeProjects.chat.autoContinueAfterLimit` | `false` | Start new chats with *Continue automatically when limits reset* on. |
+| `claudeProjects.chat.globalEnvFile` | `~/.claude-projects/.env` | The shared `.env` file for chats. |
 | `claudeProjects.chat.allowBypassPermissions` | `false` | Offer "Bypass permissions" in the mode picker. |
 | `claudeProjects.chat.showThinking` | `true` | Show Claude's thinking summaries. |
 | `claudeProjects.followActiveSession` | `true` | Switching chat tabs switches Source Control and Files to that session's project. |
