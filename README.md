@@ -22,7 +22,7 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 
 **Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard.
 
-**Attention**: a badge on the activity bar icon, a "waiting" item in the status bar (click it to jump to the next session that needs you), a dot in the chat tab title, and a macOS notification when a session needs you while VS Code is in the background. If [terminal-notifier](https://github.com/julienXX/terminal-notifier) is installed (`brew install terminal-notifier`), clicking the notification opens the session.
+**Attention**: a badge on the activity bar icon, a "waiting" item in the status bar (click it to jump to the next session that needs you), a dot in the chat tab title, and a system notification when a session needs you while VS Code is in the background. On Windows it is a toast, and clicking it opens the session. On macOS, clicking opens the session if [terminal-notifier](https://github.com/julienXX/terminal-notifier) is installed (`brew install terminal-notifier`).
 
 **Usage bar**: your plan's 5-hour and weekly usage with reset times in the status bar (hover for details, including per-model weekly limits). The numbers come from Claude Code itself (the same as `/usage`); the extension never reads your credentials.
 
@@ -35,6 +35,16 @@ code --install-extension dist-vsix/claude-projects.vsix
 ```
 
 Then reload VS Code. The extension finds `claude` automatically (`~/.local/bin/claude`, your shell `PATH`, Homebrew, or the copy bundled with the official extension); set `claudeProjects.claudePath` if it doesn't.
+
+### Windows
+
+Works on macOS and Windows. On Windows the extension finds `claude.exe` from the native installer (`%USERPROFILE%\.local\bin`), npm's `claude.cmd` (`%APPDATA%\npm`), bun, scoop, winget, or the official extension's copy, plus anything on `PATH`. Claude Code itself needs [Git for Windows](https://git-scm.com/download/win) there, and so do this extension's Source Control and Files views.
+
+Windows differences:
+- Notifications are Windows toasts, shown through Windows PowerShell. If a toast can't be shown, you get VS Code's own notification instead.
+- Menus say *Reveal in File Explorer* instead of *Reveal in Finder*.
+- Stopping a session ends Claude's whole process tree (`taskkill /T`), because Windows has no signals.
+- Claude Code's check for leftover entries in its live-session list (pid reused by another program) is skipped, because it relies on `ps`.
 
 ## Settings
 
@@ -49,7 +59,7 @@ Then reload VS Code. The extension finds `claude` automatically (`~/.local/bin/c
 | `claudeProjects.chat.allowBypassPermissions` | `false` | Offer "Bypass permissions" in the mode picker. |
 | `claudeProjects.chat.showThinking` | `true` | Show Claude's thinking summaries. |
 | `claudeProjects.followActiveSession` | `true` | Switching chat tabs switches Source Control and Files to that session's project. |
-| `claudeProjects.notifications.*` | on | macOS notifications (only while VS Code is in the background, sound, turn-complete, sessions outside this window, in-app toasts). |
+| `claudeProjects.notifications.*` | on | System notifications on macOS and Windows (only while VS Code is in the background, sound, turn-complete, sessions outside this window, in-app toasts). |
 | `claudeProjects.dashboard.showAllProjects` | `true` | Also show sessions from folders that are not in your project list. |
 | `claudeProjects.usage.refreshIntervalMinutes` | `5` | How often usage refreshes (running sessions also update it live). |
 
@@ -72,6 +82,8 @@ node test/e2e/run.mjs                    # end-to-end in a throwaway VS Code pro
 node test/e2e/run.mjs --with-official    # … plus the hand-off to the official extension
 CLAUDE_INTEGRATION=1 npx vitest run --config vitest.integration.mts   # a few cheap Haiku turns with the real CLI
 ```
+
+On Windows, `node test/e2e/run.mjs` downloads a copy of VS Code for the test unless `VSCODE_PATH` points at one.
 
 The chat UI can be developed in a browser: serve the repo (`python3 -m http.server 47391`) and open `http://127.0.0.1:47391/test/webview/chat-harness.html?fixture=conversation&theme=dark`.
 
