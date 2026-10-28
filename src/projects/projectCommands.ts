@@ -16,7 +16,7 @@ import type { LiveSessionView } from '../shared/protocol';
 import { SESSION_SOURCE_LABELS } from '../shared/protocol';
 import type { UsageService } from '../usage/UsageService';
 import { errorMessage, type Logger } from '../util/log';
-import { folderName, fsPathOf, isSameOrInside, normalizeDrive, realPath, tildify } from '../util/paths';
+import { folderName, fsPathOf, isInHiddenFolder, isSameOrInside, normalizeDrive, realPath, tildify } from '../util/paths';
 import { shortAgo } from '../util/time';
 import type { ProjectStore } from './ProjectStore';
 import type { MoreNode, ProjectsNode, ProjectsTreeProvider, SessionNode } from './ProjectsTreeProvider';
@@ -151,6 +151,8 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
         .allCwds()
         .filter((c) => existsSync(c.cwd) && statSync(c.cwd).isDirectory())
         .filter((c) => !tmp.some((t) => isSameOrInside(c.cwd, t)))
+        // Apps that run Claude for you (e.g. in `.data/…/work/dsk-…`) and worktrees under `.claude/` aren't projects.
+        .filter((c) => !isInHiddenFolder(c.cwd))
         .filter((c) => !store.findContaining(c.cwd) || store.findContaining(c.cwd)!.path !== c.cwd)
         .sort((a, b) => b.lastModified - a.lastModified);
       if (!rows.length) {
@@ -178,6 +180,34 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
       await store.remove(project.id);
       const undo = await vscode.window.showInformationMessage(`Removed “${project.name}” from Projects. The folder was not touched.`, 'Undo');
       if (undo) await store.add(project.path, project.name);
+    }),
+
+    reg('claudeProjects.removeProjects', async () => {
+      if (!store.projects.length) {
+        void vscode.window.showInformationMessage('There are no projects to remove.');
+        return;
+      }
+      // Projects inside hidden folders (an app's scratch folders, worktrees) start ticked.
+      const items = store.projects.map((p) => ({
+        label: p.name,
+        description: tildify(p.path),
+        detail: !store.exists(p) ? 'Folder no longer exists' : isInHiddenFolder(p.path) ? 'Inside a hidden folder: likely made by a tool, not a project' : undefined,
+        picked: !store.exists(p) || isInHiddenFolder(p.path),
+        id: p.id,
+      }));
+      const picks = await vscode.window.showQuickPick(items, {
+        canPickMany: true,
+        placeHolder: 'Pick the projects to remove from the list. Their folders are not touched.',
+        matchOnDescription: true,
+      });
+      if (!picks?.length) return;
+      const removed = picks.map((p) => store.get(p.id)).filter((p): p is NonNullable<typeof p> => !!p);
+      for (const p of removed) await store.remove(p.id);
+      const undo = await vscode.window.showInformationMessage(
+        `Removed ${removed.length} project${removed.length === 1 ? '' : 's'} from Projects. The folders were not touched.`,
+        'Undo',
+      );
+      if (undo) for (const p of removed) await store.add(p.path, p.name);
     }),
 
     reg('claudeProjects.renameProject', async (node?: ProjectsNode) => {

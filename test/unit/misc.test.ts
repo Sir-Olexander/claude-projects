@@ -8,7 +8,7 @@ import { buildArgs, buildChildEnv } from '../../src/claude/ClaudeProcess';
 import { scorePath } from '../../src/panels/fileSuggestions';
 import { sourceOf } from '../../src/sessions/sources';
 import { countdown, shortAgo } from '../../src/util/time';
-import { normalizeDrive, stripTrailingSep } from '../../src/util/paths';
+import { isInHiddenFolder, normalizeDrive, stripTrailingSep } from '../../src/util/paths';
 
 describe('paths', () => {
   it('encodes cwd like Claude Code', () => {
@@ -32,6 +32,13 @@ describe('paths', () => {
     expect(stripTrailingSep('/')).toBe('/');
     expect(stripTrailingSep('C:\\')).toBe('C:\\');
     expect(stripTrailingSep('/a/b/')).toBe('/a/b');
+  });
+  it('spots folders inside hidden folders (app scratch folders, worktrees)', () => {
+    expect(isInHiddenFolder('/Users/x/Febundi-Ads-Studio/.data/wp4/users/usr-a/work/dsk-1huk')).toBe(true);
+    expect(isInHiddenFolder('/Users/x/app/.claude/worktrees/feature')).toBe(true);
+    expect(isInHiddenFolder('C:\\Users\\x\\.data\\work')).toBe(true);
+    expect(isInHiddenFolder('/Users/x/Documents/my-project')).toBe(false);
+    expect(isInHiddenFolder('/Users/x/Documents/site.com')).toBe(false);
   });
   it('recognizes uuids', () => {
     expect(isUuid('6e2ec9ee-ee1e-4ebf-b68c-edacd2ef5569')).toBe(true);

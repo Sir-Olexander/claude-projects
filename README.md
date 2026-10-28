@@ -11,7 +11,7 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 ![The sessions dashboard with plan usage, sessions that need you, running and recent sessions](docs/images/dashboard.png)
 
 **Projects view** (the folder-with-asterisk icon in the activity bar)
-- Your projects, saved by path only (folders are never moved or copied). Add them with **+** or import every folder you have used Claude Code in (`…` → *Import Projects from Claude History*).
+- Your projects, saved by path only (folders are never moved or copied). Add them with **+** or import every folder you have used Claude Code in (`…` → *Import Projects from Claude History*; folders inside hidden folders, like an app's scratch folders, are left out). Remove several at once with `…` → *Remove Projects…*.
 - Under each project: its git worktrees and its Claude sessions, newest first. Sessions that need you are pinned to the top with an orange bell, running ones spin, finished-but-unread ones get a green check.
 - Clicking a project or worktree switches the **Source Control** and **Files** views to it. Clicking a session opens it.
 

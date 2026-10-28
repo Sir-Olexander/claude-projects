@@ -68,3 +68,12 @@ export function tildify(p: string): string {
 export function folderName(p: string): string {
   return basename(stripTrailingSep(p)) || p;
 }
+
+/**
+ * True when the folder is, or sits inside, a hidden (dot) folder, such as an app's
+ * `.data/…/work/dsk-…` scratch folders or `.claude/worktrees/…`. Those hold Claude
+ * sessions run by tools, not projects the user opens.
+ */
+export function isInHiddenFolder(p: string): boolean {
+  return p.split(/[\\/]+/).some((part) => part.length > 1 && part.startsWith('.') && part !== '..');
+}
