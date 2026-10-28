@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
 
+const SCRIPT_EXT = ['.js', '.mjs', '.cjs'];
+
 /** How to start a program: the command, arguments to put before the caller's, and spawn flags. */
 export interface Launch {
   command: string;
@@ -20,6 +22,8 @@ export interface Launch {
 export function launchFor(cliPath: string, args: string[], platform: NodeJS.Platform = process.platform): Launch {
   if (platform !== 'win32') return { command: cliPath, args };
   const ext = extname(cliPath).toLowerCase();
+  // A script (e.g. the tests' fake CLI): Windows can't run it directly.
+  if (SCRIPT_EXT.includes(ext)) return { command: 'node', args: [cliPath, ...args] };
   if (ext !== '.cmd' && ext !== '.bat') return { command: cliPath, args };
   const target = shimTarget(cliPath);
   if (target) {
@@ -61,7 +65,8 @@ export function quoteForCmd(arg: string, isBatchFile: boolean): string {
 }
 
 function viaCmd(file: string, args: string[]): Launch {
-  const line = [file.replace(CMD_META, '^$1'), ...args.map((a) => quoteForCmd(a, true))].join(' ');
+  // A line break would end the cmd.exe command line.
+  const line = [file.replace(CMD_META, '^$1'), ...args.map((a) => quoteForCmd(a.replace(/\r?\n/g, ' '), true))].join(' ');
   return { command: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', `"${line}"`], windowsVerbatimArguments: true };
 }
 

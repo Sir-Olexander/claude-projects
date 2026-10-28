@@ -9,8 +9,8 @@ const isWindows = process.platform === 'win32';
 function isExecutable(p: string): boolean {
   try {
     if (!statSync(p).isFile()) return false;
-    // Windows has no execute bit; the file extension decides.
-    if (isWindows) return /\.(exe|cmd|bat)$/i.test(p);
+    // Windows has no execute bit; the file extension decides (scripts run with node, see launch.ts).
+    if (isWindows) return /\.(exe|cmd|bat|js|mjs|cjs)$/i.test(p);
     accessSync(p, constants.X_OK);
     return true;
   } catch {

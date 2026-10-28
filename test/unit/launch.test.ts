@@ -39,6 +39,7 @@ describe('launching claude', () => {
   it('runs the CLI directly outside Windows', () => {
     expect(launchFor('/usr/local/bin/claude', ['-p'], 'darwin')).toEqual({ command: '/usr/local/bin/claude', args: ['-p'] });
     expect(launchFor('C:\\x\\claude.exe', ['-p'], 'win32')).toEqual({ command: 'C:\\x\\claude.exe', args: ['-p'] });
+    expect(launchFor('C:\\x\\fake-claude.mjs', ['-p'], 'win32')).toEqual({ command: 'node', args: ['C:\\x\\fake-claude.mjs', '-p'] });
   });
 
   it('finds what an npm shim runs', () => {
