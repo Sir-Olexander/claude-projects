@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { ProjectStore } from '../../projects/ProjectStore';
 import type { Worktree } from '../../shared/types';
 import type { Logger } from '../../util/log';
-import { folderName, isSameOrInside, tildify } from '../../util/paths';
+import { folderName, fsPathOf, isSameOrInside, tildify } from '../../util/paths';
 import { listWorktrees } from '../../git/gitCli';
 import type { BranchInfo } from '../../git/parse';
 import { ensureExcluded, ensureOk, getBranches, getRepoInfo, isIgnored, isValidBranchName, worktreeAdd, worktreeRemove } from '../../git/repo';
@@ -17,10 +17,11 @@ const WORKTREES_DIR = '.claude/worktrees';
 
 function argPath(arg: unknown): string | undefined {
   if (!arg || typeof arg !== 'object') return typeof arg === 'string' ? arg : undefined;
+  if (arg instanceof vscode.Uri) return fsPathOf(arg);
   const a = arg as { path?: unknown; worktree?: { path?: unknown }; resourceUri?: unknown };
   if (a.worktree && typeof a.worktree.path === 'string') return a.worktree.path;
   if (typeof a.path === 'string') return a.path;
-  if (a.resourceUri instanceof vscode.Uri) return a.resourceUri.fsPath;
+  if (a.resourceUri instanceof vscode.Uri) return fsPathOf(a.resourceUri);
   return undefined;
 }
 

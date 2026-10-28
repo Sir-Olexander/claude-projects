@@ -2,17 +2,32 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, normalize, relative, sep } from 'node:path';
 
+/**
+ * One spelling per folder on Windows: an upper-case drive letter. VS Code's
+ * Uri.fsPath gives "c:\…" while the file system, git and Claude Code give "C:\…",
+ * and paths are compared as strings all over the extension.
+ */
+export function normalizeDrive(p: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' && /^[a-z]:/.test(p) ? p[0].toUpperCase() + p.slice(1) : p;
+}
+
+/** A file: Uri's path, spelled the way the rest of the extension spells paths. */
+export function fsPathOf(uri: { fsPath: string }): string {
+  return normalizeDrive(uri.fsPath);
+}
+
 /** Resolves symlinks when the path exists; otherwise returns it normalized. */
 export function realPath(p: string): string {
   try {
-    return realpathSync.native(p);
+    return normalizeDrive(realpathSync.native(p));
   } catch {
-    return normalize(p);
+    return normalizeDrive(normalize(p));
   }
 }
 
-/** Removes a trailing separator (except for the filesystem root). */
+/** Removes a trailing separator (except for the filesystem root, "/" or "C:\\"). */
 export function stripTrailingSep(p: string): string {
+  if (/^[A-Za-z]:[\\/]$/.test(p)) return p;
   if (p.length > 1 && (p.endsWith('/') || p.endsWith(sep))) return p.slice(0, -1);
   return p;
 }
@@ -23,12 +38,14 @@ export function isSameOrInside(child: string, parent: string): boolean {
   const p = stripTrailingSep(parent);
   if (c === p) return true;
   const rel = relative(p, c);
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+  // On Windows relative() ignores case, so "" also means the same folder.
+  if (rel === '') return true;
+  return !rel.startsWith('..') && !isAbsolute(rel);
 }
 
 export function expandHome(p: string): string {
   if (p === '~') return homedir();
-  if (p.startsWith('~/')) return join(homedir(), p.slice(2));
+  if (p.startsWith('~/') || (sep === '\\' && p.startsWith('~\\'))) return join(homedir(), p.slice(2));
   return p;
 }
 

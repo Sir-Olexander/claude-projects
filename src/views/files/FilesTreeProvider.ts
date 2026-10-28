@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import type { ProjectStore } from '../../projects/ProjectStore';
 import type { Logger } from '../../util/log';
 import { errorMessage } from '../../util/log';
-import { isSameOrInside, tildify } from '../../util/paths';
+import { fsPathOf, isSameOrInside, tildify } from '../../util/paths';
 import { filesResourceUri } from '../../git/GitDecorationProvider';
 import type { RepoStateService } from '../../git/RepoStateService';
 import { buildExcludeMatcher, listDirectory, type ExcludeConfig, type ExcludeMatcher } from './fsModel';
@@ -42,7 +42,7 @@ export class FilesTreeProvider implements vscode.TreeDataProvider<FileNode>, vsc
     this.setRoot(store.selection?.path);
     this.disposables.push(
       store.onDidChangeSelection((sel) => this.setRoot(sel?.path)),
-      state.onDidCreateOrDelete((uri) => this.queueRefresh(dirname(uri.fsPath))),
+      state.onDidCreateOrDelete((uri) => this.queueRefresh(dirname(fsPathOf(uri)))),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('files.exclude')) {
           this.rebuildExclude();

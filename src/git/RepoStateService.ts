@@ -4,7 +4,7 @@ import { dirname, join, sep } from 'node:path';
 import type { ProjectStore } from '../projects/ProjectStore';
 import type { ProjectSelection, Worktree } from '../shared/types';
 import type { Logger } from '../util/log';
-import { isSameOrInside } from '../util/paths';
+import { fsPathOf, isSameOrInside } from '../util/paths';
 import { listWorktrees } from './gitCli';
 import type { GitContentProvider } from './GitContentProvider';
 import {
@@ -360,8 +360,9 @@ export class RepoStateService implements vscode.Disposable {
     const treeRoot = repo && isSameOrInside(folder, repo.root) ? repo.root : folder;
     const tree = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(treeRoot), '**'));
     const onTree = (uri: vscode.Uri, createdOrDeleted: boolean) => {
-      if (inGitDir(uri.fsPath)) return;
-      if (createdOrDeleted && isSameOrInside(uri.fsPath, folder)) this._onDidCreateOrDelete.fire(uri);
+      const p = fsPathOf(uri);
+      if (inGitDir(p)) return;
+      if (createdOrDeleted && isSameOrInside(p, folder)) this._onDidCreateOrDelete.fire(uri);
       if (repo) this.schedule('status');
     };
     tree.onDidCreate((u) => onTree(u, true));

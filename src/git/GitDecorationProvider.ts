@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { fsPathOf } from '../util/paths';
 import { colorForChange, type RepoStateService } from './RepoStateService';
 
 /**
@@ -40,7 +41,7 @@ export class GitDecorationProvider implements vscode.FileDecorationProvider, vsc
       return new vscode.FileDecoration(letter || undefined, q.get('t') ?? undefined, color ? new vscode.ThemeColor(color) : undefined);
     }
     if (mark === FILES_MARK) {
-      const d = this.state.decorationFor(uri.fsPath, q.get('d') === '1');
+      const d = this.state.decorationFor(fsPathOf(uri), q.get('d') === '1');
       if (!d) return undefined;
       return new vscode.FileDecoration(d.letter, d.tooltip, d.colorId ? new vscode.ThemeColor(d.colorId) : undefined);
     }

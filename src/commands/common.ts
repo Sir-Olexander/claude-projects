@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { dirname, relative } from 'node:path';
+import { dirname, isAbsolute, relative } from 'node:path';
 import { statSync } from 'node:fs';
 import type { ProjectStore } from '../projects/ProjectStore';
-import { folderName } from '../util/paths';
+import { folderName, fsPathOf, normalizeDrive } from '../util/paths';
 
 /**
  * Pulls a filesystem path out of whatever a command was invoked with:
@@ -12,13 +12,14 @@ import { folderName } from '../util/paths';
 export function resolvePathArg(arg: unknown, store?: ProjectStore): string | undefined {
   if (!arg) return store?.selection?.path;
   if (typeof arg === 'string') return arg;
-  if (arg instanceof vscode.Uri) return arg.fsPath;
+  if (arg instanceof vscode.Uri) return fsPathOf(arg);
   if (typeof arg === 'object') {
-    const a = arg as { path?: unknown; fsPath?: unknown; resourceUri?: unknown; uri?: unknown };
-    if (typeof a.path === 'string' && a.path.startsWith('/')) return a.path;
-    if (typeof a.fsPath === 'string') return a.fsPath;
-    if (a.resourceUri instanceof vscode.Uri) return a.resourceUri.fsPath;
-    if (a.uri instanceof vscode.Uri) return a.uri.fsPath;
+    const a = arg as { path?: unknown; fsPath?: unknown; scheme?: unknown; resourceUri?: unknown; uri?: unknown };
+    // Our tree nodes carry a file system path; a Uri-like object's .path is a URI path ("/c:/…" on Windows).
+    if (typeof a.path === 'string' && typeof a.scheme !== 'string' && isAbsolute(a.path)) return a.path;
+    if (typeof a.fsPath === 'string') return normalizeDrive(a.fsPath);
+    if (a.resourceUri instanceof vscode.Uri) return fsPathOf(a.resourceUri);
+    if (a.uri instanceof vscode.Uri) return fsPathOf(a.uri);
   }
   return store?.selection?.path;
 }

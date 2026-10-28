@@ -1,4 +1,5 @@
 import { open } from 'node:fs/promises';
+import { normalizeDrive } from '../util/paths';
 
 /**
  * Cheap metadata for one transcript, read from its first and last 64 KB only
@@ -114,6 +115,10 @@ export function firstStringField(text: string, key: string): string | undefined 
   return best?.value;
 }
 
+function optionalDrive(p: string | undefined): string | undefined {
+  return p === undefined ? undefined : normalizeDrive(p);
+}
+
 const COMMAND_NAME_RE = /<command-name>(.*?)<\/command-name>/;
 const SKIP_PROMPT_RE = /^(?:\s*<[a-z][\w-]*[\s>]|\[Request interrupted by user[^\]]*\])/;
 const BASH_INPUT_RE = /<bash-input>([\s\S]*?)<\/bash-input>/;
@@ -219,7 +224,7 @@ export function parseSessionInfo(sessionId: string, filePath: string, ht: HeadTa
   return {
     sessionId,
     filePath,
-    cwd: relocatedCwd(ht.tail) ?? firstStringField(ht.head, 'cwd') ?? lastStringField(ht.tail, 'cwd'),
+    cwd: optionalDrive(relocatedCwd(ht.tail) ?? firstStringField(ht.head, 'cwd') ?? lastStringField(ht.tail, 'cwd')),
     title: oneLine(title),
     customTitle: customTitle || undefined,
     aiTitle: aiTitle || undefined,

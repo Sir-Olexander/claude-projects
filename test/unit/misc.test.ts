@@ -8,6 +8,7 @@ import { buildArgs, buildChildEnv } from '../../src/claude/ClaudeProcess';
 import { scorePath } from '../../src/panels/fileSuggestions';
 import { sourceOf } from '../../src/sessions/sources';
 import { countdown, shortAgo } from '../../src/util/time';
+import { normalizeDrive, stripTrailingSep } from '../../src/util/paths';
 
 describe('paths', () => {
   it('encodes cwd like Claude Code', () => {
@@ -17,6 +18,20 @@ describe('paths', () => {
     const enc = encodeProjectDirName(long);
     expect(enc.length).toBeLessThan(220);
     expect(enc.startsWith(long.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 200) + '-')).toBe(true);
+  });
+  it('encodes Windows cwds like Claude Code', () => {
+    expect(encodeProjectDirName('C:\\Users\\x\\my-project')).toBe('C--Users-x-my-project');
+  });
+  it('spells Windows drive letters one way', () => {
+    expect(normalizeDrive('c:\\Users\\x', 'win32')).toBe('C:\\Users\\x');
+    expect(normalizeDrive('C:\\Users\\x', 'win32')).toBe('C:\\Users\\x');
+    expect(normalizeDrive('c:/x', 'darwin')).toBe('c:/x');
+    expect(normalizeDrive('/Users/x', 'win32')).toBe('/Users/x');
+  });
+  it('keeps filesystem roots', () => {
+    expect(stripTrailingSep('/')).toBe('/');
+    expect(stripTrailingSep('C:\\')).toBe('C:\\');
+    expect(stripTrailingSep('/a/b/')).toBe('/a/b');
   });
   it('recognizes uuids', () => {
     expect(isUuid('6e2ec9ee-ee1e-4ebf-b68c-edacd2ef5569')).toBe(true);

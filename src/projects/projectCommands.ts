@@ -16,7 +16,7 @@ import type { LiveSessionView } from '../shared/protocol';
 import { SESSION_SOURCE_LABELS } from '../shared/protocol';
 import type { UsageService } from '../usage/UsageService';
 import { errorMessage, type Logger } from '../util/log';
-import { folderName, isSameOrInside, realPath, tildify } from '../util/paths';
+import { folderName, fsPathOf, isSameOrInside, normalizeDrive, realPath, tildify } from '../util/paths';
 import { shortAgo } from '../util/time';
 import type { ProjectStore } from './ProjectStore';
 import type { MoreNode, ProjectsNode, ProjectsTreeProvider, SessionNode } from './ProjectsTreeProvider';
@@ -57,8 +57,9 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
 
   /** Project/worktree path from a tree node, a {path} object or the current selection. */
   const targetPath = (arg: unknown): string | undefined => {
+    // A Uri also has a .path ("/c:/…" on Windows), so check for it first.
+    if (arg instanceof vscode.Uri) return fsPathOf(arg);
     if (arg && typeof arg === 'object' && typeof (arg as { path?: unknown }).path === 'string') return (arg as { path: string }).path;
-    if (arg instanceof vscode.Uri) return arg.fsPath;
     if (typeof arg === 'string') return arg;
     return undefined;
   };
@@ -138,7 +139,7 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
     reg('claudeProjects.addProject', async () => {
       const uris = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: true, openLabel: 'Add Project' });
       if (!uris?.length) return;
-      const added = await store.addMany(uris.map((u) => u.fsPath));
+      const added = await store.addMany(uris.map((u) => fsPathOf(u)));
       if (added.length) store.select(added[0].id);
       else void vscode.window.showInformationMessage('Those folders are already in your projects.');
     }),
@@ -302,7 +303,7 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
     }),
 
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      if (doc.uri.scheme !== 'file' || doc.uri.fsPath !== globalEnvPath()) return;
+      if (doc.uri.scheme !== 'file' || fsPathOf(doc.uri) !== normalizeDrive(globalEnvPath())) return;
       for (const s of sessions.all) s.refreshSharedEnv();
       const env = readGlobalEnv(doc.uri.fsPath);
       const names = Object.keys(env?.vars ?? {});
