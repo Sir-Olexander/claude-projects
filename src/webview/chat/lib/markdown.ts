@@ -67,7 +67,7 @@ const EXT_LANG: Record<string, string> = {
 /** highlight.js language for a file path, if we know one. */
 export function languageForPath(path: string | undefined): string | undefined {
   if (!path) return undefined;
-  const name = path.split('/').pop()!.toLowerCase();
+  const name = path.split(/[\\/]/).pop()!.toLowerCase();
   if (name === 'dockerfile') return 'dockerfile';
   if (name === 'makefile') return 'makefile';
   const ext = name.includes('.') ? name.split('.').pop()! : '';

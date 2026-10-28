@@ -258,7 +258,8 @@ function LinkedLines({ text, cwd, max = 300 }: { text: string; cwd: string; max?
     <Clipped maxHeight={200} watch={text.length}>
       <pre class="io-pre">
         {shown.map((line, i) => {
-          const m = /^(\S+?)(?::(\d+))?([:-].*)?$/.exec(line);
+          // An optional drive letter first, so C:\x\a.ts:12: is not cut at "C".
+          const m = /^((?:[A-Za-z]:)?\S+?)(?::(\d+))?([:-].*)?$/.exec(line);
           const ref = m ? parsePathRef(m[2] ? `${m[1]}:${m[2]}` : m[1]) : undefined;
           if (ref && m) {
             const rest = line.slice(m[1].length + (m[2] ? m[2].length + 1 : 0));

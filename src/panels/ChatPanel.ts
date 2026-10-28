@@ -244,7 +244,8 @@ export class ChatPanel implements vscode.Disposable {
   }
 
   private async openFile(path: string, line?: number): Promise<void> {
-    const clean = path.replace(/^file:\/\//, '').replace(/#L?(\d+).*$/, '');
+    // file:///C:/x leaves "/C:/x"; drop that slash.
+    const clean = path.replace(/^file:\/\//, '').replace(/^\/([A-Za-z]:)/, '$1').replace(/#L?(\d+).*$/, '');
     const m = /^(.*?):(\d+)(?::\d+)?$/.exec(clean);
     const filePath = m ? m[1] : clean;
     const ln = line ?? (m ? Number(m[2]) : undefined);
