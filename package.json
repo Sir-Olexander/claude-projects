@@ -105,6 +105,12 @@
         "category": "Claude Projects"
       },
       {
+        "command": "claudeProjects.searchProjects",
+        "title": "Search Projects and Sessions",
+        "category": "Claude Projects",
+        "icon": "$(search)"
+      },
+      {
         "command": "claudeProjects.refresh",
         "title": "Refresh",
         "category": "Claude Projects",
@@ -564,6 +570,11 @@
         }
       ],
       "view/title": [
+        {
+          "command": "claudeProjects.searchProjects",
+          "when": "view == claudeProjects.projects",
+          "group": "navigation@0"
+        },
         {
           "command": "claudeProjects.addProject",
           "when": "view == claudeProjects.projects",

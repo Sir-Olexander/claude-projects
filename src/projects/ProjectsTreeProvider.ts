@@ -153,6 +153,17 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     return [];
   }
 
+  /** Every project and every session under it, for the search picker. */
+  searchNodes(): Array<ProjectNode | SessionNode> {
+    const out: Array<ProjectNode | SessionNode> = [];
+    for (const project of this.store.projects) {
+      out.push({ kind: 'project', project, projectId: project.id, path: project.path });
+      if (!existsSync(project.path)) continue;
+      for (const n of this.sessionNodes(project, project.path, [], true)) if (n.kind === 'session') out.push(n);
+    }
+    return out;
+  }
+
   getParent(node: ProjectsNode): ProjectsNode | undefined {
     if (node.kind === 'project') return undefined;
     const project = this.store.get(node.projectId);
@@ -196,7 +207,7 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
   }
 
   /** Sessions run in `root` or below it (minus folders listed separately), live/attention first, then newest. */
-  private sessionNodes(project: Project, root: string, excluded: string[]): ProjectsNode[] {
+  private sessionNodes(project: Project, root: string, excluded: string[], unlimited = false): ProjectsNode[] {
     const rows = new Map<string, SessionNode>();
     const add = (sessionId: string, cwd: string, title: string, info?: SessionInfo, managed?: ManagedSession) => {
       const prev = rows.get(sessionId);
@@ -227,7 +238,7 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
       const rb = lb ? RANK[lb.attention] : 9;
       return ra - rb || lastActive(b) - lastActive(a);
     });
-    const limit = this.limits.get(root) ?? this.maxPerGroup();
+    const limit = unlimited ? Infinity : (this.limits.get(root) ?? this.maxPerGroup());
     // Always show live sessions even beyond the limit.
     const shown = list.filter((n, i) => i < limit || !!live(n));
     const out: ProjectsNode[] = [...shown];
