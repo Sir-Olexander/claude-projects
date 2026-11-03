@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 
 /** Claude Code's config directory (~/.claude, or $CLAUDE_CONFIG_DIR). */
 export function claudeHome(env: NodeJS.ProcessEnv = process.env): string {
@@ -43,6 +44,29 @@ export function transcriptDirFor(cwd: string, env?: NodeJS.ProcessEnv): string {
 
 export function transcriptPathFor(cwd: string, sessionId: string, env?: NodeJS.ProcessEnv): string {
   return join(transcriptDirFor(cwd, env), `${sessionId}.jsonl`);
+}
+
+/** `cwd` and its parent folders, nearest first. */
+function selfAndAncestors(cwd: string): string[] {
+  const out = [cwd];
+  for (let d = dirname(cwd); d !== out[out.length - 1]; d = dirname(d)) out.push(d);
+  return out;
+}
+
+/**
+ * A transcript stays in the folder of the directory the session started in, even
+ * after Claude `cd`s into a subfolder (later entries then carry the subfolder as
+ * their cwd). Returns `cwd`, or the parent folder whose encoded name is the
+ * transcript's folder name, or undefined when neither matches.
+ */
+export function cwdForTranscriptDir(cwd: string, transcriptFile: string): string | undefined {
+  const dirName = basename(dirname(transcriptFile));
+  return selfAndAncestors(cwd).find((d) => encodeProjectDirName(d) === dirName);
+}
+
+/** `cwd`, or the nearest parent folder whose transcripts folder has this session; undefined when none does. */
+export function findTranscriptCwd(cwd: string, sessionId: string, env?: NodeJS.ProcessEnv): string | undefined {
+  return selfAndAncestors(cwd).find((d) => existsSync(transcriptPathFor(d, sessionId, env)));
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

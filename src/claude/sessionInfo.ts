@@ -1,5 +1,6 @@
 import { open } from 'node:fs/promises';
 import { normalizeDrive } from '../util/paths';
+import { cwdForTranscriptDir } from './paths';
 
 /**
  * Cheap metadata for one transcript, read from its first and last 64 KB only
@@ -203,6 +204,18 @@ function relocatedCwd(tail: string): string | undefined {
   return undefined;
 }
 
+/**
+ * The folder the session started in. The head can hold no cwd at all (a first
+ * message with a big pasted image fills it), and the tail's cwd is wherever
+ * Claude `cd`'d to last, so a tail cwd is checked against the transcript's folder.
+ */
+function startCwd(filePath: string, ht: HeadTail): string | undefined {
+  const head = firstStringField(ht.head, 'cwd');
+  if (head) return head;
+  const tail = lastStringField(ht.tail, 'cwd');
+  return tail ? cwdForTranscriptDir(tail, filePath) ?? tail : undefined;
+}
+
 /** Builds SessionInfo from head/tail text, or undefined when the file is not a listable session. */
 export function parseSessionInfo(sessionId: string, filePath: string, ht: HeadTail): SessionInfo | undefined {
   const firstLineEnd = ht.head.indexOf('\n');
@@ -224,7 +237,7 @@ export function parseSessionInfo(sessionId: string, filePath: string, ht: HeadTa
   return {
     sessionId,
     filePath,
-    cwd: optionalDrive(relocatedCwd(ht.tail) ?? firstStringField(ht.head, 'cwd') ?? lastStringField(ht.tail, 'cwd')),
+    cwd: optionalDrive(relocatedCwd(ht.tail) ?? startCwd(filePath, ht)),
     title: oneLine(title),
     customTitle: customTitle || undefined,
     aiTitle: aiTitle || undefined,
