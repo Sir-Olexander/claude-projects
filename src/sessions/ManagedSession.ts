@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 import { appendFile, readFile } from 'node:fs/promises';
 import { ClaudeProcess, type ControlRequestEvent, type ExitEvent } from '../claude/ClaudeProcess';
-import { transcriptPathFor } from '../claude/paths';
+import { findTranscriptCwd, transcriptPathFor } from '../claude/paths';
 import type {
   CanUseToolRequest,
   ContentBlock,
@@ -248,7 +248,9 @@ export class ManagedSession {
     init: ManagedSessionInit,
     private readonly services: SessionServices,
   ) {
-    this.cwd = init.cwd;
+    // An existing session's transcript may sit under a parent folder (Claude `cd`'d
+    // into a subfolder, or an old saved tab has the subfolder): run Claude where it started.
+    this.cwd = (init.sessionId && findTranscriptCwd(init.cwd, init.sessionId)) || init.cwd;
     this.projectName = init.projectName;
     this.branch = init.branch === 'HEAD' ? undefined : init.branch;
     this.isWorktree = !!init.isWorktree;
@@ -263,7 +265,7 @@ export class ManagedSession {
     if (init.sessionId) {
       this.sessionId = init.sessionId;
       this.key = init.sessionId;
-      this.hasTranscript = existsSync(transcriptPathFor(init.cwd, init.sessionId));
+      this.hasTranscript = existsSync(transcriptPathFor(this.cwd, init.sessionId));
       this.status = 'idle';
       this.title = init.title || 'Session';
     } else if (init.forkFrom) {

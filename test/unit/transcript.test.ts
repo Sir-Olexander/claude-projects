@@ -140,6 +140,17 @@ describe('session info', () => {
     expect(withCustom).toMatchObject({ title: 'Mine', cwd: '/repo', gitBranch: 'main', createdAt: Date.parse('2026-10-01T10:00:00.000Z') });
   });
 
+  it('takes the start folder from the transcript folder when the head has no cwd and Claude cd-ed into a subfolder', () => {
+    // A first message with a big pasted image: the head is one partial line with no cwd.
+    const head = '{"type":"user","parentUuid":null,"message":{"content":[{"type":"image","source":{"data":"AAAA';
+    const tail = ['{"type":"last-prompt","lastPrompt":"make it an svg"}', JSON.stringify({ type: 'user', parentUuid: 'x', cwd: '/work/hack/mermaid-svg', message: { content: 'hi' } })].join('\n');
+    const file = '/home/.claude/projects/-work-hack/abc.jsonl';
+    expect(parseSessionInfo('abc', file, { head, tail, size: 10_000_000, mtimeMs: 1 })?.cwd).toBe('/work/hack');
+    // The tail's cwd is kept when it is the transcript's own folder, or when nothing matches.
+    expect(parseSessionInfo('abc', '/p/-work-hack-mermaid-svg/abc.jsonl', { head, tail, size: 10_000_000, mtimeMs: 1 })?.cwd).toBe('/work/hack/mermaid-svg');
+    expect(parseSessionInfo('abc', '/p/-elsewhere/abc.jsonl', { head, tail, size: 10_000_000, mtimeMs: 1 })?.cwd).toBe('/work/hack/mermaid-svg');
+  });
+
   it('ignores sidechain and empty transcripts', () => {
     const side = JSON.stringify({ type: 'user', isSidechain: true, parentUuid: null, message: { content: 'x' } });
     expect(parseSessionInfo('s', '/f', { head: side, tail: side, size: 10, mtimeMs: 1 })).toBeUndefined();

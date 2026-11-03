@@ -12,7 +12,7 @@ import type { Logger } from '../util/log';
 import { folderName } from '../util/paths';
 import { CHAT_VIEW_TYPE, ChatPanel, ICON_ONLY_TABS_SETTING } from './ChatPanel';
 import { PROPOSED_SCHEME, ProposedContentProvider } from './diffs';
-import { mapChatTabs, type UnloadedTab } from './unloadedTabs';
+import { mapChatTabs, readTabTag, tabTag, type UnloadedTab } from './unloadedTabs';
 
 /**
  * Folder of cached chat images as a plain file: URI. globalStorageUri can use
@@ -109,7 +109,7 @@ export class ChatPanelManager implements vscode.Disposable {
       tabs: g.tabs.map((t) => ({ label: t.label, viewType: t.input instanceof vscode.TabInputWebview ? t.input.viewType : undefined })),
     }));
     const panels = [...this.panels.values()];
-    const map = mapChatTabs(groups, panels.map((p) => ({ viewColumn: p.panel.viewColumn, title: p.panel.title })), CHAT_VIEW_TYPE);
+    const map = mapChatTabs(groups, panels.map((p) => ({ tag: p.tag })), CHAT_VIEW_TYPE);
     return { unloaded: map.unloaded, numbers: new Map(panels.map((p, i) => [p, map.panelNumbers[i]])) };
   }
 
@@ -126,6 +126,23 @@ export class ChatPanelManager implements vscode.Disposable {
   /** Tabs are numbered in icon-only mode, where the number is all a tab shows. */
   get numberingOn(): boolean {
     return vscode.workspace.getConfiguration('claudeProjects').get<boolean>(ICON_ONLY_TABS_SETTING, false);
+  }
+
+  /**
+   * A tag no open tab or panel uses. A restored panel keeps the tag its tab already
+   * shows, so it is matched to its tab right away.
+   */
+  private newTag(keep?: string): string {
+    const used = new Set([...this.panels.values()].map((p) => p.tag));
+    if (keep && !used.has(keep)) return keep;
+    for (const g of vscode.window.tabGroups.all) for (const t of g.tabs) {
+      const tag = readTabTag(t.label);
+      if (tag) used.add(tag);
+    }
+    for (;;) {
+      const tag = tabTag(Math.floor(Math.random() * 0x1000000));
+      if (!used.has(tag)) return tag;
+    }
   }
 
   /** Gives each chat tab its number (its title in icon-only mode). */
@@ -212,9 +229,11 @@ export class ChatPanelManager implements vscode.Disposable {
       existing.reveal(opts.preserveFocus);
       return existing;
     }
+    // Tagged from the start, so the new tab is matched to this panel as soon as VS Code reports it.
+    const tag = this.newTag();
     const panel = vscode.window.createWebviewPanel(
       CHAT_VIEW_TYPE,
-      session.title,
+      session.title + tag,
       { viewColumn: opts.viewColumn ?? vscode.ViewColumn.Active, preserveFocus: opts.preserveFocus },
       {
         enableScripts: true,
@@ -224,11 +243,11 @@ export class ChatPanelManager implements vscode.Disposable {
         localResourceRoots: [vscode.Uri.joinPath(this.deps.context.extensionUri, 'dist', 'webview'), imageCacheUri(this.deps.context)],
       },
     );
-    return this.attach(panel, session);
+    return this.attach(panel, session, tag);
   }
 
-  private attach(panel: vscode.WebviewPanel, session: ManagedSession): ChatPanel {
-    const cp = new ChatPanel(panel, session, this.host);
+  private attach(panel: vscode.WebviewPanel, session: ManagedSession, tag: string): ChatPanel {
+    const cp = new ChatPanel(panel, session, this.host, tag);
     this.panels.set(session.key, cp);
     this.attachCount++;
     this._onDidChangeTabs.fire();
@@ -262,7 +281,7 @@ export class ChatPanelManager implements vscode.Disposable {
       panel.dispose();
       return;
     }
-    this.attach(panel, session);
+    this.attach(panel, session, this.newTag(readTabTag(panel.title)));
   }
 
   /** Starts a new session in `cwd` and shows it. */

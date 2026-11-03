@@ -19,7 +19,7 @@ import { Notifier } from './notify/Notifier';
 import { WindowPresence } from './notify/WindowPresence';
 import { childPath } from './claude/cliLocator';
 import type { Logger } from './util/log';
-import { folderName } from './util/paths';
+import { folderName, tildify } from './util/paths';
 
 let sessionsRef: SessionManager | undefined;
 
@@ -134,6 +134,27 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
       }
       store.select(node.projectId, node.path);
       await treeView.reveal(node, { select: true, focus: true, expand: true });
+    }),
+  );
+
+  // Search projects and sessions from the Projects view title bar.
+  context.subscriptions.push(
+    vscode.commands.registerCommand('claudeProjects.searchProjects', async () => {
+      type Item = vscode.QuickPickItem & { node: ReturnType<typeof tree.searchNodes>[number] };
+      const items: Item[] = tree.searchNodes().map((node) =>
+        node.kind === 'project'
+          ? { label: `$(folder) ${node.project.name}`, description: tildify(node.project.path), node }
+          : { label: `$(comment-discussion) ${node.title || 'Untitled session'}`, description: store.get(node.projectId)?.name, node },
+      );
+      const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Search projects and sessions', matchOnDescription: true });
+      if (!pick) return;
+      const { node } = pick;
+      if (node.kind === 'project') {
+        store.select(node.projectId, node.path);
+        await treeView.reveal(node, { select: true, focus: true, expand: true });
+      } else {
+        await vscode.commands.executeCommand('claudeProjects.openSession', node);
+      }
     }),
   );
 

@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ClaudeProjectsApi } from '../../src/extension';
 import type { ProjectsNode, SessionNode } from '../../src/projects/ProjectsTreeProvider';
+import { readTabTag, stripTabTag } from '../../src/panels/unloadedTabs';
 
 const log = (...a: unknown[]) => console.log('[e2e]', ...a);
 
@@ -125,7 +126,8 @@ export async function run(): Promise<void> {
         return t && !t.label.includes(s.title) ? t : undefined;
       });
       log('icon-only tab label:', JSON.stringify(tab.label));
-      assert.ok(/^\d+( [●•⚠])?$/.test(tab.label), `label is only the tab number and a marker: ${JSON.stringify(tab.label)}`);
+      assert.ok(readTabTag(tab.label), `VS Code keeps the invisible tag that matches the tab to its panel: ${JSON.stringify(tab.label)}`);
+      assert.ok(/^\d+( [●•⚠])?$/.test(stripTabTag(tab.label)), `label is only the tab number and a marker: ${JSON.stringify(tab.label)}`);
       assert.ok(s.title, 'the session keeps its name');
     } finally {
       await config.update('chat.iconOnlyTabs', undefined, vscode.ConfigurationTarget.Global);
@@ -204,7 +206,7 @@ export async function run(): Promise<void> {
   });
 
   await check('icon-only tabs are numbered 0, 1, 2… left to right; the dashboard shows the same numbers', async () => {
-    const chatLabels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '')).map((t) => t.label);
+    const chatLabels = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '')).map((t) => stripTabTag(t.label));
     const config = vscode.workspace.getConfiguration('claudeProjects');
     await config.update('chat.iconOnlyTabs', true, vscode.ConfigurationTarget.Global);
     try {
@@ -216,6 +218,22 @@ export async function run(): Promise<void> {
       const s = api.sessions.all[api.sessions.all.length - 1];
       const v = await waitFor('number on the dashboard card', () => api.attention.sessions.find((x) => x.key === s.key && x.tabNumber !== undefined));
       assert.ok(labels[v.tabNumber!].startsWith(String(v.tabNumber)));
+
+      // Moving a tab renumbers every tab; it must settle on 0, 1, 2… with no duplicates
+      // (matching tabs by their shown number used to loop here).
+      const chatTabs = () => vscode.window.tabGroups.activeTabGroup.tabs.filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? ''));
+      const last = chatTabs().at(-1)!;
+      await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', vscode.window.tabGroups.activeTabGroup.tabs.indexOf(last));
+      await vscode.commands.executeCommand('workbench.action.moveEditorLeftInGroup');
+      const ordered = () => {
+        const l = chatLabels();
+        return l.length >= 2 && l.every((x, i) => new RegExp(`^${i}( [●•⚠])?$`).test(x)) ? l.join('|') : undefined;
+      };
+      const settled = await waitFor(`renumbered after a move (have: ${JSON.stringify(chatLabels())})`, ordered, 10_000);
+      await new Promise((r) => setTimeout(r, 1500));
+      assert.equal(ordered(), settled, 'numbers stay put once settled');
+      assert.deepEqual(api.panels.unloadedTabs(), [], 'every moved tab is still matched to its panel');
+      log('after moving a tab:', settled);
     } finally {
       await config.update('chat.iconOnlyTabs', undefined, vscode.ConfigurationTarget.Global);
     }

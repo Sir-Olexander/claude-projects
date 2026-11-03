@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { encodeProjectDirName, isUuid } from '../../src/claude/paths';
+import { encodeProjectDirName, findTranscriptCwd, isUuid, transcriptPathFor } from '../../src/claude/paths';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { parseLiveEntry } from '../../src/claude/LiveRegistry';
 import { permissionOptions } from '../../src/sessions/permissionText';
 import { describeToolActivity, prettyModelName } from '../../src/sessions/toolText';
@@ -39,6 +42,20 @@ describe('paths', () => {
     expect(isInHiddenFolder('C:\\Users\\x\\.data\\work')).toBe(true);
     expect(isInHiddenFolder('/Users/x/Documents/my-project')).toBe(false);
     expect(isInHiddenFolder('/Users/x/Documents/site.com')).toBe(false);
+  });
+  it("finds a session's transcript under a parent folder when Claude cd-ed into a subfolder", () => {
+    const home = mkdtempSync(join(tmpdir(), 'cp-paths-'));
+    try {
+      const env = { CLAUDE_CONFIG_DIR: home };
+      const file = transcriptPathFor('/work/hack', 'abc', env);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, '{}\n');
+      expect(findTranscriptCwd('/work/hack/mermaid-svg', 'abc', env)).toBe('/work/hack');
+      expect(findTranscriptCwd('/work/hack', 'abc', env)).toBe('/work/hack');
+      expect(findTranscriptCwd('/work/other', 'abc', env)).toBeUndefined();
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
   });
   it('recognizes uuids', () => {
     expect(isUuid('6e2ec9ee-ee1e-4ebf-b68c-edacd2ef5569')).toBe(true);

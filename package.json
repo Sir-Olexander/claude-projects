@@ -2,7 +2,7 @@
   "name": "claude-projects",
   "displayName": "Claude Projects",
   "description": "Work on all your projects with Claude Code from one window: projects, worktrees, sessions, per-project source control and files, an attention dashboard and a usage bar.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "Sir-Olexander",
   "private": true,
   "license": "MIT",
@@ -103,6 +103,12 @@
         "command": "claudeProjects.renameProject",
         "title": "Rename Project…",
         "category": "Claude Projects"
+      },
+      {
+        "command": "claudeProjects.searchProjects",
+        "title": "Search Projects and Sessions",
+        "category": "Claude Projects",
+        "icon": "$(search)"
       },
       {
         "command": "claudeProjects.refresh",
@@ -564,6 +570,11 @@
         }
       ],
       "view/title": [
+        {
+          "command": "claudeProjects.searchProjects",
+          "when": "view == claudeProjects.projects",
+          "group": "navigation@0"
+        },
         {
           "command": "claudeProjects.addProject",
           "when": "view == claudeProjects.projects",
