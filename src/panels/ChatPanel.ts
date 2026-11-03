@@ -46,6 +46,8 @@ export class ChatPanel implements vscode.Disposable {
     readonly panel: vscode.WebviewPanel,
     readonly session: ManagedSession,
     private readonly host: ChatPanelHost,
+    /** Invisible, fixed end of this panel's tab title; how its tab is found (see unloadedTabs). */
+    readonly tag: string,
   ) {
     panel.webview.options = {
       enableScripts: true,
@@ -88,9 +90,10 @@ export class ChatPanel implements vscode.Disposable {
     const s = this.session;
     const marker = s.status === 'waiting' || s.pendingRequests.length ? '●' : s.status === 'error' ? '⚠' : s.unread ? '•' : '';
     // Icon-only tabs show the tab's number and status marker; the name still shows everywhere else.
-    const title = iconOnlyTabs()
+    const shown = iconOnlyTabs()
       ? [this.tabNumber === undefined ? '' : String(this.tabNumber), marker].filter(Boolean).join(' ')
       : `${marker ? marker + ' ' : ''}${clip(s.title, 42)}`;
+    const title = shown + this.tag;
     if (this.panel.title !== title) this.panel.title = title;
   }
 
