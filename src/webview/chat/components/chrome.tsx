@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { BookmarkView, ChatState, LimitStopView, SharedEnvView, TodoItem } from '../../../shared/protocol';
 import { clockTime, countdown } from '../../../util/time';
-import { store } from '../store';
 import { formatElapsed } from '../lib/format';
 import { SPINNER_WORDS } from '../lib/tools';
-import { useExpanded } from '../ui';
-import { send } from './actions';
 import { TodoList } from './ToolCall';
 import { Icon, IconButton } from './ui';
+import { useChat, useExpanded } from '../instance';
 
 export function Header({ state }: { state: ChatState }) {
+  const { send } = useChat();
   return (
     <header class="header">
       <div class="header-main">
@@ -45,6 +44,7 @@ export function Header({ state }: { state: ChatState }) {
 
 /** The session's name in the header: click it to rename in place (Enter saves, Esc cancels). */
 function SessionName({ title }: { title: string }) {
+  const { send } = useChat();
   const [editing, setEditing] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   // Set once Enter/Esc/blur ended the edit, so a blur that follows doesn't save again.
@@ -93,6 +93,7 @@ function SessionName({ title }: { title: string }) {
 
 /** "2 agents running", with the list on hover; click jumps to the first one. */
 function AgentsChip({ agents }: { agents: NonNullable<ChatState['agents']> }) {
+  const { store } = useChat();
   const n = agents.length;
   const list = agents.map((a) => `• ${a.type}${a.description ? ` — ${a.description}` : ''}${a.background ? ' (background)' : ''}`).join('\n');
   const first = agents.find((a) => a.itemId);
@@ -117,6 +118,7 @@ function AgentsChip({ agents }: { agents: NonNullable<ChatState['agents']> }) {
  * variable (none by default). Names only; the values never reach the chat.
  */
 function SharedEnvMenu({ env }: { env: SharedEnvView }) {
+  const { store, send } = useChat();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -207,6 +209,7 @@ function SharedEnvMenu({ env }: { env: SharedEnvView }) {
 const BM_ICON: Record<BookmarkView['kind'], string> = { user: 'account', text: 'sparkle', tool: 'tools' };
 
 function BookmarksMenu({ bookmarks }: { bookmarks: BookmarkView[] }) {
+  const { store, send } = useChat();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -260,6 +263,7 @@ function BookmarksMenu({ bookmarks }: { bookmarks: BookmarkView[] }) {
 }
 
 export function Banners({ state }: { state: ChatState }) {
+  const { send } = useChat();
   const remote = state.remote;
   return (
     <>
@@ -365,6 +369,7 @@ export function RunningIndicator({ state }: { state: ChatState }) {
 
 /** Shown above the message box while the chat is stopped at a usage limit. */
 export function LimitNotice({ limit, autoContinue }: { limit: LimitStopView; autoContinue: boolean }) {
+  const { send } = useChat();
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 20_000);

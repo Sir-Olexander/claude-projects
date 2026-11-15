@@ -672,17 +672,16 @@ kbd {
   }
 }
 
-/* Narrow panels (side bar) */
-@media (max-width: 460px) {
-  .messages {
-    padding: 12px 12px 16px;
-  }
-  .bottom {
-    padding: 0 8px 8px;
-  }
-  .header-title {
-    display: none;
-  }
+/* Narrow chats (side bar, or a pane of the sessions hub); set from a ResizeObserver
+   because a container query would make .app the containing block of fixed popups. */
+.app.is-narrow .messages {
+  padding: 12px 12px 16px;
+}
+.app.is-narrow .bottom {
+  padding: 0 8px 8px;
+}
+.app.is-narrow .header-title {
+  display: none;
 }
 
 /* Bookmarks menu (header) ---------------------------------------------------- */

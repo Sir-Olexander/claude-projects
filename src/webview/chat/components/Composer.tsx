@@ -2,13 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { EFFORT_LABELS, PERMISSION_MODE_DESCRIPTIONS, PERMISSION_MODE_LABELS, type ChatState, type EffortLevel, type ImageAttachment, type PermissionMode } from '../../../shared/protocol';
 import { fileToAttachment, isImageFile } from '../lib/images';
 import { displayPath } from '../lib/paths';
-import { store, type FileSuggestions } from '../store';
-import { getDraft, saveDraft } from '../ui';
-import { send } from './actions';
+import type { FileSuggestions } from '../store';
 import { ImageThumbs } from './items';
 import { findTrigger, type Trigger } from '../lib/trigger';
 import { Popup, type PopupItem } from './Popup';
 import { Icon } from './ui';
+import { useChat } from '../instance';
 
 export const MODE_ICONS: Record<PermissionMode, string> = {
   default: 'shield',
@@ -83,6 +82,8 @@ function ContextRing({ percent, used, max }: { percent: number; used?: number; m
 }
 
 export function Composer({ state }: { state: ChatState }) {
+  const { store, send, ui } = useChat();
+  const { getDraft, saveDraft } = ui;
   const [text, setText] = useState(getDraft);
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [menu, setMenu] = useState<MenuKind | null>(null);

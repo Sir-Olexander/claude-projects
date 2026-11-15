@@ -8,12 +8,11 @@ import { attachmentSrc } from '../lib/images';
 import { highlight } from '../lib/markdown';
 import { displayPath, parsePathRef } from '../lib/paths';
 import { defaultExpanded, field, parseMcpName, toolLabel } from '../lib/tools';
-import { useExpanded } from '../ui';
-import { openDiff, openFile, openUrl } from './actions';
 import { ChatContext } from './context';
 import { DiffStats, DiffView } from './DiffView';
 import { Markdown } from './Markdown';
 import { Badge, Clipped, Icon } from './ui';
+import { useChat, useExpanded } from '../instance';
 
 // eslint-disable-next-line no-control-regex
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
@@ -51,6 +50,7 @@ function useNow(active: boolean): number {
 }
 
 export const ToolCall = memo(function ToolCall({ item, kids }: { item: ToolItem; kids?: ChatItem[] }) {
+  const { openFile } = useChat();
   const { cwd } = useContext(ChatContext);
   const label = useMemo(() => toolLabel(item, cwd), [item.name, item.input, item.partialInput, cwd]);
   const diff = useMemo(() => (FILE_TOOLS.has(item.name) && item.status !== 'streaming' ? diffForTool(item) : undefined), [item.name, item.input, item.structured, item.status]);
@@ -220,6 +220,7 @@ function BashBody({ item }: { item: ToolItem }) {
 }
 
 function FileChangeBody({ item, diff }: { item: ToolItem; diff: ReturnType<typeof diffForTool> }) {
+  const { openFile, openDiff } = useChat();
   const failed = item.status === 'error' || item.status === 'denied';
   return (
     <div class="file-change">
@@ -252,6 +253,7 @@ function FileChangeBody({ item, diff }: { item: ToolItem; diff: ReturnType<typeo
 }
 
 function LinkedLines({ text, cwd, max = 300 }: { text: string; cwd: string; max?: number }) {
+  const { openFile } = useChat();
   const lines = text.split('\n');
   const shown = lines.slice(0, max);
   return (
@@ -313,6 +315,7 @@ function SearchBody({ item, cwd }: { item: ToolItem; cwd: string }) {
 }
 
 function WebBody({ item }: { item: ToolItem }) {
+  const { openUrl } = useChat();
   const url = field(item, 'url');
   const prompt = field(item, 'prompt');
   const query = field(item, 'query');
@@ -439,6 +442,7 @@ function QuestionBody({ item }: { item: ToolItem }) {
 }
 
 function PlanBody({ item }: { item: ToolItem }) {
+  const { openFile } = useChat();
   const plan = field(item, 'plan') ?? (item.structured as { plan?: string } | undefined)?.plan ?? '';
   const filePath = field(item, 'planFilePath');
   return (

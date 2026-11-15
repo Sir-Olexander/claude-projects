@@ -158,10 +158,8 @@ export class ChatStore {
   }
 }
 
-export const store = new ChatStore();
-
 /** Re-renders the calling component whenever the store changes. */
-export function useStoreVersion(s: ChatStore = store): number {
+export function useStoreVersion(s: ChatStore): number {
   const [, setTick] = useState(0);
   useEffect(() => s.subscribe(() => setTick((t) => t + 1)), [s]);
   return s.version;

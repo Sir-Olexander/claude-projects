@@ -1,6 +1,6 @@
 import type { RefObject } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'preact/hooks';
-import { store } from '../store';
+import { useChat } from '../instance';
 
 export interface RailPrompt {
   id: string;
@@ -20,6 +20,7 @@ interface Mark {
  * dot for the prompt you're reading is highlighted.
  */
 export function PromptRail({ scroller, prompts, version }: { scroller: RefObject<HTMLDivElement | null>; prompts: RailPrompt[]; version: number }) {
+  const { store } = useChat();
   const [marks, setMarks] = useState<Mark[]>([]);
   const [active, setActive] = useState<string | undefined>();
   const [hover, setHover] = useState<string | undefined>();
