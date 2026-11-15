@@ -362,6 +362,10 @@ export class SessionHub implements vscode.Disposable {
           this.pushState();
           break;
         }
+        case 'reorder-sessions':
+          this.reorderSessions(m.keys);
+          this.pushState();
+          break;
         case 'delete-trashed': {
           const targets = this.open
             .map((k) => this.deps.sessions.get(k))
@@ -493,6 +497,20 @@ export class SessionHub implements vscode.Disposable {
     if (!session) return;
     session.focused = vscode.window.state.focused;
     if (vscode.window.state.focused) session.markSeen();
+  }
+
+  /**
+   * Puts the chats of one project in the given order. Their places in the open
+   * list are kept, so other projects' chats don't move.
+   */
+  private reorderSessions(keys: string[]): void {
+    const wanted = keys.filter((k, i) => this.open.includes(k) && keys.indexOf(k) === i);
+    if (wanted.length < 2) return;
+    const set = new Set(wanted);
+    const slots = this.open.map((k, i) => (set.has(k) ? i : -1)).filter((i) => i >= 0);
+    const next = [...this.open];
+    slots.forEach((slot, i) => (next[slot] = wanted[i]));
+    this.open = next;
   }
 
   private repoOf(cwd: string): { id: string; name: string; path: string } {

@@ -744,6 +744,8 @@ export type HubToExtMessage =
   | { type: 'set-flag'; key: string; flag?: SessionFlagName }
   /** Dragged project tabs into a new order. */
   | { type: 'reorder-repos'; ids: string[] }
+  /** Dragged the chats of one project into a new order. */
+  | { type: 'reorder-sessions'; keys: string[] }
   /** Delete the trashed sessions of a project (asks first). */
   | { type: 'delete-trashed'; repoId: string }
   | { type: 'new-session'; repoId?: string }

@@ -133,11 +133,11 @@ const STATUS_LABEL: Record<AttentionState, string> = {
 
 const needsYou = (s: HubSessionView) => s.attention === 'needs-input' || s.attention === 'error';
 
-/** Order inside a project: Main first, then the chat you last opened or worked in. */
+/** Order inside a project: Main first, then where you put them (new chats go at the end). Switching chats never moves them. */
 function ordered(sessions: HubSessionView[]): HubSessionView[] {
   return sessions
     .map((s, i) => ({ s, i }))
-    .sort((a, b) => Number(b.s.flag === 'main') - Number(a.s.flag === 'main') || (b.s.enteredAt ?? 0) - (a.s.enteredAt ?? 0) || a.i - b.i)
+    .sort((a, b) => Number(b.s.flag === 'main') - Number(a.s.flag === 'main') || a.i - b.i)
     .map((x) => x.s);
 }
 
@@ -152,47 +152,95 @@ function moved(list: string[], id: string, target: string, side: DropSide): stri
   return rest;
 }
 
-/** Drag and drop to reorder the items of one strip row. */
+/**
+ * Drag to reorder the items of one strip row, with pointer events (the
+ * browser's own drag and drop isn't reliable inside VS Code webviews).
+ * A press that moves less than a few pixels stays a click.
+ */
 function useReorder(list: string[], onReorder: (next: string[]) => void, enabled: boolean) {
   const [drag, setDrag] = useState<string>();
   const [over, setOver] = useState<{ id: string; side: DropSide }>();
-  const end = () => {
-    setDrag(undefined);
-    setOver(undefined);
+  const overRef = useRef<{ id: string; side: DropSide } | undefined>(undefined);
+  const press = useRef<{ id: string; x: number; el: HTMLElement; pointerId: number; active: boolean } | undefined>(undefined);
+  const suppressClick = useRef(false);
+  const listRef = useRef(list);
+  listRef.current = list;
+  const onReorderRef = useRef(onReorder);
+  onReorderRef.current = onReorder;
+
+  const setTarget = (t: { id: string; side: DropSide } | undefined) => {
+    overRef.current = t;
+    setOver((o) => (o?.id === t?.id && o?.side === t?.side ? o : t));
   };
+  const reset = () => {
+    press.current = undefined;
+    document.body.classList.remove('is-reordering');
+    setDrag(undefined);
+    setTarget(undefined);
+  };
+
   const props = (id: string) =>
     enabled
       ? {
-          draggable: true,
-          onDragStart: (e: DragEvent) => {
-            setDrag(id);
-            if (e.dataTransfer) {
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/plain', id);
+          'data-dnd-id': id,
+          onPointerDown: (e: PointerEvent) => {
+            if (e.button !== 0 || (e.target as HTMLElement).closest('.tab-close')) return;
+            press.current = { id, x: e.clientX, el: e.currentTarget as HTMLElement, pointerId: e.pointerId, active: false };
+          },
+          onPointerMove: (e: PointerEvent) => {
+            const p = press.current;
+            if (!p || p.pointerId !== e.pointerId) return;
+            if (!p.active) {
+              if (Math.abs(e.clientX - p.x) < 5) return;
+              p.active = true;
+              p.el.setPointerCapture?.(e.pointerId);
+              document.body.classList.add('is-reordering');
+              setDrag(p.id);
+            }
+            const items = [...(p.el.parentElement?.querySelectorAll<HTMLElement>('[data-dnd-id]') ?? [])];
+            let target: { id: string; side: DropSide } | undefined;
+            for (const it of items) {
+              const r = it.getBoundingClientRect();
+              if (e.clientX >= r.left && e.clientX <= r.right) target = { id: it.dataset.dndId!, side: e.clientX < r.left + r.width / 2 ? 'before' : 'after' };
+            }
+            if (!target && items.length) {
+              const first = items[0].getBoundingClientRect();
+              const last = items[items.length - 1];
+              target = e.clientX < first.left ? { id: items[0].dataset.dndId!, side: 'before' } : e.clientX > last.getBoundingClientRect().right ? { id: last.dataset.dndId!, side: 'after' } : undefined;
+            }
+            setTarget(target && target.id !== p.id ? target : undefined);
+            // Scroll the row when dragging near its edges.
+            const scroller = p.el.closest<HTMLElement>('.strip-scroll');
+            if (scroller) {
+              const r = scroller.getBoundingClientRect();
+              if (e.clientX < r.left + 30) scroller.scrollLeft -= 12;
+              else if (e.clientX > r.right - 30) scroller.scrollLeft += 12;
             }
           },
-          onDragOver: (e: DragEvent) => {
-            if (!drag || !list.includes(drag)) return;
-            e.preventDefault();
-            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-            if (drag === id) return setOver(undefined);
-            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-            const side: DropSide = e.clientX < r.left + r.width / 2 ? 'before' : 'after';
-            setOver((o) => (o?.id === id && o.side === side ? o : { id, side }));
-          },
-          onDrop: (e: DragEvent) => {
-            e.preventDefault();
-            if (drag && over && drag !== over.id) {
-              const next = moved(list, drag, over.id, over.side);
-              if (next.join('\n') !== list.join('\n')) onReorder(next);
+          onPointerUp: (e: PointerEvent) => {
+            const p = press.current;
+            if (!p || p.pointerId !== e.pointerId) return;
+            if (p.active) {
+              const t = overRef.current;
+              if (t) {
+                const next = moved(listRef.current, p.id, t.id, t.side);
+                if (next.join('\n') !== listRef.current.join('\n')) onReorderRef.current(next);
+              }
+              // The click that follows a drag isn't a click.
+              suppressClick.current = true;
+              setTimeout(() => (suppressClick.current = false), 0);
             }
-            end();
+            reset();
           },
-          onDragEnd: end,
+          onPointerCancel: reset,
         }
       : {};
   const cls = (id: string) => (drag === id ? ' is-dragging' : over?.id === id ? ` drop-${over.side}` : '');
-  return { props, cls };
+  /** Wraps a click handler so the click ending a drag is ignored. */
+  const click = <E,>(fn: (e: E) => void) => (e: E) => {
+    if (!suppressClick.current) fn(e);
+  };
+  return { props, cls, click };
 }
 
 function matches(s: HubSessionView, repo: HubRepoView | undefined, q: string): boolean {
@@ -403,6 +451,12 @@ function App() {
     !q,
   );
 
+  const chipDnd = useReorder(
+    row2.map((s) => s.key),
+    (keys) => post({ type: 'reorder-sessions', keys }),
+    !q,
+  );
+
   const show = (key: string, pane?: number) => post({ type: 'show', key, pane });
   const setFlag = (key: string, flag: SessionFlagName | undefined) => post({ type: 'set-flag', key, flag });
 
@@ -529,10 +583,10 @@ function App() {
                     class={`rtab${isSel ? ' is-selected' : ''}${dim ? ' is-dim' : ''}${repoDnd.cls(r.id)}`}
                     style={{ '--c': `var(--repo-${r.color})` }}
                     title={`${r.name}\n${here.length} open · ${needs} need you · ${running} running\nDouble-click: open the chat you were last in${i < 9 ? `\nAlt+${i + 1}` : ''}`}
-                    onClick={() => {
+                    onClick={repoDnd.click(() => {
                       setFilter('');
                       setSelectedRepo(r.id);
-                    }}
+                    })}
                     onDblClick={(e) => {
                       if ((e.target as HTMLElement).closest('.tab-close')) return;
                       // Opens the project's chat you last opened or worked in.
@@ -648,10 +702,11 @@ function App() {
                   <button
                     type="button"
                     key={s.key}
-                    class={`chip st-${s.attention}${s.flag ? ` f-${s.flag}` : ''}${paneIdx >= 0 ? ' in-pane' : ''}${paneIdx === focusedPane ? ' in-focus' : ''}`}
+                    class={`chip st-${s.attention}${s.flag ? ` f-${s.flag}` : ''}${paneIdx >= 0 ? ' in-pane' : ''}${paneIdx === focusedPane ? ' in-focus' : ''}${chipDnd.cls(s.key)}`}
                     style={{ '--c': repo ? `var(--repo-${repo.color})` : 'var(--repo-none)' }}
                     title={tip}
-                    onClick={() => show(s.key)}
+                    {...chipDnd.props(s.key)}
+                    onClick={chipDnd.click(() => show(s.key))}
                     onContextMenu={(e) => sessionMenu(e, s)}
                     onAuxClick={(e) => {
                       if (e.button === 1) post({ type: 'close-sessions', keys: [s.key] });

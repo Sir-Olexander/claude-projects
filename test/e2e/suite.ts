@@ -607,25 +607,27 @@ export async function run(): Promise<void> {
     await postToHub({ type: 'set-pane-count', count: 1 });
   });
 
-  await check('hub: chats show the last entered first (Main pinned); projects can be reordered', async () => {
+  await check('hub: chats keep their place when you switch; drag reorders; Main pinned; projects can be reordered', async () => {
     const e1 = await api.panels.newSession(repo);
-    await new Promise((r) => setTimeout(r, 20));
     const e2 = await api.panels.newSession(repo);
-    await new Promise((r) => setTimeout(r, 20));
     const e3 = await api.panels.newSession(process.env.CP_E2E_REPO2!);
-    // Same order as the strip's second row.
-    const mine = () =>
-      api.hub.snapshot.sessions
-        .filter((x) => x.repoId === project.id)
-        .sort((a, b) => Number(b.flag === 'main') - Number(a.flag === 'main') || (b.enteredAt ?? 0) - (a.enteredAt ?? 0))
-        .map((x) => x.key);
-    assert.equal(mine()[0], e2.key, 'the newest chat first');
-    await new Promise((r) => setTimeout(r, 20));
+    // Same order as the strip's second row: Main first, then the open order.
+    const mine = () => {
+      const list = api.hub.snapshot.sessions.filter((x) => x.repoId === project.id);
+      return list
+        .map((x, i) => ({ x, i }))
+        .sort((a, b) => Number(b.x.flag === 'main') - Number(a.x.flag === 'main') || a.i - b.i)
+        .map(({ x }) => x.key);
+    };
+    const before = mine();
+    assert.ok(before.indexOf(e1.key) < before.indexOf(e2.key), 'opened order');
     api.hub.show(e1);
-    assert.deepEqual(mine().slice(0, 2), [e1.key, e2.key], 'entering a chat brings it to the front');
-    await postToHub({ type: 'set-flag', key: e2.key, flag: 'main' });
-    assert.equal(mine()[0], e2.key, 'Main stays first');
-    assert.ok(api.hub.snapshot.persist.sessions.find((x) => x.key === e1.key)?.enteredAt, 'entered time is saved');
+    assert.deepEqual(mine(), before, 'switching chats does not move them');
+    await postToHub({ type: 'reorder-sessions', keys: [e2.key, ...before.filter((k) => k !== e2.key)] });
+    assert.equal(mine()[0], e2.key, 'dragged chat first');
+    await postToHub({ type: 'set-flag', key: e1.key, flag: 'main' });
+    assert.equal(mine()[0], e1.key, 'Main pinned first');
+    api.flags.set(e1.sessionId, undefined);
     const repos = () => api.hub.snapshot.repos.map((r) => r.id);
     const other = repos().find((id) => id !== project.id)!;
     assert.ok(other, 'a second project in the strip');

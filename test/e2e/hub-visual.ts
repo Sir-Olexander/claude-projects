@@ -286,36 +286,48 @@ export async function run(): Promise<void> {
   await sleep(500);
   await screenshot('hub-11-hover-chip');
 
-  // Drag a project tab to the front (chats are ordered by when you last entered them).
+  // Real mouse drags (pressed, moved, released through the DevTools protocol).
   {
-    const drag = (sel: string, from: number, to: number, side: 'before' | 'after', drop: boolean) =>
-      inHub(`(d) => {
-        const items = [...d.querySelectorAll(${JSON.stringify(sel)})];
-        const a = items[${'${from}'}], b = items[${'${to}'}];
-        if (!a || !b) return 'missing ' + items.length;
-        const dt = new DataTransfer();
-        a.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
-        return new Promise((res) => setTimeout(() => {
-          const r = b.getBoundingClientRect();
-          const x = ${'${side}'} === 'before' ? r.left + 3 : r.right - 3;
-          b.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: r.top + 5 }));
-          setTimeout(() => {
-            if (${'${drop}'}) { b.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: r.top + 5 })); a.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt })); }
-            res('ok');
-          }, 120);
-        }, 120));
-      }`.replace('${from}', String(from)).replace('${to}', String(to)).replace("${side}", JSON.stringify(side)).replace('${drop}', String(drop)));
+    const centerOf = async (selector: string, index: number) => {
+      const r = (await inHub(`(d) => { const e = d.querySelectorAll(${JSON.stringify(selector)})[${index}]; if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, right: b.right - 4 }; }`)) as { x: number; y: number; right: number } | null;
+      const frame = (await cdp('Runtime.evaluate', { returnByValue: true, expression: `(() => { const f = [...document.querySelectorAll('iframe.webview')].map((x) => x.getBoundingClientRect()).filter((b) => b.width > 0).sort((a, b) => b.width * b.height - a.width * a.height)[0]; return f ? { x: f.left, y: f.top } : null; })()` })).result?.value as { x: number; y: number } | null;
+      return r && frame ? { x: frame.x + r.x, y: frame.y + r.y, right: frame.x + r.right } : null;
+    };
+    const mouseDrag = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+      await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y });
+      await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
+      for (let i = 1; i <= 8; i++) {
+        await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x + ((to.x - from.x) * i) / 8, y: from.y + ((to.y - from.y) * i) / 8, button: 'left', buttons: 1 });
+        await sleep(40);
+      }
+      await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
+    };
+    await hubPost({ type: 'set-pane-count', count: 1 });
     api.hub.show(main);
-    await sleep(800);
-    log('drag marker:', await drag('.rtab', 0, 2, 'after', false));
-    await sleep(300);
-    await screenshot('hub-12-drag-marker');
-    await inHub(`(d) => { d.querySelector('.rtab')?.dispatchEvent(new DragEvent('dragend', { bubbles: true })); return true; }`);
-    await sleep(300);
+    await sleep(1000);
+    const row2 = () => api.hub.snapshot.sessions.filter((x) => x.repoId === p1.id).map((x) => x.title);
+    const chipsBefore = row2();
+    const panesBefore = JSON.stringify(api.hub.snapshot.panes);
+    const a = await centerOf('.strip .chip', 1);
+    const b = await centerOf('.strip .chip', 3);
+    if (a && b) await mouseDrag(a, { x: b.right, y: b.y });
+    await sleep(900);
+    log('real drag chip 2 after chip 4:', JSON.stringify(chipsBefore), '->', JSON.stringify(row2()), 'panes unchanged:', JSON.stringify(api.hub.snapshot.panes) === panesBefore);
     const reposBefore = api.hub.snapshot.repos.map((r) => r.name);
-    log('drag repo:', await drag('.rtab', reposBefore.length - 1, 0, 'before', true));
-    await sleep(800);
-    log('repos before:', JSON.stringify(reposBefore), 'after:', JSON.stringify(api.hub.snapshot.repos.map((r) => r.name)));
+    const ra = await centerOf('.rtab', reposBefore.length - 1);
+    const rb = await centerOf('.rtab', 0);
+    if (ra && rb) await mouseDrag(ra, { x: rb.x - 20, y: rb.y });
+    await sleep(900);
+    log('real drag last project to front:', JSON.stringify(reposBefore), '->', JSON.stringify(api.hub.snapshot.repos.map((r) => r.name)));
+    // A plain click still opens the chat.
+    const c = await centerOf('.strip .chip', 2);
+    if (c) {
+      await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: c.x, y: c.y, button: 'left', buttons: 1, clickCount: 1 });
+      await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: c.x, y: c.y, button: 'left', buttons: 0, clickCount: 1 });
+    }
+    await sleep(900);
+    const snap = api.hub.snapshot;
+    log('click chip 3 shows:', snap.sessions.find((x) => x.key === snap.panes[snap.focusedPane])?.title, '| row unchanged by click:', JSON.stringify(row2()));
   }
 
   // Double-click a project tab: opens the chat you were last in there.
