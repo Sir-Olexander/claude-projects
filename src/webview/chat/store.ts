@@ -161,6 +161,13 @@ export class ChatStore {
 /** Re-renders the calling component whenever the store changes. */
 export function useStoreVersion(s: ChatStore): number {
   const [, setTick] = useState(0);
-  useEffect(() => s.subscribe(() => setTick((t) => t + 1)), [s]);
+  const rendered = s.version;
+  useEffect(() => {
+    const off = s.subscribe(() => setTick((t) => t + 1));
+    // The state may have arrived between this render and the subscription
+    // (a chat reopened in the hub gets it right away): catch up.
+    if (s.version !== rendered) setTick((t) => t + 1);
+    return off;
+  }, [s]);
   return s.version;
 }

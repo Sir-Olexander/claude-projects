@@ -701,6 +701,8 @@ export interface HubPersisted {
   sessions: HubPersistedSession[];
   panes: (string | null)[];
   focusedPane: number;
+  /** Project ids in the order of their tabs in the strip. */
+  repoOrder?: string[];
 }
 
 export interface HubState {

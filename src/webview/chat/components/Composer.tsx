@@ -86,7 +86,14 @@ export function Composer({ state }: { state: ChatState }) {
   const { store, send, ui } = chat;
   const { getDraft, saveDraft } = ui;
   const [text, setText] = useState(getDraft);
-  const [images, setImages] = useState<ImageAttachment[]>([]);
+  const [images, setImagesState] = useState<ImageAttachment[]>(() => ui.draftImages);
+  // Unsent images live with the chat's UI state, so they survive switching chats in the hub.
+  const setImages = (next: ImageAttachment[] | ((cur: ImageAttachment[]) => ImageAttachment[])) =>
+    setImagesState((cur) => {
+      const v = typeof next === 'function' ? next(cur) : next;
+      ui.draftImages = v;
+      return v;
+    });
   const [menu, setMenu] = useState<MenuKind | null>(null);
   const [trigger, setTrigger] = useState<Trigger | undefined>();
   const [active, setActive] = useState(0);

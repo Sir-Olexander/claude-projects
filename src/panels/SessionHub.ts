@@ -257,6 +257,7 @@ export class SessionHub implements vscode.Disposable {
       this.panel.reveal(undefined, true);
       return;
     }
+    this.repoOrder = [...(saved?.repoOrder ?? [])];
     const keyMap = new Map<string, string>();
     for (const s of saved?.sessions ?? []) {
       try {
@@ -464,9 +465,11 @@ export class SessionHub implements vscode.Disposable {
     return project ? { id: project.id, name: project.name, path: project.path } : { id: `folder:${cwd}`, name: folderName(cwd), path: cwd };
   }
 
-  /** Projects with open sessions, in the order of the project list. */
+  /** Projects in the order their tabs were added to the strip; a new one goes at the end. */
+  private repoOrder: string[] = [];
+
+  /** Projects with open sessions, in the strip's order. */
   private reposFor(): HubRepoView[] {
-    const order = new Map(this.deps.store.projects.map((p, i) => [p.id, i]));
     const seen = new Map<string, HubRepoView>();
     for (const key of this.open) {
       const s = this.deps.sessions.get(key);
@@ -474,7 +477,9 @@ export class SessionHub implements vscode.Disposable {
       const r = this.repoOf(s.cwd);
       if (!seen.has(r.id)) seen.set(r.id, { ...r, color: colorIndex(r.id) });
     }
-    const repos = [...seen.values()].sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9) || a.name.localeCompare(b.name));
+    // Keep known projects where they are, drop the ones without chats, add new ones at the end.
+    this.repoOrder = [...this.repoOrder.filter((id) => seen.has(id)), ...[...seen.keys()].filter((id) => !this.repoOrder.includes(id))];
+    const repos = this.repoOrder.map((id) => seen.get(id)!);
     // Each project keeps its own colour; when two share one, the later takes the next free colour.
     const taken = new Set<number>();
     for (const r of repos) {
@@ -516,7 +521,7 @@ export class SessionHub implements vscode.Disposable {
       panes: [...this.panes],
       focusedPane: this.focusedPane,
       followSeq: this.followSeq,
-      persist: { sessions: persisted, panes: [...this.panes], focusedPane: this.focusedPane },
+      persist: { sessions: persisted, panes: [...this.panes], focusedPane: this.focusedPane, repoOrder: [...this.repoOrder] },
     };
   }
 

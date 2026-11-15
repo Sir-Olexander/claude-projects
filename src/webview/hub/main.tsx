@@ -53,28 +53,39 @@ function saveSoon(): void {
 // are routed to them by session key.
 
 const chats = new Map<string, ChatInstance>();
+/** UI state of every open chat (draft text and images, scroll), kept while it is out of the panes. */
+const uis = new Map<string, ChatUi>();
+
+function uiFor(key: string): ChatUi {
+  let ui = uis.get(key);
+  if (!ui) {
+    ui = new ChatUi(persisted.ui[key], (data) => {
+      persisted.ui[key] = { ...data, expanded: { ...(data.expanded ?? {}) } };
+      saveSoon();
+    });
+    uis.set(key, ui);
+  }
+  return ui;
+}
 
 function chatFor(key: string): ChatInstance {
   let chat = chats.get(key);
   if (!chat) {
-    const ui = new ChatUi(persisted.ui[key], (data) => {
-      persisted.ui[key] = { ...data, expanded: { ...(data.expanded ?? {}) } };
-      saveSoon();
-    });
-    chat = new ChatInstance((msg) => post({ type: 'chat', key, msg }), ui, 'hub');
+    chat = new ChatInstance((msg) => post({ type: 'chat', key, msg }), uiFor(key), 'hub');
     chats.set(key, chat);
     chat.send({ type: 'ready' });
   }
   return chat;
 }
 
-/** Drops chats no pane shows any more (their draft and scroll stay saved). */
-function dropChats(keep: Set<string>): void {
+/** Drops chats no pane shows any more (their UI state stays while the chat is open). */
+function dropChats(keep: Set<string>, open: Set<string>): void {
   for (const [key, chat] of chats) {
     if (keep.has(key)) continue;
     chat.ui.flush();
     chats.delete(key);
   }
+  for (const key of [...uis.keys()]) if (!open.has(key)) uis.delete(key);
 }
 
 let listeners: ((s: HubState) => void)[] = [];
@@ -91,7 +102,7 @@ onMessage<ExtToHubMessage>((m) => {
     const open = new Set(m.state.sessions.map((s) => s.key));
     for (const k of Object.keys(persisted.ui)) if (!open.has(k)) delete persisted.ui[k];
     setPersisted(persisted);
-    dropChats(new Set(m.state.panes.filter((k): k is string => !!k)));
+    dropChats(new Set(m.state.panes.filter((k): k is string => !!k)), open);
     for (const l of listeners) l(m.state);
   }
 });
@@ -139,7 +150,8 @@ function matches(s: HubSessionView, repo: HubRepoView | undefined, q: string): b
 }
 
 function hasDraft(key: string): boolean {
-  return !!persisted.ui[key]?.draft?.trim();
+  const ui = uis.get(key);
+  return !!(ui ? ui.getDraft().trim() || ui.draftImages.length : persisted.ui[key]?.draft?.trim());
 }
 
 function StatusDot({ attention }: { attention: AttentionState }) {
@@ -499,19 +511,19 @@ function App() {
                         {PANE_LETTERS[pi]}
                       </span>
                     ))}
-                    <button
-                      type="button"
-                      class="rtab-more"
-                      title="More actions"
-                      aria-label={`More actions for ${r.name}`}
+                    <span
+                      role="button"
+                      tabIndex={-1}
+                      class="tab-close"
+                      title={`Close the ${here.length} chat${here.length === 1 ? '' : 's'} of ${r.name} (right-click for more)`}
+                      aria-label={`Close the chats of ${r.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        const b = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        repoMenu(b.left, b.bottom + 2, r);
+                        post({ type: 'close-sessions', keys: here.map((s) => s.key) });
                       }}
                     >
-                      <Icon name="ellipsis" />
-                    </button>
+                      <Icon name="close" />
+                    </span>
                   </div>
                 );
               })}
@@ -588,7 +600,21 @@ function App() {
                     ) : null}
                     <FlagIcon flag={s.flag} />
                     {hasDraft(s.key) && paneIdx < 0 ? <span class="draft-dot" title="Unsent draft" /> : null}
-                    {i < 9 ? <span class="num">{i + 1}</span> : null}
+                    {/* Always there: the close button takes its place on hover. */}
+                    <span class="num">{i < 9 ? i + 1 : ''}</span>
+                    <span
+                      role="button"
+                      tabIndex={-1}
+                      class="tab-close"
+                      title="Close this chat (middle-click works too)"
+                      aria-label={`Close ${s.title}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        post({ type: 'close-sessions', keys: [s.key] });
+                      }}
+                    >
+                      <Icon name="close" />
+                    </span>
                   </button>
                 );
               })}
@@ -754,7 +780,7 @@ function Legend({ onClose }: { onClose: () => void }) {
           <kbd>Esc</kbd> <span>Stop Claude in the focused chat</span>
         </div>
         <div class="legend-row">
-          <span class="legend-mouse">Middle-click</span> <span>Close a chat</span>
+          <span class="legend-mouse">× or middle-click</span> <span>Close a chat</span>
         </div>
       </div>
       <button type="button" class="legend-close icon-btn" title="Close" onClick={onClose}>

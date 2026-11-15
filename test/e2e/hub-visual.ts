@@ -183,6 +183,46 @@ export async function run(): Promise<void> {
   await screenshot('hub-8-narrow');
   await cdp('Emulation.clearDeviceMetricsOverride', {});
 
+  // Switching chats in and out of a pane: none may stay on "Loading session…",
+  // and an image pasted into a draft must still be there after switching away and back.
+  await hubPost({ type: 'set-pane-count', count: 1 });
+  api.hub.show(m1);
+  await waitFor('m1 ready', () => api.hub.chatReady(m1.key));
+  await sleep(800);
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  for (let i = 0; i < 50 && !(await inHub(`(d) => !!d.querySelector('.pane.is-focused textarea')`)); i++) await sleep(100);
+  const pasted = await inHub(`(d) => { const ta = d.querySelector('.pane.is-focused textarea'); if (!ta) return 'no textarea'; const bin = atob('${png}'); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); const dt = new DataTransfer(); dt.items.add(new File([bytes], 'dot.png', { type: 'image/png' })); ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); return 'pasted'; }`);
+  log('paste:', pasted);
+  await sleep(800);
+  const thumbsBefore = await inHub(`(d) => d.querySelectorAll('.pane.is-focused .thumb').length`);
+  const order = [a3, main, w1, m1, a3, m1, main, m1];
+  for (const s of order) {
+    api.hub.show(s);
+    await sleep(250);
+  }
+  await sleep(1500);
+  const loading = await inHub(`(d) => d.querySelectorAll('.pane .app-loading').length`);
+  const thumbsAfter = await inHub(`(d) => d.querySelectorAll('.pane.is-focused .thumb').length`);
+  log(`after switching: panes stuck loading=${loading}; image thumbs before=${thumbsBefore} after=${thumbsAfter}`);
+  await screenshot('hub-9-after-switching');
+
+  // Hover: the × on a project tab and on a chat chip.
+  const hoverAt = async (selector: string) => {
+    const r = (await inHub(`(d) => { const e = d.querySelector(${JSON.stringify(selector)}); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }`)) as { x: number; y: number } | null;
+    const frame = (await cdp('Runtime.evaluate', { returnByValue: true, expression: `(() => { const f = [...document.querySelectorAll('iframe.webview')].map((x) => x.getBoundingClientRect()).filter((b) => b.width > 0).sort((a, b) => b.width * b.height - a.width * a.height)[0]; return f ? { x: f.left, y: f.top } : null; })()` })).result?.value as { x: number; y: number } | null;
+    if (!r || !frame) return log('hover target not found', selector);
+    await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: frame.x + r.x, y: frame.y + r.y });
+  };
+  await hubPost({ type: 'set-pane-count', count: 2 });
+  api.hub.show(main);
+  await sleep(800);
+  await hoverAt('.rtab.is-selected');
+  await sleep(500);
+  await screenshot('hub-10-hover-project');
+  await hoverAt('.strip .chip:nth-of-type(2)');
+  await sleep(500);
+  await screenshot('hub-11-hover-chip');
+
   // Webview errors.
   const errors = await inHub(`(d) => (window.__hubErrors || []).join('\\n')`);
   log('hub webview errors:', errors || 'none');

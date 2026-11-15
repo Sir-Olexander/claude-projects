@@ -1,6 +1,6 @@
 import { createContext } from 'preact';
 import { useCallback, useContext, useState } from 'preact/hooks';
-import type { ChatToExtMessage, SessionFlagName } from '../../shared/protocol';
+import type { ChatToExtMessage, ImageAttachment, SessionFlagName } from '../../shared/protocol';
 import { ChatStore } from './store';
 
 /**
@@ -41,6 +41,12 @@ export class ChatUi {
     if (keys.length > 1500) for (const k of keys.slice(0, keys.length - 1500)) delete exp[k];
     this.save(this.data);
   }
+
+  /**
+   * Images pasted into the message box and not sent yet. Kept in memory only
+   * (they can be large), so they survive switching chats in the hub.
+   */
+  draftImages: ImageAttachment[] = [];
 
   getDraft = (): string => this.data.draft ?? '';
 
