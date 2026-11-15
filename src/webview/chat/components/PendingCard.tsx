@@ -57,6 +57,7 @@ function Choices({
   onFeedback?: (text: string) => void;
   onEscape: () => void;
 }) {
+  const chat = useChat();
   const total = choices.length + (onFeedback ? 1 : 0);
   const [focus, setFocus] = useState(Math.min(initialFocus, total - 1));
   const [feedback, setFeedback] = useState('');
@@ -65,7 +66,8 @@ function Choices({
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Take focus when the card appears so the shortcuts work right away.
+    // Take focus when the card appears so the shortcuts work right away (not in a background pane of the hub).
+    if (!chat.active) return;
     const t = setTimeout(() => (focus < choices.length ? buttons.current[focus]?.focus() : input.current?.focus()), 30);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -270,7 +272,8 @@ function PermissionCard({ req, cwd }: { req: PermissionRequestView; cwd: string 
 const OTHER = '__other__';
 
 function QuestionCard({ req }: { req: QuestionRequestView }) {
-  const { send } = useChat();
+  const chat = useChat();
+  const { send } = chat;
   const qs = req.questions;
   const [selected, setSelected] = useState<string[][]>(() => qs.map(() => []));
   const [other, setOther] = useState<string[]>(() => qs.map(() => ''));
@@ -279,6 +282,7 @@ function QuestionCard({ req }: { req: QuestionRequestView }) {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!chat.active) return;
     const t = setTimeout(() => root.current?.querySelector<HTMLButtonElement>('.q-option')?.focus(), 30);
     return () => clearTimeout(t);
   }, []);
@@ -570,7 +574,8 @@ function FieldInput({ f, value, error, onChange, autoFocus }: { f: ElicitationFi
 }
 
 function ElicitationCard({ req }: { req: ElicitationRequestView }) {
-  const { send, openUrl } = useChat();
+  const chat = useChat();
+  const { send, openUrl } = chat;
   const [values, setValues] = useState(() => initialValues(req.fields));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tried, setTried] = useState(false);
@@ -633,7 +638,7 @@ function ElicitationCard({ req }: { req: ElicitationRequestView }) {
             <button
               type="button"
               class="btn btn-primary"
-              autoFocus
+              autoFocus={chat.active}
               onClick={() => {
                 if (req.url) openUrl(req.url);
                 respond('accept');
@@ -647,7 +652,7 @@ function ElicitationCard({ req }: { req: ElicitationRequestView }) {
         <>
           <div class="elicit-form">
             {req.fields.map((f, i) => (
-              <FieldInput key={f.name} f={f} value={values[f.name]} error={errors[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} />
+              <FieldInput key={f.name} f={f} value={values[f.name]} error={errors[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0 && chat.active} />
             ))}
           </div>
           <div class="pending-actions">

@@ -82,7 +82,8 @@ function ContextRing({ percent, used, max }: { percent: number; used?: number; m
 }
 
 export function Composer({ state }: { state: ChatState }) {
-  const { store, send, ui } = useChat();
+  const chat = useChat();
+  const { store, send, ui } = chat;
   const { getDraft, saveDraft } = ui;
   const [text, setText] = useState(getDraft);
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -133,8 +134,8 @@ export function Composer({ state }: { state: ChatState }) {
         setActive(0);
       }
     });
-    // Focus the input when the panel opens.
-    const t = setTimeout(() => ta.current?.focus(), 50);
+    // Focus the input when the panel opens (in the hub: only in the focused pane).
+    const t = setTimeout(() => chat.active && ta.current?.focus(), 50);
     return () => {
       offFocus();
       offInsert();

@@ -37,6 +37,10 @@ body.vscode-light {
 .hub {
   display: grid;
   grid-template-rows: auto 1fr;
+  /* One column no wider than the panel, whatever the strip holds. */
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  overflow: hidden;
   height: 100%;
   min-width: 0;
   min-height: 0;
@@ -951,4 +955,8 @@ body.vscode-light {
 .quick-repo {
   color: var(--fg-muted);
   font-size: 11px;
+}
+
+.row2[hidden] {
+  display: none;
 }

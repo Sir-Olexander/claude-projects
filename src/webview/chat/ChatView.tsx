@@ -35,6 +35,7 @@ function ChatApp({ chat, active }: { chat: ChatInstance; active: boolean }) {
   const [narrow, setNarrow] = useState(false);
   const activeRef = useRef(active);
   activeRef.current = active;
+  chat.active = active;
 
   /** Throttled "the user has seen the latest output" signal. */
   const lastSeen = useRef(0);
@@ -59,9 +60,17 @@ function ChatApp({ chat, active }: { chat: ChatInstance; active: boolean }) {
     };
   }, [postSeen]);
 
-  // Becoming the focused pane counts as seeing it.
+  // Becoming the focused pane counts as seeing it, and puts the cursor in it
+  // unless something in the pane already has focus.
+  const wasActive = useRef(active);
   useEffect(() => {
     if (active && document.hasFocus()) postSeen();
+    if (active && !wasActive.current && !appRef.current?.contains(document.activeElement)) {
+      const card = appRef.current?.querySelector<HTMLElement>('.pending-card button, .pending-card input');
+      if (card) card.focus();
+      else store.apply({ type: 'focus-input' });
+    }
+    wasActive.current = active;
   }, [active]);
 
   // When new output arrives while the panel has focus, count it as seen.

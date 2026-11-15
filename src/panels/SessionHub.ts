@@ -95,6 +95,21 @@ export class SessionHub implements vscode.Disposable {
     return !!this.panel;
   }
 
+  /** What the strip shows (for tests). */
+  get snapshot(): HubState {
+    return this.state();
+  }
+
+  /** The chat of a session shown in a pane has loaded its state (for tests). */
+  chatReady(key: string): boolean {
+    return !!this.bridges.get(key)?.isReady;
+  }
+
+  /** The hub's editor tab (for tests). */
+  get webviewPanel(): vscode.WebviewPanel | undefined {
+    return this.panel;
+  }
+
   /** The focused pane's session, while the hub is the active editor. */
   get activeSession(): ManagedSession | undefined {
     if (!this.panel?.active) return undefined;

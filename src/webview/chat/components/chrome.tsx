@@ -37,20 +37,20 @@ export function Header({ state }: { state: ChatState }) {
           onClick={() => send({ type: 'remote-control', on: !(state.remote?.state === 'on' || state.remote?.state === 'connecting') })}
         />
         <BookmarksMenu bookmarks={state.bookmarks ?? []} />
-        <IconButton icon="link-external" title="Open in Claude extension (new window)" onClick={() => send({ type: 'open-in-claude-extension' })} />
-        <IconButton icon="add" title="New session" onClick={() => send({ type: 'new-session' })} />
-        <IconButton icon="trash" title="Delete session" onClick={() => send({ type: 'delete-session' })} />
         {pane ? (
           <>
-            <span class="header-sep" aria-hidden="true" />
             <FlagMenu pane={pane} />
-            <IconButton icon="multiple-windows" title="Pop out to its own tab" onClick={() => pane.popOut()} />
-            {pane.closePane ? <IconButton icon="split-horizontal" title="Close this pane" onClick={() => pane.closePane?.()} /> : null}
+            <PaneMoreMenu pane={pane} />
             <IconButton icon="close" title="Close this chat (it stays in the Projects view)" onClick={() => pane.closeSession()} />
           </>
-        ) : chat.place === 'tab' ? (
-          <IconButton icon="layout-panel-justify" title="Move to Claude Chats (the sessions hub)" onClick={() => send({ type: 'move-to-hub' })} />
-        ) : null}
+        ) : (
+          <>
+            <IconButton icon="link-external" title="Open in Claude extension (new window)" onClick={() => send({ type: 'open-in-claude-extension' })} />
+            <IconButton icon="add" title="New session" onClick={() => send({ type: 'new-session' })} />
+            <IconButton icon="trash" title="Delete session" onClick={() => send({ type: 'delete-session' })} />
+            {chat.place === 'tab' ? <IconButton icon="layout-panel-justify" title="Move to Claude Chats (the sessions hub)" onClick={() => send({ type: 'move-to-hub' })} /> : null}
+          </>
+        )}
       </div>
     </header>
   );
@@ -220,9 +220,8 @@ function SharedEnvMenu({ env }: { env: SharedEnvView }) {
   );
 }
 
-/** The session's flag (hub panes): a mark of what you mean to do with it. */
-function FlagMenu({ pane }: { pane: PaneControls }) {
-  const [open, setOpen] = useState(false);
+/** Closes a header menu on an outside click or Esc. */
+function useMenuClose(open: boolean, setOpen: (v: boolean) => void) {
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -237,6 +236,53 @@ function FlagMenu({ pane }: { pane: PaneControls }) {
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
+  return root;
+}
+
+/** The rarer actions of a chat in a hub pane, kept out of its narrow header. */
+function PaneMoreMenu({ pane }: { pane: PaneControls }) {
+  const { send } = useChat();
+  const [open, setOpen] = useState(false);
+  const root = useMenuClose(open, setOpen);
+  const items: { label: string; icon: string; run: () => void; danger?: boolean }[] = [
+    { label: 'New session in this project', icon: 'add', run: () => send({ type: 'new-session' }) },
+    { label: 'Pop out to its own tab', icon: 'multiple-windows', run: () => pane.popOut() },
+    ...(pane.closePane ? [{ label: 'Close this pane', icon: 'split-horizontal', run: () => pane.closePane!() }] : []),
+    { label: 'Open in Claude extension (new window)', icon: 'link-external', run: () => send({ type: 'open-in-claude-extension' }) },
+    { label: 'Delete session…', icon: 'trash', danger: true, run: () => send({ type: 'delete-session' }) },
+  ];
+  return (
+    <div class="bm-menu-wrap" ref={root}>
+      <button type="button" class="icon-btn" title="More actions" aria-label="More actions" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Icon name="ellipsis" />
+      </button>
+      {open ? (
+        <div class="bm-menu more-menu" role="menu">
+          {items.map((it) => (
+            <button
+              type="button"
+              role="menuitem"
+              key={it.label}
+              class={`flag-item more-item${it.danger ? ' is-danger' : ''}`}
+              onClick={() => {
+                setOpen(false);
+                it.run();
+              }}
+            >
+              <Icon name={it.icon} class="flag-icon" />
+              <span class="more-label">{it.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** The session's flag (hub panes): a mark of what you mean to do with it. */
+function FlagMenu({ pane }: { pane: PaneControls }) {
+  const [open, setOpen] = useState(false);
+  const root = useMenuClose(open, setOpen);
   const current = pane.flag ? FLAG_INFO[pane.flag] : undefined;
   return (
     <div class="bm-menu-wrap" ref={root}>

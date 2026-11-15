@@ -16,6 +16,12 @@ import '../chat/styles/syntax.css';
 import './hub.css';
 
 const post = (m: HubToExtMessage) => rawPost<HubToExtMessage>(m);
+
+// Errors in the hub, kept for the visual test pass (test/e2e/hub-visual.ts).
+const errors: string[] = [];
+(window as unknown as { __hubErrors: string[] }).__hubErrors = errors;
+window.addEventListener('error', (e) => errors.push(String(e.message)));
+window.addEventListener('unhandledrejection', (e) => errors.push(String(e.reason)));
 const PANE_LETTERS = ['A', 'B', 'C'];
 const MAX_PANES = 3;
 
@@ -429,7 +435,7 @@ function App() {
         <div class="row1">
           <Scroller class="row1-scroll" revealSelector=".rtab.is-selected" revealKey={selected}>
             <div class="rtabs" role="tablist" aria-label="Projects">
-              {repos.length === 0 ? <span class="strip-empty">No chats open</span> : null}
+              {repos.length === 0 ? <span class="strip-empty">Claude Chats</span> : null}
               {repos.map((r, i) => {
                 const here = sessions.filter((s) => s.repoId === r.id);
                 const needs = here.filter(needsYou).length;
@@ -547,7 +553,7 @@ function App() {
             </button>
           </div>
         </div>
-        <div class="row2">
+        <div class="row2" hidden={sessions.length === 0}>
           <Scroller class="row2-scroll" revealSelector=".chip.in-focus" revealKey={`${panes[focusedPane]}|${selected}`}>
             <div class="strip" role="toolbar" aria-label={q ? 'Matching chats' : `Chats in ${selRepo?.name ?? 'this project'}`}>
               {row2.length === 0 ? <span class="strip-empty">{q ? 'No chats match' : selRepo ? `No open chats in ${selRepo.name}` : 'Open a session from the Projects view, or start a new one'}</span> : null}

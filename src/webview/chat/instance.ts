@@ -87,6 +87,11 @@ export interface PaneControls {
  */
 export class ChatInstance {
   readonly store = new ChatStore();
+  /**
+   * The chat that takes the keyboard: always in a chat tab; only the focused
+   * pane in the hub, so a card appearing in another pane doesn't take focus.
+   */
+  active = true;
 
   constructor(
     private readonly post: (m: ChatToExtMessage) => void,

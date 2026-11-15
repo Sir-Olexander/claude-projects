@@ -1042,3 +1042,16 @@ kbd {
   border-top: 1px solid var(--vscode-widget-border, var(--panel-border));
   border-radius: 0 0 4px 4px;
 }
+
+.more-menu {
+  width: min(280px, 80vw);
+}
+
+.more-item {
+  grid-template-columns: 18px 1fr;
+}
+
+.more-item.is-danger,
+.more-item.is-danger .flag-icon {
+  color: var(--vscode-errorForeground, #f14c4c);
+}
