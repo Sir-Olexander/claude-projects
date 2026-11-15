@@ -473,6 +473,8 @@ export type ChatToExtMessage =
   | { type: 'ready' }
   /** Move this chat from its own tab into the sessions hub. */
   | { type: 'move-to-hub' }
+  /** Hub panes: the user is (or stopped) working in this chat (clicked or typed in it, window focused). */
+  | { type: 'engaged'; on: boolean }
   | { type: 'send'; text: string; images?: ImageAttachment[] }
   /** Stop the running turn (like Esc in the terminal). */
   | { type: 'interrupt' }
@@ -736,6 +738,10 @@ export type HubToExtMessage =
   /** Move a session to its own editor tab. */
   | { type: 'pop-out'; key: string }
   | { type: 'set-flag'; key: string; flag?: SessionFlagName }
+  /** Dragged project tabs into a new order. */
+  | { type: 'reorder-repos'; ids: string[] }
+  /** Dragged the chats of one project into a new order. */
+  | { type: 'reorder-sessions'; keys: string[] }
   /** Delete the trashed sessions of a project (asks first). */
   | { type: 'delete-trashed'; repoId: string }
   | { type: 'new-session'; repoId?: string }

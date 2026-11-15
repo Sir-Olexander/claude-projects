@@ -37,15 +37,56 @@ function ChatApp({ chat, active }: { chat: ChatInstance; active: boolean }) {
   activeRef.current = active;
   chat.active = active;
 
+  /**
+   * In the hub, a chat is "being looked at" only while the user works in it:
+   * the last click or focus was inside it, its pane is the focused one and the
+   * window has focus. A chat merely on screen keeps its Finished mark.
+   */
+  const hub = chat.place === 'hub';
+  const engaged = useRef(false);
+  const lastInside = useRef(false);
+
   /** Throttled "the user has seen the latest output" signal. */
   const lastSeen = useRef(0);
   const postSeen = useCallback(() => {
-    if (!activeRef.current) return;
+    if (!activeRef.current || (hub && !engaged.current)) return;
     const now = Date.now();
     if (now - lastSeen.current < 1200) return;
     lastSeen.current = now;
     send({ type: 'seen' });
   }, [send]);
+
+  const updateEngaged = useCallback(() => {
+    if (!hub) return;
+    const on = activeRef.current && lastInside.current && document.hasFocus();
+    if (on === engaged.current) return;
+    engaged.current = on;
+    send({ type: 'engaged', on });
+    if (on) postSeen();
+  }, [send, postSeen]);
+
+  useEffect(() => {
+    if (!hub) return;
+    const onInteract = (e: Event) => {
+      const t = e.target as Node | null;
+      lastInside.current = !!t && !!appRef.current?.contains(t);
+      updateEngaged();
+    };
+    document.addEventListener('pointerdown', onInteract, true);
+    document.addEventListener('focusin', onInteract, true);
+    window.addEventListener('blur', updateEngaged);
+    window.addEventListener('focus', updateEngaged);
+    return () => {
+      document.removeEventListener('pointerdown', onInteract, true);
+      document.removeEventListener('focusin', onInteract, true);
+      window.removeEventListener('blur', updateEngaged);
+      window.removeEventListener('focus', updateEngaged);
+      if (engaged.current) send({ type: 'engaged', on: false });
+      engaged.current = false;
+    };
+  }, [updateEngaged]);
+
+  useEffect(() => updateEngaged(), [active]);
 
   useEffect(() => {
     const onFocus = () => postSeen();

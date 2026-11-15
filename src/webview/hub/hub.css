@@ -986,3 +986,39 @@ body.vscode-light {
 .row2[hidden] {
   display: none;
 }
+
+/* Drag to reorder project tabs and chats */
+
+.rtab[draggable='true'],
+.chip[draggable='true'] {
+  -webkit-user-drag: element;
+}
+
+.rtab.is-dragging,
+.chip.is-dragging {
+  opacity: 0.4;
+}
+
+.rtab.drop-before::before,
+.rtab.drop-after::after,
+.chip.drop-before::before,
+.chip.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.rtab.drop-before::before,
+.chip.drop-before::before {
+  left: -4px;
+}
+
+.rtab.drop-after::after,
+.chip.drop-after::after {
+  right: -4px;
+}

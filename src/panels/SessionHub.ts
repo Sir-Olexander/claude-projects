@@ -348,9 +348,27 @@ export class SessionHub implements vscode.Disposable {
         }
         case 'set-flag': {
           const s = this.deps.sessions.get(m.key);
-          if (s) this.deps.flags.set(s.sessionId, m.flag);
+          if (!s) break;
+          // Main goes to the front of its project once; after that its place is yours.
+          if (m.flag === 'main' && this.deps.flags.get(s.sessionId) !== 'main') {
+            const repo = this.repoOf(s.cwd).id;
+            const mine = this.open.filter((k) => k !== m.key && this.repoKey(k) === repo);
+            this.reorderSessions([m.key, ...mine]);
+          }
+          this.deps.flags.set(s.sessionId, m.flag);
           break;
         }
+        case 'reorder-repos': {
+          const known = new Set(this.repoOrder);
+          const ids = m.ids.filter((id) => known.has(id));
+          this.repoOrder = [...ids, ...this.repoOrder.filter((id) => !ids.includes(id))];
+          this.pushState();
+          break;
+        }
+        case 'reorder-sessions':
+          this.reorderSessions(m.keys);
+          this.pushState();
+          break;
         case 'delete-trashed': {
           const targets = this.open
             .map((k) => this.deps.sessions.get(k))
@@ -409,6 +427,7 @@ export class SessionHub implements vscode.Disposable {
       if (shown.has(key)) continue;
       bridge.dispose();
       this.bridges.delete(key);
+      if (this.engagedKey === key) this.engagedKey = undefined;
     }
     const panel = this.panel;
     if (panel) {
@@ -421,6 +440,7 @@ export class SessionHub implements vscode.Disposable {
           new ChatBridge(session, this.deps.chatHost, {
             post: (msg) => this.post({ type: 'chat', key, msg }),
             asWebviewUri: (uri) => panel.webview.asWebviewUri(uri),
+            onEngaged: (on) => this.setEngaged(key, on),
           }),
         );
       }
@@ -442,22 +462,57 @@ export class SessionHub implements vscode.Disposable {
   }
 
   private lastFocusedKey: string | undefined;
+  /** The chat the user is working in (clicked or typed in its pane), as reported by the webview. */
+  private engagedKey: string | undefined;
 
-  /** The focused pane's session counts as focused while the hub is active and the window has focus. */
+  private setEngaged(key: string, on: boolean): void {
+    if (on) this.engagedKey = key;
+    else if (this.engagedKey === key) this.engagedKey = undefined;
+    this.syncFocus();
+  }
+
+  /**
+   * A chat counts as looked at (no "Finished" mark, no notification) only while
+   * the user works in it: its pane is focused, they clicked or typed in it, the
+   * hub is the active editor and the window has focus. Merely being on screen
+   * isn't enough: you may be browsing other projects in the strip meanwhile.
+   */
   private syncFocus(): void {
     if (this.panel) this.syncBridges();
     const active = !!this.panel?.active;
-    const key = active ? this.panes[this.focusedPane] ?? undefined : undefined;
+    const paneKey = active ? this.panes[this.focusedPane] ?? undefined : undefined;
+    const key = paneKey && paneKey === this.engagedKey ? paneKey : undefined;
     if (this.lastFocusedKey && this.lastFocusedKey !== key) {
       const prev = this.deps.sessions.get(this.lastFocusedKey);
       if (prev) prev.focused = false;
     }
     this.lastFocusedKey = key;
+    // Source Control and Files follow the focused pane either way.
+    const shown = paneKey ? this.deps.sessions.get(paneKey) : undefined;
+    if (shown) this.deps.onActive(shown);
     const session = key ? this.deps.sessions.get(key) : undefined;
     if (!session) return;
     session.focused = vscode.window.state.focused;
-    this.deps.onActive(session);
     if (vscode.window.state.focused) session.markSeen();
+  }
+
+  private repoKey(key: string): string | undefined {
+    const s = this.deps.sessions.get(key);
+    return s ? this.repoOf(s.cwd).id : undefined;
+  }
+
+  /**
+   * Puts the chats of one project in the given order. Their places in the open
+   * list are kept, so other projects' chats don't move.
+   */
+  private reorderSessions(keys: string[]): void {
+    const wanted = keys.filter((k, i) => this.open.includes(k) && keys.indexOf(k) === i);
+    if (wanted.length < 2) return;
+    const set = new Set(wanted);
+    const slots = this.open.map((k, i) => (set.has(k) ? i : -1)).filter((i) => i >= 0);
+    const next = [...this.open];
+    slots.forEach((slot, i) => (next[slot] = wanted[i]));
+    this.open = next;
   }
 
   private repoOf(cwd: string): { id: string; name: string; path: string } {

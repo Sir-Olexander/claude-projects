@@ -26,6 +26,8 @@ export interface ChatHost {
 export interface ChatSink {
   post(m: ExtToChatMessage): void;
   asWebviewUri(uri: vscode.Uri): vscode.Uri;
+  /** The user started or stopped working in this chat (hub panes report it). */
+  onEngaged?(on: boolean): void;
 }
 
 /**
@@ -166,6 +168,9 @@ export class ChatBridge implements vscode.Disposable {
           break;
         case 'fork':
           this.host.fork(s, m.itemId);
+          break;
+        case 'engaged':
+          this.sink.onEngaged?.(m.on);
           break;
         case 'move-to-hub':
           this.host.moveToHub?.(s);

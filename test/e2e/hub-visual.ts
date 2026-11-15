@@ -89,6 +89,69 @@ export async function run(): Promise<void> {
   await waitFor('index', () => api.index.isReady);
   await sleep(1000);
 
+  // PROBE: does a chat that finishes out of view stay Finished?
+  if (process.env.CP_PROBE_DONE) {
+    await vscode.commands.executeCommand('claudeProjects.openHub');
+    await sleep(1000);
+    const x = await api.panels.newSession(repo);
+    const y = await api.panels.newSession(process.env.CP_E2E_REPO2!);
+    await waitFor('y ready', () => api.hub.chatReady(y.key));
+    await inHub(`(d) => { d.querySelector('.pane.is-focused textarea')?.focus(); return true; }`);
+    await sleep(500);
+    const chip = (k: string) => api.hub.snapshot.sessions.find((v) => v.key === k)?.attention;
+    log('window focused', vscode.window.state.focused, 'hub active', api.hub.webviewPanel?.active);
+    await x.send('turn while out of view');
+    await waitFor('x idle', () => x.status === 'idle', 20_000);
+    for (const t of [200, 1000, 3000]) {
+      await sleep(t);
+      log(`x out of panes after +${t}ms: unread=${x.unread} focused=${x.focused} chip=${chip(x.key)}`);
+    }
+    // In a background pane.
+    await hubPost({ type: 'set-pane-count', count: 2 });
+    api.hub.show(x, { pane: 1 });
+    await hubPost({ type: 'focus-pane', pane: 0 });
+    await waitFor('x ready', () => api.hub.chatReady(x.key));
+    await sleep(1500);
+    log(`x shown in background pane: unread=${x.unread} chip=${chip(x.key)} focusedPane=${api.hub.snapshot.focusedPane}`);
+    await x.send('second turn in background pane');
+    await waitFor('x idle 2', () => x.status === 'idle' && x.getState().items.some((i) => i.kind === 'text' && i.text.includes('second turn')), 20_000);
+    for (const t of [200, 1000, 3000]) {
+      await sleep(t);
+      log(`x background pane after +${t}ms: unread=${x.unread} focused=${x.focused} chip=${chip(x.key)}`);
+    }
+    // Switch the focused pane to another chip, then let x finish out of panes.
+    await hubPost({ type: 'set-pane-count', count: 1 });
+    api.hub.show(y);
+    await sleep(800);
+    await x.send('third turn after switching away');
+    await waitFor('x idle 3', () => x.status === 'idle' && x.getState().items.some((i) => i.kind === 'text' && i.text.includes('third turn')), 20_000);
+    for (const t of [200, 3000]) {
+      await sleep(t);
+      log(`x after switching away +${t}ms: unread=${x.unread} focused=${x.focused} chip=${chip(x.key)}`);
+    }
+    // On screen in the focused pane, but the last click was in the strip: stays Finished.
+    await hubPost({ type: 'set-pane-count', count: 1 });
+    api.hub.show(x);
+    await waitFor('x ready again', () => api.hub.chatReady(x.key));
+    await sleep(800);
+    await inHub(`(d) => { d.querySelector('.pane textarea')?.focus(); return true; }`);
+    await sleep(400);
+    log(`x focused in pane: focused=${x.focused} unread=${x.unread} chip=${chip(x.key)}`);
+    void x.send('slow: fourth turn while I browse the strip');
+    await sleep(300);
+    // Click a project tab in the strip (not the chat).
+    await inHub(`(d) => { const t = [...d.querySelectorAll('.rtab')].find((e) => !e.classList.contains('is-selected')) || d.querySelector('.rtab'); t.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); t.click(); t.focus(); return true; }`);
+    await waitFor('x idle 4', () => x.status === 'idle' && x.getState().items.some((i) => i.kind === 'text' && i.text.includes('long and slow')), 30_000);
+    await sleep(1500);
+    log(`x finished on screen while browsing the strip: focused=${x.focused} unread=${x.unread} chip=${chip(x.key)}`);
+    // Click into the chat: now it's seen.
+    await inHub(`(d) => { const a = d.querySelector('.pane .messages') || d.querySelector('.pane .app'); a.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); return true; }`);
+    await sleep(1500);
+    log(`after clicking into x: unread=${x.unread} chip=${chip(x.key)}`);
+    log('PROBE DONE');
+    return;
+  }
+
   // Empty hub first.
   await vscode.commands.executeCommand('claudeProjects.openHub');
   await sleep(1500);
@@ -222,6 +285,43 @@ export async function run(): Promise<void> {
   await hoverAt('.strip .chip:nth-of-type(2)');
   await sleep(500);
   await screenshot('hub-11-hover-chip');
+
+  // Drag a chat chip to the end of its row, and a project tab to the front.
+  {
+    const drag = (sel: string, from: number, to: number, side: 'before' | 'after', drop: boolean) =>
+      inHub(`(d) => {
+        const items = [...d.querySelectorAll(${JSON.stringify(sel)})];
+        const a = items[${'${from}'}], b = items[${'${to}'}];
+        if (!a || !b) return 'missing ' + items.length;
+        const dt = new DataTransfer();
+        a.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+        return new Promise((res) => setTimeout(() => {
+          const r = b.getBoundingClientRect();
+          const x = ${'${side}'} === 'before' ? r.left + 3 : r.right - 3;
+          b.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: r.top + 5 }));
+          setTimeout(() => {
+            if (${'${drop}'}) { b.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: r.top + 5 })); a.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt })); }
+            res('ok');
+          }, 120);
+        }, 120));
+      }`.replace('${from}', String(from)).replace('${to}', String(to)).replace("${side}", JSON.stringify(side)).replace('${drop}', String(drop)));
+    api.hub.show(main);
+    await sleep(800);
+    const keysBefore = api.hub.snapshot.sessions.filter((x) => x.repoId === p1.id).map((x) => x.title);
+    log('drag marker:', await drag('.strip .chip', 0, 2, 'after', false));
+    await sleep(300);
+    await screenshot('hub-12-drag-marker');
+    await inHub(`(d) => { d.querySelector('.strip .chip')?.dispatchEvent(new DragEvent('dragend', { bubbles: true })); return true; }`);
+    await sleep(300);
+    log('drag chip:', await drag('.strip .chip', 0, 2, 'after', true));
+    await sleep(800);
+    const keysAfter = api.hub.snapshot.sessions.filter((x) => x.repoId === p1.id).map((x) => x.title);
+    log('chips before:', JSON.stringify(keysBefore), 'after:', JSON.stringify(keysAfter));
+    const reposBefore = api.hub.snapshot.repos.map((r) => r.name);
+    log('drag repo:', await drag('.rtab', reposBefore.length - 1, 0, 'before', true));
+    await sleep(800);
+    log('repos before:', JSON.stringify(reposBefore), 'after:', JSON.stringify(api.hub.snapshot.repos.map((r) => r.name)));
+  }
 
   // Webview errors.
   const errors = await inHub(`(d) => (window.__hubErrors || []).join('\\n')`);

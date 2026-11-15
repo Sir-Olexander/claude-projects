@@ -577,6 +577,59 @@ export async function run(): Promise<void> {
     assert.equal(existing?.sessionId, existingId, 'an existing chat by id');
   });
 
+  await check('hub: a chat that finishes while you are elsewhere stays Finished until you look at it', async () => {
+    const c = await api.panels.newSession(repo);
+    const d = await api.panels.newSession(repo);
+    await waitFor('d ready', () => api.hub.chatReady(d.key), 20_000);
+    log('window focused:', vscode.window.state.focused, 'panes:', JSON.stringify(api.hub.snapshot.panes), 'focusedPane:', api.hub.snapshot.focusedPane);
+    // c is out of the panes: finish a turn there.
+    await c.send('first turn in c');
+    await waitFor('c idle', () => c.status === 'idle', 20_000);
+    await new Promise((r) => setTimeout(r, 1500));
+    const view = () => api.attention.sessions.find((v) => v.key === c.key);
+    const chip = () => api.hub.snapshot.sessions.find((x) => x.key === c.key);
+    log('c out of panes: unread', c.unread, 'attention', view()?.attention, 'chip', chip()?.attention);
+    assert.equal(c.unread, true, 'c unread');
+    assert.equal(chip()?.attention, 'done', 'chip shows Finished');
+    // c in a second, unfocused pane.
+    await postToHub({ type: 'set-pane-count', count: 2 });
+    api.hub.show(c, { pane: 1 });
+    await postToHub({ type: 'focus-pane', pane: 0 });
+    api.hub.show(d);
+    await waitFor('c ready in pane 2', () => api.hub.chatReady(c.key), 20_000);
+    await new Promise((r) => setTimeout(r, 1500));
+    log('c in background pane: unread', c.unread, 'chip', chip()?.attention, 'focusedPane', api.hub.snapshot.focusedPane, 'panes', JSON.stringify(api.hub.snapshot.panes));
+    await c.send('second turn in c');
+    await waitFor('c idle again', () => c.status === 'idle' && c.getState().items.some((i) => i.kind === 'text' && i.text.includes('second turn')), 20_000);
+    await new Promise((r) => setTimeout(r, 1500));
+    log('c finished in background pane: unread', c.unread, 'chip', chip()?.attention);
+    assert.equal(chip()?.attention, 'done', 'background pane chip shows Finished');
+    await postToHub({ type: 'set-pane-count', count: 1 });
+  });
+
+  await check('hub: chats and projects can be reordered; Main moves to the front once', async () => {
+    const e1 = await api.panels.newSession(repo);
+    const e2 = await api.panels.newSession(repo);
+    const e3 = await api.panels.newSession(process.env.CP_E2E_REPO2!);
+    const mine = () => api.hub.snapshot.sessions.filter((x) => x.repoId === project.id).map((x) => x.key);
+    const before = mine();
+    assert.ok(before.indexOf(e1.key) < before.indexOf(e2.key), 'opened order');
+    await postToHub({ type: 'reorder-sessions', keys: [e2.key, ...before.filter((k) => k !== e2.key)] });
+    assert.equal(mine()[0], e2.key, 'dragged chat first');
+    await postToHub({ type: 'set-flag', key: e1.key, flag: 'main' });
+    assert.equal(mine()[0], e1.key, 'Main goes first');
+    await postToHub({ type: 'reorder-sessions', keys: [e2.key, e1.key] });
+    assert.deepEqual(mine().slice(0, 2), [e2.key, e1.key], 'and can be dragged after that');
+    const repos = () => api.hub.snapshot.repos.map((r) => r.id);
+    const other = repos().find((id) => id !== project.id)!;
+    assert.ok(other, 'a second project in the strip');
+    await postToHub({ type: 'reorder-repos', ids: [other, project.id] });
+    assert.deepEqual(repos().slice(0, 2), [other, project.id], 'projects reordered');
+    assert.deepEqual(api.hub.snapshot.persist.repoOrder?.slice(0, 2), [other, project.id], 'order is saved');
+    api.flags.set(e1.sessionId, undefined);
+    for (const s of [e1, e2, e3]) api.panels.closeTab(s.key);
+  });
+
   await check('hub: closing the hub closes its chats', async () => {
     const keys = [...api.hub.keys];
     assert.ok(keys.length > 0);

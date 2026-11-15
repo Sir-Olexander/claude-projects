@@ -133,10 +133,63 @@ const STATUS_LABEL: Record<AttentionState, string> = {
 
 const needsYou = (s: HubSessionView) => s.attention === 'needs-input' || s.attention === 'error';
 
-/** Order inside a project: Main first, then the order they were opened, Trash last. */
+/** Order inside a project: yours (drag chips to change it); new chats go at the end. */
 function ordered(sessions: HubSessionView[]): HubSessionView[] {
-  const rank = (s: HubSessionView) => (s.flag === 'main' ? 0 : s.flag === 'trash' ? 2 : 1);
-  return sessions.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i).map((x) => x.s);
+  return sessions;
+}
+
+type DropSide = 'before' | 'after';
+
+/** Moves `id` before or after `target` in `list`. */
+function moved(list: string[], id: string, target: string, side: DropSide): string[] {
+  const rest = list.filter((x) => x !== id);
+  const at = rest.indexOf(target);
+  if (at < 0) return list;
+  rest.splice(side === 'before' ? at : at + 1, 0, id);
+  return rest;
+}
+
+/** Drag and drop to reorder the items of one strip row. */
+function useReorder(list: string[], onReorder: (next: string[]) => void, enabled: boolean) {
+  const [drag, setDrag] = useState<string>();
+  const [over, setOver] = useState<{ id: string; side: DropSide }>();
+  const end = () => {
+    setDrag(undefined);
+    setOver(undefined);
+  };
+  const props = (id: string) =>
+    enabled
+      ? {
+          draggable: true,
+          onDragStart: (e: DragEvent) => {
+            setDrag(id);
+            if (e.dataTransfer) {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', id);
+            }
+          },
+          onDragOver: (e: DragEvent) => {
+            if (!drag || !list.includes(drag)) return;
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            if (drag === id) return setOver(undefined);
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            const side: DropSide = e.clientX < r.left + r.width / 2 ? 'before' : 'after';
+            setOver((o) => (o?.id === id && o.side === side ? o : { id, side }));
+          },
+          onDrop: (e: DragEvent) => {
+            e.preventDefault();
+            if (drag && over && drag !== over.id) {
+              const next = moved(list, drag, over.id, over.side);
+              if (next.join('\n') !== list.join('\n')) onReorder(next);
+            }
+            end();
+          },
+          onDragEnd: end,
+        }
+      : {};
+  const cls = (id: string) => (drag === id ? ' is-dragging' : over?.id === id ? ` drop-${over.side}` : '');
+  return { props, cls };
 }
 
 function matches(s: HubSessionView, repo: HubRepoView | undefined, q: string): boolean {
@@ -341,6 +394,17 @@ function App() {
   }, [sessions, selected, q, repoById]);
   const matchingRepos = useMemo(() => new Set(q ? sessions.filter((s) => matches(s, repoById.get(s.repoId), q)).map((s) => s.repoId) : []), [sessions, q, repoById]);
 
+  const repoDnd = useReorder(
+    repos.map((r) => r.id),
+    (ids) => post({ type: 'reorder-repos', ids }),
+    !q,
+  );
+  const chipDnd = useReorder(
+    row2.map((s) => s.key),
+    (keys) => post({ type: 'reorder-sessions', keys }),
+    !q,
+  );
+
   const show = (key: string, pane?: number) => post({ type: 'show', key, pane });
   const setFlag = (key: string, flag: SessionFlagName | undefined) => post({ type: 'set-flag', key, flag });
 
@@ -463,7 +527,8 @@ function App() {
                     role="tab"
                     tabIndex={0}
                     aria-selected={isSel}
-                    class={`rtab${isSel ? ' is-selected' : ''}${dim ? ' is-dim' : ''}`}
+                    {...repoDnd.props(r.id)}
+                    class={`rtab${isSel ? ' is-selected' : ''}${dim ? ' is-dim' : ''}${repoDnd.cls(r.id)}`}
                     style={{ '--c': `var(--repo-${r.color})` }}
                     title={`${r.name}\n${here.length} open · ${needs} need you · ${running} running${i < 9 ? `\nAlt+${i + 1}` : ''}`}
                     onClick={() => {
@@ -579,7 +644,8 @@ function App() {
                   <button
                     type="button"
                     key={s.key}
-                    class={`chip st-${s.attention}${s.flag ? ` f-${s.flag}` : ''}${paneIdx >= 0 ? ' in-pane' : ''}${paneIdx === focusedPane ? ' in-focus' : ''}`}
+                    {...chipDnd.props(s.key)}
+                    class={`chip st-${s.attention}${s.flag ? ` f-${s.flag}` : ''}${paneIdx >= 0 ? ' in-pane' : ''}${paneIdx === focusedPane ? ' in-focus' : ''}${chipDnd.cls(s.key)}`}
                     style={{ '--c': repo ? `var(--repo-${repo.color})` : 'var(--repo-none)' }}
                     title={tip}
                     onClick={() => show(s.key)}
