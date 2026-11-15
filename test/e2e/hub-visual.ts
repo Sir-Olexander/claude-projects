@@ -318,6 +318,21 @@ export async function run(): Promise<void> {
     log('repos before:', JSON.stringify(reposBefore), 'after:', JSON.stringify(api.hub.snapshot.repos.map((r) => r.name)));
   }
 
+  // Double-click a project tab: opens the chat you were last in there.
+  {
+    api.hub.show(w1);
+    await sleep(300);
+    api.hub.show(w2);
+    await sleep(300);
+    api.hub.show(main);
+    await sleep(800);
+    const r = await inHub(`(d) => { const t = [...d.querySelectorAll('.rtab')].find((e) => e.innerText.includes('web-app')); if (!t) return 'no tab'; t.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return 'ok'; }`);
+    await sleep(800);
+    const snap = api.hub.snapshot;
+    const shownKey = snap.panes[snap.focusedPane];
+    log('dblclick web-app:', r, 'shows', snap.sessions.find((x) => x.key === shownKey)?.title, '(expected', w2.title + ')');
+  }
+
   // Webview errors.
   const errors = await inHub(`(d) => (window.__hubErrors || []).join('\\n')`);
   log('hub webview errors:', errors || 'none');

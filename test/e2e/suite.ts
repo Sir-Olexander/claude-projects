@@ -636,6 +636,41 @@ export async function run(): Promise<void> {
     for (const s of [e1, e2, e3]) api.panels.closeTab(s.key);
   });
 
+  await check('Projects view: status first, then latest activity; opening a session to read it does not move it', async () => {
+    const { mkdirSync, writeFileSync: write, utimesSync } = await import('node:fs');
+    const enc = repo.replace(/[^a-zA-Z0-9]/g, '-');
+    const dir = join(claudeHome, 'projects', enc);
+    mkdirSync(dir, { recursive: true });
+    const fresh = '55555555-5555-5555-5555-555555555555';
+    const t = new Date().toISOString();
+    const line = (o: object) => JSON.stringify(o) + '\n';
+    write(
+      join(dir, `${fresh}.jsonl`),
+      line({ type: 'user', uuid: 'f1', parentUuid: null, sessionId: fresh, cwd: repo, timestamp: t, message: { role: 'user', content: 'Fresh work' } }) +
+        line({ type: 'ai-title', aiTitle: 'Fresh session', sessionId: fresh }),
+    );
+    // The existing session was last worked on an hour ago.
+    const old = join(dir, `${existingId}.jsonl`);
+    const hourAgo = new Date(Date.now() - 3600_000);
+    utimesSync(old, hourAgo, hourAgo);
+    api.index.touch(old);
+    api.index.touch(join(dir, `${fresh}.jsonl`));
+    await waitFor('fresh indexed', () => api.index.get(fresh));
+    // Open the old one just to read it (it stays open and idle in the hub).
+    await vscode.commands.executeCommand('claudeProjects.openSessionHere', { sessionId: existingId, cwd: repo });
+    const managed = await waitFor('old session open', () => api.sessions.findBySessionId(existingId));
+    await waitFor('idle', () => managed.status === 'idle');
+    await new Promise((r) => setTimeout(r, 600));
+    const projectNode = api.tree.getChildren().find((n) => n.kind === 'project' && n.projectId === project.id)!;
+    const ids = () => api.tree.getChildren(projectNode).filter((n): n is SessionNode => n.kind === 'session').map((n) => n.sessionId);
+    const order = await waitFor('both listed', () => {
+      const o = ids();
+      return o.includes(fresh) && o.includes(existingId) ? o : undefined;
+    });
+    log('tree order:', order.map((id) => api.index.get(id)?.title ?? id).join(' | '));
+    assert.ok(order.indexOf(fresh) < order.indexOf(existingId), 'newer activity first; an open idle session does not jump ahead');
+  });
+
   await check('hub: closing the hub closes its chats', async () => {
     const keys = [...api.hub.keys];
     assert.ok(keys.length > 0);

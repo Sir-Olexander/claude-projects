@@ -528,10 +528,16 @@ function App() {
                     {...repoDnd.props(r.id)}
                     class={`rtab${isSel ? ' is-selected' : ''}${dim ? ' is-dim' : ''}${repoDnd.cls(r.id)}`}
                     style={{ '--c': `var(--repo-${r.color})` }}
-                    title={`${r.name}\n${here.length} open · ${needs} need you · ${running} running${i < 9 ? `\nAlt+${i + 1}` : ''}`}
+                    title={`${r.name}\n${here.length} open · ${needs} need you · ${running} running\nDouble-click: open the chat you were last in${i < 9 ? `\nAlt+${i + 1}` : ''}`}
                     onClick={() => {
                       setFilter('');
                       setSelectedRepo(r.id);
+                    }}
+                    onDblClick={(e) => {
+                      if ((e.target as HTMLElement).closest('.tab-close')) return;
+                      // Opens the project's chat you last opened or worked in.
+                      const last = [...here].sort((a, b) => (b.enteredAt ?? 0) - (a.enteredAt ?? 0))[0];
+                      if (last) show(last.key);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -838,6 +844,9 @@ function Legend({ onClose }: { onClose: () => void }) {
         </div>
         <div class="legend-row">
           <kbd>Alt</kbd>+<kbd>1</kbd>–<kbd>9</kbd> <span>Pick the Nth project</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-mouse">Double-click a project</span> <span>Open the chat you were last in</span>
         </div>
         <div class="legend-row">
           <kbd>Esc</kbd> <span>Stop Claude in the focused chat</span>

@@ -230,19 +230,21 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     }
     const list = [...rows.values()];
     const live = (n: SessionNode) => this.attention.bySessionId(n.sessionId);
-    // Opening an old session to read it must not make it jump to the top; only real activity counts.
-    const lastActive = (n: SessionNode) => {
-      const managed = n.managedKey ? this.sessions.get(n.managedKey) : undefined;
-      // A chat opened here that has no transcript yet (a new chat or fork) counts from when it was opened.
-      return Math.max(n.info?.lastModified ?? 0, live(n)?.since ?? 0, managed?.processAlive || managed?.isNew ? managed.lastActivityAt : 0);
+    // Status first: needs you, error, finished, running. Everything else (idle, open
+    // or not) shares one group, so a chat that is merely open doesn't jump ahead.
+    const rank = (n: SessionNode) => {
+      const a = live(n)?.attention;
+      return a && a !== 'idle' ? RANK[a] : 9;
     };
-    list.sort((a, b) => {
-      const la = live(a);
-      const lb = live(b);
-      const ra = la ? RANK[la.attention] : 9;
-      const rb = lb ? RANK[lb.attention] : 9;
-      return ra - rb || lastActive(b) - lastActive(a);
-    });
+    // Then the latest change to the conversation. Opening an old session to read it
+    // (or keeping it open in Claude Chats) must not move it; only real activity counts.
+    const lastActive = (n: SessionNode) => {
+      const managed = n.managedKey ? this.sessions.get(n.managedKey) : this.sessions.findBySessionId(n.sessionId);
+      const v = live(n);
+      // A chat opened here that has no transcript yet (a new chat or fork) counts from when it was opened.
+      return Math.max(n.info?.lastModified ?? 0, v && v.attention !== 'idle' ? v.since : 0, managed?.isNew ? managed.lastActivityAt : 0);
+    };
+    list.sort((a, b) => rank(a) - rank(b) || lastActive(b) - lastActive(a));
     const limit = unlimited ? Infinity : (this.limits.get(root) ?? this.maxPerGroup());
     // Always show live sessions even beyond the limit.
     const shown = list.filter((n, i) => i < limit || !!live(n));
