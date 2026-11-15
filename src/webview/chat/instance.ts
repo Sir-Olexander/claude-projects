@@ -1,6 +1,6 @@
 import { createContext } from 'preact';
 import { useCallback, useContext, useState } from 'preact/hooks';
-import type { ChatToExtMessage } from '../../shared/protocol';
+import type { ChatToExtMessage, SessionFlagName } from '../../shared/protocol';
 import { ChatStore } from './store';
 
 /**
@@ -70,6 +70,17 @@ export class ChatUi {
   }
 }
 
+/** What the header of a hub pane adds: the session's flag, pop out and close. */
+export interface PaneControls {
+  flag?: SessionFlagName;
+  setFlag(flag: SessionFlagName | undefined): void;
+  popOut(): void;
+  /** Closes the session's chat (takes it off the strip). */
+  closeSession(): void;
+  /** Closes the pane (only when there are several). */
+  closePane?(): void;
+}
+
 /**
  * One chat shown in a webview: its store, its UI state and the way it talks
  * to the extension. A chat tab has one; the sessions hub has one per pane.
@@ -80,6 +91,8 @@ export class ChatInstance {
   constructor(
     private readonly post: (m: ChatToExtMessage) => void,
     readonly ui: ChatUi,
+    /** A chat tab of its own, or a pane of the sessions hub. */
+    readonly place: 'tab' | 'hub',
   ) {}
 
   send = (msg: ChatToExtMessage): void => this.post(msg);
@@ -102,6 +115,13 @@ export class ChatInstance {
 }
 
 export const ChatInstanceContext = createContext<ChatInstance | undefined>(undefined);
+
+/** Pane controls of a chat shown in the hub; undefined in a chat tab. */
+export const PaneContext = createContext<PaneControls | undefined>(undefined);
+
+export function usePane(): PaneControls | undefined {
+  return useContext(PaneContext);
+}
 
 /** The chat the calling component belongs to. */
 export function useChat(): ChatInstance {

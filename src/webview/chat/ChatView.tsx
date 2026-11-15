@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { classifyHref } from './lib/paths';
 import { useStoreVersion } from './store';
-import { ChatInstanceContext, type ChatInstance } from './instance';
+import { ChatInstanceContext, PaneContext, type ChatInstance, type PaneControls } from './instance';
 import { Banners, EmptyState, Header, LimitNotice, RunningIndicator, TodoPanel } from './components/chrome';
 import { CopyMenu } from './components/CopyMenu';
 import { Composer } from './components/Composer';
@@ -17,10 +17,12 @@ const NARROW_PX = 460;
  * interrupts) and counts as seen when the window has focus: always true in a
  * chat tab; only for the focused pane in the sessions hub.
  */
-export function ChatView({ chat, active }: { chat: ChatInstance; active: boolean }) {
+export function ChatView({ chat, active, pane }: { chat: ChatInstance; active: boolean; pane?: PaneControls }) {
   return (
     <ChatInstanceContext.Provider value={chat}>
-      <ChatApp chat={chat} active={active} />
+      <PaneContext.Provider value={pane}>
+        <ChatApp chat={chat} active={active} />
+      </PaneContext.Provider>
     </ChatInstanceContext.Provider>
   );
 }

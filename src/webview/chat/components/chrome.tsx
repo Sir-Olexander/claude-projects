@@ -5,10 +5,13 @@ import { formatElapsed } from '../lib/format';
 import { SPINNER_WORDS } from '../lib/tools';
 import { TodoList } from './ToolCall';
 import { Icon, IconButton } from './ui';
-import { useChat, useExpanded } from '../instance';
+import { useChat, useExpanded, usePane, type PaneControls } from '../instance';
+import { FLAG_INFO, SESSION_FLAGS } from '../../../shared/flags';
 
 export function Header({ state }: { state: ChatState }) {
-  const { send } = useChat();
+  const chat = useChat();
+  const { send } = chat;
+  const pane = usePane();
   return (
     <header class="header">
       <div class="header-main">
@@ -37,6 +40,17 @@ export function Header({ state }: { state: ChatState }) {
         <IconButton icon="link-external" title="Open in Claude extension (new window)" onClick={() => send({ type: 'open-in-claude-extension' })} />
         <IconButton icon="add" title="New session" onClick={() => send({ type: 'new-session' })} />
         <IconButton icon="trash" title="Delete session" onClick={() => send({ type: 'delete-session' })} />
+        {pane ? (
+          <>
+            <span class="header-sep" aria-hidden="true" />
+            <FlagMenu pane={pane} />
+            <IconButton icon="multiple-windows" title="Pop out to its own tab" onClick={() => pane.popOut()} />
+            {pane.closePane ? <IconButton icon="split-horizontal" title="Close this pane" onClick={() => pane.closePane?.()} /> : null}
+            <IconButton icon="close" title="Close this chat (it stays in the Projects view)" onClick={() => pane.closeSession()} />
+          </>
+        ) : chat.place === 'tab' ? (
+          <IconButton icon="layout-panel-justify" title="Move to Claude Chats (the sessions hub)" onClick={() => send({ type: 'move-to-hub' })} />
+        ) : null}
       </div>
     </header>
   );
@@ -200,6 +214,77 @@ function SharedEnvMenu({ env }: { env: SharedEnvView }) {
           >
             <Icon name="edit" /> Edit shared .env
           </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** The session's flag (hub panes): a mark of what you mean to do with it. */
+function FlagMenu({ pane }: { pane: PaneControls }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  const current = pane.flag ? FLAG_INFO[pane.flag] : undefined;
+  return (
+    <div class="bm-menu-wrap" ref={root}>
+      <button
+        type="button"
+        class={`icon-btn flag-btn${pane.flag ? ` has-flag flag-${pane.flag}` : ''}`}
+        title={current ? `Flag: ${current.label}. Click to change.` : 'Flag this session'}
+        aria-label="Flag"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Icon name={current ? current.icon : 'tag'} />
+      </button>
+      {open ? (
+        <div class="bm-menu flag-menu" role="menu">
+          <div class="bm-menu-title">Flag</div>
+          {SESSION_FLAGS.map((f) => (
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={pane.flag === f}
+              class={`flag-item flag-${f}${pane.flag === f ? ' is-current' : ''}`}
+              key={f}
+              onClick={() => {
+                setOpen(false);
+                pane.setFlag(pane.flag === f ? undefined : f);
+              }}
+            >
+              <Icon name={FLAG_INFO[f].icon} class="flag-icon" />
+              <span class="flag-label">{FLAG_INFO[f].label}</span>
+              <span class="flag-desc">{FLAG_INFO[f].description}</span>
+              {pane.flag === f ? <Icon name="check" class="flag-check" /> : null}
+            </button>
+          ))}
+          {pane.flag ? (
+            <button
+              type="button"
+              role="menuitem"
+              class="flag-item flag-clear"
+              onClick={() => {
+                setOpen(false);
+                pane.setFlag(undefined);
+              }}
+            >
+              <Icon name="close" class="flag-icon" />
+              <span class="flag-label">Clear flag</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

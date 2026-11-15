@@ -13,6 +13,15 @@ import { folderName } from '../util/paths';
 import { CHAT_VIEW_TYPE, ChatPanel, ICON_ONLY_TABS_SETTING } from './ChatPanel';
 import { PROPOSED_SCHEME, ProposedContentProvider } from './diffs';
 import { mapChatTabs, readTabTag, tabTag, type UnloadedTab } from './unloadedTabs';
+import type { SessionHub } from './SessionHub';
+import type { HubPersistedSession } from '../shared/protocol';
+
+/** Setting: where "Open here" chats open: the sessions hub, or a tab each. */
+export const OPEN_IN_SETTING = 'chat.openIn';
+
+function openInTabs(): boolean {
+  return vscode.workspace.getConfiguration('claudeProjects').get<'hub' | 'tab'>(OPEN_IN_SETTING, 'hub') === 'tab';
+}
 
 /**
  * Folder of cached chat images as a plain file: URI. globalStorageUri can use
@@ -42,6 +51,7 @@ export class ChatPanelManager implements vscode.Disposable {
   private readonly proposed = new ProposedContentProvider();
   private readonly disposables: vscode.Disposable[] = [];
   private activeKey: string | undefined;
+  private hub: SessionHub | undefined;
 
   private readonly _onDidChangeTabs = new Emitter<void>();
   /** A chat tab was opened or closed. */
@@ -68,6 +78,31 @@ export class ChatPanelManager implements vscode.Disposable {
     );
   }
 
+  /** Connects the sessions hub (created after the attention service, which needs this manager). */
+  setHub(hub: SessionHub): void {
+    this.hub = hub;
+    this.disposables.push({ dispose: hub.onDidChange(() => this._onDidChangeTabs.fire()).dispose });
+  }
+
+  /** Services and actions every chat (tab or hub pane) uses. */
+  get chatHost() {
+    const { context, log } = this.deps;
+    return {
+      extensionUri: context.extensionUri,
+      imageDir: imageCacheUri(context),
+      log,
+      proposed: this.proposed,
+      openInClaudeExtension: (s: ManagedSession) => this.openInClaudeExtension(s),
+      newSession: (cwd: string) => void this.newSession(cwd),
+      fork: (s: ManagedSession, itemId: string) => void this.fork(s, itemId),
+      moveToHub: (s: ManagedSession) => this.moveToHub(s),
+    };
+  }
+
+  get imageDir(): vscode.Uri {
+    return imageCacheUri(this.deps.context);
+  }
+
   private get host() {
     const { context, log } = this.deps;
     return {
@@ -78,6 +113,7 @@ export class ChatPanelManager implements vscode.Disposable {
       openInClaudeExtension: (s: ManagedSession) => this.openInClaudeExtension(s),
       newSession: (cwd: string) => void this.newSession(cwd),
       fork: (s: ManagedSession, itemId: string) => void this.fork(s, itemId),
+      moveToHub: (s: ManagedSession) => this.moveToHub(s),
       onActive: (s: ManagedSession) => this.onActive(s),
       onDispose: (p: ChatPanel) => {
         if (this.panels.get(p.session.key) === p) {
@@ -91,16 +127,18 @@ export class ChatPanelManager implements vscode.Disposable {
   get activeSession(): ManagedSession | undefined {
     const key = this.activeKey;
     const p = key ? this.panels.get(key) : undefined;
-    return p?.panel.active ? p.session : undefined;
+    return p?.panel.active ? p.session : this.hub?.activeSession;
   }
 
+  /** The session has a chat open in this window: its own tab, or in the hub. */
   hasPanel(key: string): boolean {
-    return this.panels.has(key);
+    return this.panels.has(key) || !!this.hub?.has(key);
   }
 
-  /** Closes a session's tab, if it has one. */
+  /** Closes a session's chat: its tab, or its place in the hub. */
   closeTab(key: string): void {
     this.panels.get(key)?.panel.dispose();
+    this.hub?.close([key]);
   }
 
   private mapTabs(): { unloaded: UnloadedTab[]; numbers: Map<ChatPanel, number | undefined> } {
@@ -222,8 +260,44 @@ export class ChatPanelManager implements vscode.Disposable {
     }
   }
 
-  /** Shows a session in its tab (creating the tab if needed). */
-  show(session: ManagedSession, opts: { preserveFocus?: boolean; viewColumn?: vscode.ViewColumn } = {}): ChatPanel {
+  /**
+   * Shows a session's chat: its tab when it has one, otherwise in the sessions
+   * hub (or a new tab when chats are set to open in tabs).
+   */
+  show(session: ManagedSession, opts: { preserveFocus?: boolean } = {}): { scrollTo(itemId: string): void } {
+    const existing = this.panels.get(session.key);
+    if (existing) {
+      existing.reveal(opts.preserveFocus);
+      return existing;
+    }
+    if (this.hub && !openInTabs()) {
+      const hub = this.hub;
+      hub.show(session, opts);
+      return { scrollTo: (itemId) => hub.scrollTo(session, itemId) };
+    }
+    return this.showInTab(session, opts);
+  }
+
+  /** Moves a session from the hub to its own tab (or reveals its tab). */
+  popOut(session: ManagedSession): ChatPanel {
+    this.hub?.close([session.key]);
+    return this.showInTab(session);
+  }
+
+  /** Moves a session's chat from its tab into the hub. */
+  moveToHub(session: ManagedSession): void {
+    if (!this.hub) return;
+    this.panels.get(session.key)?.dispose();
+    this.hub.show(session);
+  }
+
+  /** Opens the hub (it may be empty). */
+  showHub(): void {
+    this.hub?.reveal();
+  }
+
+  /** Shows a session in its own tab (creating the tab if needed). */
+  showInTab(session: ManagedSession, opts: { preserveFocus?: boolean; viewColumn?: vscode.ViewColumn } = {}): ChatPanel {
     const existing = this.panels.get(session.key);
     if (existing) {
       existing.reveal(opts.preserveFocus);
@@ -256,14 +330,21 @@ export class ChatPanelManager implements vscode.Disposable {
 
   private async restore(panel: vscode.WebviewPanel, state: PersistedPanelState | undefined): Promise<void> {
     const s = state?.session;
-    if (!s?.cwd || !existsSync(s.cwd)) {
+    const session = s ? await this.restoreSession(s) : undefined;
+    if (!session || this.panels.has(session.key) || this.hub?.has(session.key)) {
       panel.dispose();
       return;
     }
+    this.attach(panel, session, this.newTag(readTabTag(panel.title)));
+  }
+
+  /** Reopens a session saved by a chat tab or the hub; undefined when its folder is gone. */
+  async restoreSession(s: NonNullable<PersistedPanelState['session']> | HubPersistedSession): Promise<ManagedSession | undefined> {
+    if (!s.cwd || !existsSync(s.cwd)) return undefined;
     const project = this.deps.store.findContaining(s.cwd);
     const branch = await getCurrentBranch(s.cwd).catch(() => undefined);
     let session: ManagedSession;
-    if (s.sessionId) {
+    if (s.sessionId && !('isNew' in s && s.isNew) && !s.forkFrom) {
       session = this.deps.sessions.openExisting({
         sessionId: s.sessionId,
         cwd: s.cwd,
@@ -277,11 +358,7 @@ export class ChatPanelManager implements vscode.Disposable {
     } else {
       session = this.deps.sessions.createNew({ cwd: s.cwd, projectName: project?.name ?? folderName(s.cwd), branch, isWorktree: !!project && project.path !== s.cwd });
     }
-    if (this.panels.has(session.key)) {
-      panel.dispose();
-      return;
-    }
-    this.attach(panel, session, this.newTag(readTabTag(panel.title)));
+    return session;
   }
 
   /** Starts a new session in `cwd` and shows it. */
@@ -337,11 +414,10 @@ export class ChatPanelManager implements vscode.Disposable {
     return session;
   }
 
-  /** Opens a session's tab and scrolls to one of its messages. */
+  /** Opens a session's chat and scrolls to one of its messages. */
   async revealItem(sessionId: string, cwd: string, itemId: string): Promise<void> {
     const managed = this.deps.sessions.findBySessionId(sessionId) ?? (await this.openExisting(sessionId, cwd));
-    const panel = this.show(managed);
-    panel.scrollTo(itemId);
+    this.show(managed).scrollTo(itemId);
   }
 
   reveal(key: string): boolean {
@@ -366,9 +442,11 @@ export class ChatPanelManager implements vscode.Disposable {
     const panel = this.panels.get(session.key);
     await this.deps.handoff.openInClaudeExtension(session.cwd, session.isNew ? undefined : session.sessionId);
     panel?.dispose();
+    this.hub?.close([session.key]);
   }
 
-  private onActive(session: ManagedSession): void {
+  /** A chat (tab or the hub's focused pane) became the active one. */
+  onActive(session: ManagedSession): void {
     this.activeKey = session.key;
     if (!vscode.workspace.getConfiguration('claudeProjects').get<boolean>('followActiveSession', true)) return;
     const project = this.deps.store.findContaining(session.cwd);

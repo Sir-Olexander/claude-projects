@@ -471,6 +471,8 @@ export interface LimitStopView {
 export type ChatToExtMessage =
   /** Sent once the webview script has loaded; the extension answers with `state`. */
   | { type: 'ready' }
+  /** Move this chat from its own tab into the sessions hub. */
+  | { type: 'move-to-hub' }
   | { type: 'send'; text: string; images?: ImageAttachment[] }
   /** Stop the running turn (like Esc in the terminal). */
   | { type: 'interrupt' }
@@ -583,6 +585,8 @@ export interface LiveSessionView {
   tabNumber?: number;
   /** The dashboard can close it: sessions of this window, and terminal sessions (ends their process). */
   closable?: boolean;
+  /** The user's flag on the session (dashboard only). */
+  flag?: SessionFlagName;
 }
 
 export interface UsageWindowView {
@@ -613,6 +617,8 @@ export interface RecentSessionView {
   lastPrompt?: string;
   /** Epoch ms of the last change to the transcript. */
   lastActive: number;
+  /** The user's flag on the session. */
+  flag?: SessionFlagName;
 }
 
 export interface DashboardState {
@@ -643,3 +649,94 @@ export type DashboardToExtMessage =
   | { type: 'new-session' }
   | { type: 'refresh-usage' }
   | { type: 'add-project' };
+
+// ---------------------------------------------------------------------------
+// Sessions hub: one tab that shows the open "Open here" sessions, grouped by
+// project in a two-row strip, with up to three chats side by side.
+// ---------------------------------------------------------------------------
+
+/** A mark the user puts on a session (see src/sessions/flags.ts). */
+export type SessionFlagName = 'main' | 'review' | 'waiting' | 'parked' | 'trash';
+
+/** A project (or a folder outside the project list) that has open sessions. */
+export interface HubRepoView {
+  id: string;
+  name: string;
+  /** Project folder (where "New session" starts). */
+  path: string;
+  /** Index into the hub's colour palette. */
+  color: number;
+}
+
+/** One open session in the strip. */
+export interface HubSessionView {
+  key: string;
+  sessionId: string;
+  repoId: string;
+  title: string;
+  cwd: string;
+  branch?: string;
+  isWorktree?: boolean;
+  attention: AttentionState;
+  /** "Permission: Bash", "Question", "Finished"… */
+  waitingFor?: string;
+  activity?: string;
+  since: number;
+  flag?: SessionFlagName;
+}
+
+/** What the hub's webview saves so the extension can reopen its sessions after a reload. */
+export interface HubPersistedSession {
+  key: string;
+  sessionId: string;
+  cwd: string;
+  title: string;
+  /** Never sent a message: reopens as a fresh new session. */
+  isNew?: boolean;
+  /** A fork that hasn't sent its first message. */
+  forkFrom?: { sessionId: string; at: string; title: string };
+}
+
+export interface HubPersisted {
+  sessions: HubPersistedSession[];
+  panes: (string | null)[];
+  focusedPane: number;
+}
+
+export interface HubState {
+  repos: HubRepoView[];
+  /** In the order they were opened. */
+  sessions: HubSessionView[];
+  /** Session key shown in each pane (1 to 3 panes); null for an empty pane. */
+  panes: (string | null)[];
+  focusedPane: number;
+  /** Bumped when the extension wants the strip to show the focused pane's project. */
+  followSeq: number;
+  /** Saved in the webview state; handed back to the extension when VS Code restores the tab. */
+  persist: HubPersisted;
+}
+
+export type ExtToHubMessage =
+  | { type: 'hub'; state: HubState }
+  /** A message for the chat of one session (shown in a pane). */
+  | { type: 'chat'; key: string; msg: ExtToChatMessage };
+
+export type HubToExtMessage =
+  | { type: 'ready' }
+  | { type: 'chat'; key: string; msg: ChatToExtMessage }
+  /** Show a session in a pane (the focused one when `pane` is missing). */
+  | { type: 'show'; key: string; pane?: number }
+  | { type: 'focus-pane'; pane: number }
+  | { type: 'set-pane-count'; count: number }
+  | { type: 'close-pane'; pane: number }
+  /** Take sessions off the strip (their chats close). */
+  | { type: 'close-sessions'; keys: string[] }
+  /** Move a session to its own editor tab. */
+  | { type: 'pop-out'; key: string }
+  | { type: 'set-flag'; key: string; flag?: SessionFlagName }
+  /** Delete the trashed sessions of a project (asks first). */
+  | { type: 'delete-trashed'; repoId: string }
+  | { type: 'new-session'; repoId?: string }
+  | { type: 'open-dashboard' }
+  | { type: 'open-session-picker' }
+  | { type: 'reveal-in-projects'; key: string };

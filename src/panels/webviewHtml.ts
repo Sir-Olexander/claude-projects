@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto';
  * dist/webview with a strict CSP. The app mounts into #root and posts
  * `{type:'ready'}` when it has loaded.
  */
-export function webviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, app: 'chat' | 'dashboard', title: string): string {
+export function webviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri, app: 'chat' | 'dashboard' | 'hub', title: string): string {
   const dist = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
   const uri = (file: string) => webview.asWebviewUri(vscode.Uri.joinPath(dist, file)).toString();
   const nonce = randomBytes(16).toString('base64');

@@ -42,6 +42,7 @@ const configs = [
     entryPoints: {
       chat: join(root, 'src', 'webview', 'chat', 'main.tsx'),
       dashboard: join(root, 'src', 'webview', 'dashboard', 'main.tsx'),
+      hub: join(root, 'src', 'webview', 'hub', 'main.tsx'),
     },
     outdir: join(root, 'dist', 'webview'),
     platform: 'browser',

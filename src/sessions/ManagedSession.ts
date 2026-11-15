@@ -307,6 +307,11 @@ export class ManagedSession {
     return !!this.forkFrom && !this.hasTranscript;
   }
 
+  /** Where an unstarted fork comes from (to reopen it after a reload). */
+  get unstartedForkSource(): ForkSource | undefined {
+    return this.isUnstartedFork ? this.forkFrom : undefined;
+  }
+
   get processAlive(): boolean {
     return !!this.proc?.alive;
   }

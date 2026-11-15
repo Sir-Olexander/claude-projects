@@ -31,7 +31,8 @@
     "onStartupFinished",
     "onUri",
     "onWebviewPanel:claudeProjects.chat",
-    "onWebviewPanel:claudeProjects.dashboard"
+    "onWebviewPanel:claudeProjects.dashboard",
+    "onWebviewPanel:claudeProjects.hub"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -181,6 +182,23 @@
         "title": "Open Sessions Dashboard",
         "category": "Claude Projects",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "claudeProjects.openHub",
+        "title": "Open Claude Chats",
+        "category": "Claude Projects",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "claudeProjects.flagSession",
+        "title": "Flag Session…",
+        "category": "Claude Projects",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "claudeProjects.deleteSessions",
+        "title": "Delete Sessions…",
+        "category": "Claude Projects"
       },
       {
         "command": "claudeProjects.focusNextAttention",
@@ -567,6 +585,10 @@
         {
           "command": "claudeProjects.revealInExplorer",
           "when": "isWindows"
+        },
+        {
+          "command": "claudeProjects.deleteSessions",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -581,14 +603,19 @@
           "group": "navigation@1"
         },
         {
-          "command": "claudeProjects.openDashboard",
+          "command": "claudeProjects.openHub",
           "when": "view == claudeProjects.projects",
           "group": "navigation@2"
         },
         {
-          "command": "claudeProjects.refresh",
+          "command": "claudeProjects.openDashboard",
           "when": "view == claudeProjects.projects",
           "group": "navigation@3"
+        },
+        {
+          "command": "claudeProjects.refresh",
+          "when": "view == claudeProjects.projects",
+          "group": "navigation@4"
         },
         {
           "command": "claudeProjects.importProjects",
@@ -796,6 +823,11 @@
           "command": "claudeProjects.stopSession",
           "when": "view == claudeProjects.projects && viewItem =~ /^session.*\\.live/",
           "group": "2_manage@1"
+        },
+        {
+          "command": "claudeProjects.flagSession",
+          "when": "view == claudeProjects.projects && viewItem =~ /^session/",
+          "group": "2_manage@0"
         },
         {
           "command": "claudeProjects.renameSession",
@@ -1194,10 +1226,23 @@
           "default": true,
           "markdownDescription": "Offer the **Yolo auto** mode in the chat mode picker. It is auto mode, and when Claude still asks for permission, the extension answers yes for you. Questions from Claude and plan reviews still wait for you. Turn this off to hide the mode (a chat already in Yolo auto keeps it until you switch)."
         },
+        "claudeProjects.chat.openIn": {
+          "type": "string",
+          "enum": [
+            "hub",
+            "tab"
+          ],
+          "enumDescriptions": [
+            "In the Claude Chats tab: open chats line up in a strip grouped by project, up to three side by side.",
+            "Each chat in its own editor tab."
+          ],
+          "default": "hub",
+          "markdownDescription": "Where **Open here** chats open. In **Claude Chats** (the sessions hub), the strip has a row of projects and a row with the chosen project's chats; you can still pop a chat out to its own tab from its header."
+        },
         "claudeProjects.chat.iconOnlyTabs": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Show **Open here** chat tabs as just their icon and a number (0, 1, 2… from left to right), without the session name, to fit more tabs. The **Claude Sessions** dashboard shows the same numbers. A dot still marks a session that is waiting for you or has news. The name stays everywhere else (Projects view, dashboard, the chat's own header)."
+          "markdownDescription": "Show **Open here** chats that have their own tab (see `#claudeProjects.chat.openIn#`) as just their icon and a number (0, 1, 2… from left to right), without the session name, to fit more tabs. The **Claude Sessions** dashboard shows the same numbers. A dot still marks a session that is waiting for you or has news. The name stays everywhere else (Projects view, dashboard, the chat's own header)."
         },
         "claudeProjects.chat.showThinking": {
           "type": "boolean",

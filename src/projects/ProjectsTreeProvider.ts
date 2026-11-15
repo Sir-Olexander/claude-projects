@@ -14,6 +14,9 @@ import { debounce } from '../util/events';
 import { folderName, isSameOrInside, realPath, stripTrailingSep, tildify } from '../util/paths';
 import { longAgo, shortAgo } from '../util/time';
 import type { ProjectStore } from './ProjectStore';
+import type { SessionFlags } from '../sessions/flags';
+import { FLAG_INFO } from '../shared/flags';
+import type { SessionFlagName } from '../shared/protocol';
 
 export type ProjectsNode = ProjectNode | WorktreeNode | SessionNode | MoreNode | InfoNode;
 
@@ -88,6 +91,7 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     private readonly index: SessionIndex,
     private readonly sessions: SessionManager,
     private readonly attention: AttentionService,
+    private readonly flags: SessionFlags,
   ) {
     this.disposables.push(
       store.onDidChangeProjects(() => this.refreshSoon()),
@@ -97,6 +101,7 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     this.disposables.push({ dispose: index.onDidChange(() => this.refreshSoon()).dispose });
     this.disposables.push({ dispose: attention.onDidChange(() => this.refreshSoon()).dispose });
     this.disposables.push({ dispose: sessions.onDidChange(() => this.refreshSoon()).dispose });
+    this.disposables.push({ dispose: flags.onDidChange(() => this.refreshSoon()).dispose });
   }
 
   /** Re-read git info (branches, worktrees) and redraw. */
@@ -351,6 +356,8 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     item.id = `session:${node.sessionId}`;
     const when = live?.since ?? node.info?.lastModified;
     const desc: string[] = [];
+    const flag = this.flags.get(node.sessionId);
+    if (flag) desc.push(FLAG_INFO[flag].label);
     if (live) {
       const state =
         live.attention === 'needs-input'
@@ -368,10 +375,11 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     if (when) desc.push(shortAgo(when));
     if (node.cwd !== node.parentPath) desc.push(`in ${relative(node.parentPath, node.cwd)}`);
     item.description = desc.join(' · ');
-    item.iconPath = sessionIcon(live?.attention, !!managed?.processAlive);
+    item.iconPath = !live && flag ? new vscode.ThemeIcon(FLAG_INFO[flag].icon, new vscode.ThemeColor(FLAG_COLOR[flag])) : sessionIcon(live?.attention, !!managed?.processAlive);
     const tip = new vscode.MarkdownString(undefined, true);
     tip.supportThemeIcons = true;
     tip.appendMarkdown(`**${escapeMd(title)}**\n\n`);
+    if (flag) tip.appendMarkdown(`$(${FLAG_INFO[flag].icon}) ${FLAG_INFO[flag].label}: ${escapeMd(FLAG_INFO[flag].description)}\n\n`);
     if (node.info?.firstPrompt && node.info.firstPrompt !== title) tip.appendMarkdown(`${escapeMd(node.info.firstPrompt)}\n\n`);
     if (live) tip.appendMarkdown(`$(circle-filled) ${escapeMd(live.waitingFor ?? live.activity ?? live.attention)}${live.managed ? '' : ` · ${SESSION_SOURCE_LABELS[live.source]}`}\n\n`);
     if (node.info?.gitBranch && node.info.gitBranch !== 'HEAD') tip.appendMarkdown(`$(git-branch) ${escapeMd(node.info.gitBranch)}  `);
@@ -389,6 +397,15 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     this._onDidChangeTreeData.dispose();
   }
 }
+
+/** Theme colours of the flags, matching the hub. */
+const FLAG_COLOR: Record<SessionFlagName, string> = {
+  main: 'charts.yellow',
+  review: 'charts.blue',
+  waiting: 'charts.purple',
+  parked: 'descriptionForeground',
+  trash: 'errorForeground',
+};
 
 function sessionIcon(attention: AttentionState | undefined, alive: boolean): vscode.ThemeIcon {
   switch (attention) {

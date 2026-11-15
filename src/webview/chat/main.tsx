@@ -31,6 +31,7 @@ const persisted: PersistedTab = loaded && loaded.v === 1 ? loaded : { v: 1 };
 const chat = new ChatInstance(
   (m) => post<ChatToExtMessage>(m),
   new ChatUi(persisted, (data) => setPersisted<PersistedTab>({ ...data, v: 1, session: persisted.session })),
+  'tab',
 );
 
 /** Records which session this tab shows; written right away (not debounced). */

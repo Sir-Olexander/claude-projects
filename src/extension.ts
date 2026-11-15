@@ -15,6 +15,8 @@ import { UsageService } from './usage/UsageService';
 import { HandoffService } from './handoff/Handoff';
 import { ChatPanelManager } from './panels/ChatPanelManager';
 import { DashboardPanel } from './panels/DashboardPanel';
+import { SessionHub } from './panels/SessionHub';
+import { SessionFlags, type SessionFlag } from './sessions/flags';
 import { Notifier } from './notify/Notifier';
 import { WindowPresence } from './notify/WindowPresence';
 import { childPath } from './claude/cliLocator';
@@ -32,6 +34,8 @@ export interface ClaudeProjectsApi {
   attention: AttentionService;
   usage: UsageService;
   panels: ChatPanelManager;
+  hub: SessionHub;
+  flags: SessionFlags;
   dashboard: DashboardPanel;
   handoff: HandoffService;
   tree: ProjectsTreeProvider;
@@ -103,6 +107,35 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   const attention = new AttentionService({ store, sessions, registry, index, notifier, presence, log, utilityCwd: storageDir, reveal: (key) => panels.reveal(key), tabs: { has: (key) => panels.hasPanel(key), unloaded: () => panels.unloadedTabs(), number: (key) => panels.tabNumber(key), get numberingOn() { return panels.numberingOn; }, onDidChange: (l) => panels.onDidChangeTabs(l) } });
   context.subscriptions.push(attention);
 
+  // Flags the user puts on sessions (Main, Review, Waiting, Parked, Trash), shared by all windows.
+  const FLAGS_KEY = 'claudeProjects.sessionFlags.v1';
+  const flags = new SessionFlags({
+    load: () => context.globalState.get<Record<string, SessionFlag>>(FLAGS_KEY, {}),
+    save: (f) => void context.globalState.update(FLAGS_KEY, f),
+  });
+  context.subscriptions.push(flags);
+
+  // The sessions hub: one tab with every open chat, grouped by project.
+  const hub = new SessionHub({
+    context,
+    log,
+    sessions,
+    attention,
+    store,
+    flags,
+    chatHost: panels.chatHost,
+    imageDir: panels.imageDir,
+    restoreSession: (s) => panels.restoreSession(s),
+    onActive: (s) => panels.onActive(s),
+    popOut: (s) => void panels.popOut(s),
+    newSession: (cwd) => void panels.newSession(cwd),
+    deleteSessions: async (list) => {
+      await vscode.commands.executeCommand('claudeProjects.deleteSessions', list);
+    },
+  });
+  context.subscriptions.push(hub);
+  panels.setHub(hub);
+
   let openExternal: OpenExternal = async () => {};
   const dashboard = new DashboardPanel({
     context,
@@ -112,6 +145,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
     usage,
     store,
     handoff,
+    flags,
     revealSession: (key) => panels.reveal(key),
     closeTab: (key) => panels.closeTab(key),
     closeUnloadedTab: (key) => panels.closeUnloadedTab(key),
@@ -121,7 +155,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   context.subscriptions.push(dashboard);
 
   // Projects view.
-  const tree = new ProjectsTreeProvider(store, index, sessions, attention);
+  const tree = new ProjectsTreeProvider(store, index, sessions, attention, flags);
   const treeView = vscode.window.createTreeView<ProjectsNode>('claudeProjects.projects', { treeDataProvider: tree, showCollapseAll: true });
   context.subscriptions.push(tree, treeView);
   // Shows a folder (a session's cwd) in the Projects view: its project, or its worktree.
@@ -158,7 +192,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
     }),
   );
 
-  const commands = registerProjectCommands({ context, log, store, index, sessions, panels, handoff, attention, dashboard, usage, tree, utilityDir: storageDir });
+  const commands = registerProjectCommands({ context, log, store, index, sessions, panels, handoff, attention, dashboard, usage, tree, flags, utilityDir: storageDir });
   openExternal = commands.openExternal;
   context.subscriptions.push(commands.disposable);
 
@@ -204,7 +238,13 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   );
 
   // Other windows may change the project list (global state); pick it up when focused.
-  context.subscriptions.push(vscode.window.onDidChangeWindowState((s) => s.focused && store.reload()));
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState((s) => {
+      if (!s.focused) return;
+      store.reload();
+      flags.reload();
+    }),
+  );
 
   // Start the background work.
   index.startWatching();
@@ -214,7 +254,7 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   usage.start();
 
   log.info(`Claude Projects activated (${store.projects.length} projects)`);
-  return { store, index, registry, sessions, attention, usage, panels, dashboard, handoff, tree, treeView, gitViews: getGitViewsForTesting };
+  return { store, index, registry, sessions, attention, usage, panels, hub, flags, dashboard, handoff, tree, treeView, gitViews: getGitViewsForTesting };
 }
 
 export async function deactivate(): Promise<void> {

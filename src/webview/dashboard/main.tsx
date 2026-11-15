@@ -1,7 +1,8 @@
 import { render } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { AttentionState, DashboardState, DashboardToExtMessage, ExtToDashboardMessage, LiveSessionView, RecentSessionView, UsageView, UsageWindowView } from '../../shared/protocol';
-import { SESSION_SOURCE_LABELS } from '../../shared/protocol';
+import { SESSION_SOURCE_LABELS, type SessionFlagName } from '../../shared/protocol';
+import { FLAG_INFO } from '../../shared/flags';
 import { clockTime, countdown, setTimeLocale, shortAgo } from '../../util/time';
 import { getPersisted, onMessage, post as rawPost, setPersisted } from '../common/vscodeApi';
 import './dashboard.css';
@@ -33,6 +34,13 @@ const STATE_ICON: Record<AttentionState, string> = {
   running: 'codicon-loading codicon-modifier-spin',
   idle: 'codicon-circle-large-outline',
 };
+
+/** The user's flag on a session (Main, Review, Waiting, Parked, Trash). */
+function FlagMark({ flag }: { flag?: SessionFlagName }) {
+  if (!flag) return null;
+  const f = FLAG_INFO[flag];
+  return <i class={`flag-mark flag-${flag} codicon codicon-${f.icon}`} title={`${f.label}: ${f.description}`} />;
+}
 
 function App() {
   const [state, setState] = useState<DashboardState | undefined>();
@@ -217,7 +225,10 @@ function RecentCard({ r, now }: { r: RecentSessionView; now: number }) {
             {shortAgo(r.lastActive, now)}
           </span>
         </div>
-        <div class="title">{r.title}</div>
+        <div class="title">
+          <FlagMark flag={r.flag} />
+          {r.title}
+        </div>
         {r.lastPrompt ? <div class="detail">{r.lastPrompt}</div> : null}
       </div>
       <div class="actions" onClick={(e) => e.stopPropagation()}>
@@ -327,7 +338,10 @@ function Card({ v, now, canClose }: { v: LiveSessionView; now: number; canClose?
             {shortAgo(v.since, now)}
           </span>
         </div>
-        <div class="title">{v.title}</div>
+        <div class="title">
+          <FlagMark flag={v.flag} />
+          {v.title}
+        </div>
         {line ? <div class={`detail ${v.attention === 'needs-input' ? 'strong' : ''}`}>{line}</div> : null}
       </div>
       <div class="actions" onClick={stop}>
