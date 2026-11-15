@@ -685,6 +685,8 @@ export interface HubSessionView {
   activity?: string;
   since: number;
   flag?: SessionFlagName;
+  /** When you last opened or worked in it: the strip shows the latest first. */
+  enteredAt?: number;
 }
 
 /** What the hub's webview saves so the extension can reopen its sessions after a reload. */
@@ -695,6 +697,8 @@ export interface HubPersistedSession {
   title: string;
   /** Never sent a message: reopens as a fresh new session. */
   isNew?: boolean;
+  /** When you last opened or worked in it (orders the strip). */
+  enteredAt?: number;
   /** A fork that hasn't sent its first message. */
   forkFrom?: { sessionId: string; at: string; title: string };
 }
@@ -740,8 +744,6 @@ export type HubToExtMessage =
   | { type: 'set-flag'; key: string; flag?: SessionFlagName }
   /** Dragged project tabs into a new order. */
   | { type: 'reorder-repos'; ids: string[] }
-  /** Dragged the chats of one project into a new order. */
-  | { type: 'reorder-sessions'; keys: string[] }
   /** Delete the trashed sessions of a project (asks first). */
   | { type: 'delete-trashed'; repoId: string }
   | { type: 'new-session'; repoId?: string }

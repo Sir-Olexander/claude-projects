@@ -133,9 +133,12 @@ const STATUS_LABEL: Record<AttentionState, string> = {
 
 const needsYou = (s: HubSessionView) => s.attention === 'needs-input' || s.attention === 'error';
 
-/** Order inside a project: yours (drag chips to change it); new chats go at the end. */
+/** Order inside a project: Main first, then the chat you last opened or worked in. */
 function ordered(sessions: HubSessionView[]): HubSessionView[] {
-  return sessions;
+  return sessions
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => Number(b.s.flag === 'main') - Number(a.s.flag === 'main') || (b.s.enteredAt ?? 0) - (a.s.enteredAt ?? 0) || a.i - b.i)
+    .map((x) => x.s);
 }
 
 type DropSide = 'before' | 'after';
@@ -399,11 +402,6 @@ function App() {
     (ids) => post({ type: 'reorder-repos', ids }),
     !q,
   );
-  const chipDnd = useReorder(
-    row2.map((s) => s.key),
-    (keys) => post({ type: 'reorder-sessions', keys }),
-    !q,
-  );
 
   const show = (key: string, pane?: number) => post({ type: 'show', key, pane });
   const setFlag = (key: string, flag: SessionFlagName | undefined) => post({ type: 'set-flag', key, flag });
@@ -644,8 +642,7 @@ function App() {
                   <button
                     type="button"
                     key={s.key}
-                    {...chipDnd.props(s.key)}
-                    class={`chip st-${s.attention}${s.flag ? ` f-${s.flag}` : ''}${paneIdx >= 0 ? ' in-pane' : ''}${paneIdx === focusedPane ? ' in-focus' : ''}${chipDnd.cls(s.key)}`}
+                    class={`chip st-${s.attention}${s.flag ? ` f-${s.flag}` : ''}${paneIdx >= 0 ? ' in-pane' : ''}${paneIdx === focusedPane ? ' in-focus' : ''}`}
                     style={{ '--c': repo ? `var(--repo-${repo.color})` : 'var(--repo-none)' }}
                     title={tip}
                     onClick={() => show(s.key)}

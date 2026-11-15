@@ -132,6 +132,7 @@ export class SessionHub implements vscode.Disposable {
    */
   show(session: ManagedSession, opts: { preserveFocus?: boolean; pane?: number } = {}): void {
     const key = session.key;
+    this.enteredAt.set(key, Date.now());
     if (!this.open.includes(key)) {
       this.open.push(key);
       this._onDidChange.fire();
@@ -161,6 +162,7 @@ export class SessionHub implements vscode.Disposable {
       const i = this.open.indexOf(key);
       if (i < 0) continue;
       this.open.splice(i, 1);
+      this.enteredAt.delete(key);
       removed = true;
       this.panes = this.panes.map((k) => (k === key ? null : k));
     }
@@ -264,6 +266,7 @@ export class SessionHub implements vscode.Disposable {
         const session = await this.deps.restoreSession(s);
         if (!session) continue;
         keyMap.set(s.key, session.key);
+        if (s.enteredAt) this.enteredAt.set(session.key, s.enteredAt);
         if (!this.open.includes(session.key)) this.open.push(session.key);
       } catch (err) {
         this.deps.log.warn(`could not reopen hub session ${s.sessionId}: ${errorMessage(err)}`);
@@ -349,12 +352,6 @@ export class SessionHub implements vscode.Disposable {
         case 'set-flag': {
           const s = this.deps.sessions.get(m.key);
           if (!s) break;
-          // Main goes to the front of its project once; after that its place is yours.
-          if (m.flag === 'main' && this.deps.flags.get(s.sessionId) !== 'main') {
-            const repo = this.repoOf(s.cwd).id;
-            const mine = this.open.filter((k) => k !== m.key && this.repoKey(k) === repo);
-            this.reorderSessions([m.key, ...mine]);
-          }
           this.deps.flags.set(s.sessionId, m.flag);
           break;
         }
@@ -365,10 +362,6 @@ export class SessionHub implements vscode.Disposable {
           this.pushState();
           break;
         }
-        case 'reorder-sessions':
-          this.reorderSessions(m.keys);
-          this.pushState();
-          break;
         case 'delete-trashed': {
           const targets = this.open
             .map((k) => this.deps.sessions.get(k))
@@ -464,9 +457,15 @@ export class SessionHub implements vscode.Disposable {
   private lastFocusedKey: string | undefined;
   /** The chat the user is working in (clicked or typed in its pane), as reported by the webview. */
   private engagedKey: string | undefined;
+  /** When each open chat was last opened or worked in (the strip shows the latest first). */
+  private readonly enteredAt = new Map<string, number>();
 
   private setEngaged(key: string, on: boolean): void {
-    if (on) this.engagedKey = key;
+    if (on) {
+      this.engagedKey = key;
+      this.enteredAt.set(key, Date.now());
+      this.pushSoon();
+    }
     else if (this.engagedKey === key) this.engagedKey = undefined;
     this.syncFocus();
   }
@@ -494,25 +493,6 @@ export class SessionHub implements vscode.Disposable {
     if (!session) return;
     session.focused = vscode.window.state.focused;
     if (vscode.window.state.focused) session.markSeen();
-  }
-
-  private repoKey(key: string): string | undefined {
-    const s = this.deps.sessions.get(key);
-    return s ? this.repoOf(s.cwd).id : undefined;
-  }
-
-  /**
-   * Puts the chats of one project in the given order. Their places in the open
-   * list are kept, so other projects' chats don't move.
-   */
-  private reorderSessions(keys: string[]): void {
-    const wanted = keys.filter((k, i) => this.open.includes(k) && keys.indexOf(k) === i);
-    if (wanted.length < 2) return;
-    const set = new Set(wanted);
-    const slots = this.open.map((k, i) => (set.has(k) ? i : -1)).filter((i) => i >= 0);
-    const next = [...this.open];
-    slots.forEach((slot, i) => (next[slot] = wanted[i]));
-    this.open = next;
   }
 
   private repoOf(cwd: string): { id: string; name: string; path: string } {
@@ -566,9 +546,10 @@ export class SessionHub implements vscode.Disposable {
         activity: v?.activity,
         since: v?.since ?? Date.now(),
         flag: this.deps.flags.get(s.sessionId),
+        enteredAt: this.enteredAt.get(key),
       });
       const fork = s.unstartedForkSource;
-      persisted.push({ key, sessionId: s.sessionId, cwd: s.cwd, title: s.title, isNew: s.isNew && !fork ? true : undefined, forkFrom: fork ? { ...fork } : undefined });
+      persisted.push({ key, sessionId: s.sessionId, cwd: s.cwd, title: s.title, isNew: s.isNew && !fork ? true : undefined, forkFrom: fork ? { ...fork } : undefined, enteredAt: this.enteredAt.get(key) });
     }
     return {
       repos: this.reposFor(),

@@ -286,7 +286,7 @@ export async function run(): Promise<void> {
   await sleep(500);
   await screenshot('hub-11-hover-chip');
 
-  // Drag a chat chip to the end of its row, and a project tab to the front.
+  // Drag a project tab to the front (chats are ordered by when you last entered them).
   {
     const drag = (sel: string, from: number, to: number, side: 'before' | 'after', drop: boolean) =>
       inHub(`(d) => {
@@ -307,16 +307,11 @@ export async function run(): Promise<void> {
       }`.replace('${from}', String(from)).replace('${to}', String(to)).replace("${side}", JSON.stringify(side)).replace('${drop}', String(drop)));
     api.hub.show(main);
     await sleep(800);
-    const keysBefore = api.hub.snapshot.sessions.filter((x) => x.repoId === p1.id).map((x) => x.title);
-    log('drag marker:', await drag('.strip .chip', 0, 2, 'after', false));
+    log('drag marker:', await drag('.rtab', 0, 2, 'after', false));
     await sleep(300);
     await screenshot('hub-12-drag-marker');
-    await inHub(`(d) => { d.querySelector('.strip .chip')?.dispatchEvent(new DragEvent('dragend', { bubbles: true })); return true; }`);
+    await inHub(`(d) => { d.querySelector('.rtab')?.dispatchEvent(new DragEvent('dragend', { bubbles: true })); return true; }`);
     await sleep(300);
-    log('drag chip:', await drag('.strip .chip', 0, 2, 'after', true));
-    await sleep(800);
-    const keysAfter = api.hub.snapshot.sessions.filter((x) => x.repoId === p1.id).map((x) => x.title);
-    log('chips before:', JSON.stringify(keysBefore), 'after:', JSON.stringify(keysAfter));
     const reposBefore = api.hub.snapshot.repos.map((r) => r.name);
     log('drag repo:', await drag('.rtab', reposBefore.length - 1, 0, 'before', true));
     await sleep(800);

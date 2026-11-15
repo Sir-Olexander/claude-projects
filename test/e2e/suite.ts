@@ -607,19 +607,25 @@ export async function run(): Promise<void> {
     await postToHub({ type: 'set-pane-count', count: 1 });
   });
 
-  await check('hub: chats and projects can be reordered; Main moves to the front once', async () => {
+  await check('hub: chats show the last entered first (Main pinned); projects can be reordered', async () => {
     const e1 = await api.panels.newSession(repo);
+    await new Promise((r) => setTimeout(r, 20));
     const e2 = await api.panels.newSession(repo);
+    await new Promise((r) => setTimeout(r, 20));
     const e3 = await api.panels.newSession(process.env.CP_E2E_REPO2!);
-    const mine = () => api.hub.snapshot.sessions.filter((x) => x.repoId === project.id).map((x) => x.key);
-    const before = mine();
-    assert.ok(before.indexOf(e1.key) < before.indexOf(e2.key), 'opened order');
-    await postToHub({ type: 'reorder-sessions', keys: [e2.key, ...before.filter((k) => k !== e2.key)] });
-    assert.equal(mine()[0], e2.key, 'dragged chat first');
-    await postToHub({ type: 'set-flag', key: e1.key, flag: 'main' });
-    assert.equal(mine()[0], e1.key, 'Main goes first');
-    await postToHub({ type: 'reorder-sessions', keys: [e2.key, e1.key] });
-    assert.deepEqual(mine().slice(0, 2), [e2.key, e1.key], 'and can be dragged after that');
+    // Same order as the strip's second row.
+    const mine = () =>
+      api.hub.snapshot.sessions
+        .filter((x) => x.repoId === project.id)
+        .sort((a, b) => Number(b.flag === 'main') - Number(a.flag === 'main') || (b.enteredAt ?? 0) - (a.enteredAt ?? 0))
+        .map((x) => x.key);
+    assert.equal(mine()[0], e2.key, 'the newest chat first');
+    await new Promise((r) => setTimeout(r, 20));
+    api.hub.show(e1);
+    assert.deepEqual(mine().slice(0, 2), [e1.key, e2.key], 'entering a chat brings it to the front');
+    await postToHub({ type: 'set-flag', key: e2.key, flag: 'main' });
+    assert.equal(mine()[0], e2.key, 'Main stays first');
+    assert.ok(api.hub.snapshot.persist.sessions.find((x) => x.key === e1.key)?.enteredAt, 'entered time is saved');
     const repos = () => api.hub.snapshot.repos.map((r) => r.id);
     const other = repos().find((id) => id !== project.id)!;
     assert.ok(other, 'a second project in the strip');
