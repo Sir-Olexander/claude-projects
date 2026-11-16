@@ -377,7 +377,8 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     if (when) desc.push(shortAgo(when));
     if (node.cwd !== node.parentPath) desc.push(`in ${relative(node.parentPath, node.cwd)}`);
     item.description = desc.join(' · ');
-    item.iconPath = !live && flag ? new vscode.ThemeIcon(FLAG_INFO[flag].icon, new vscode.ThemeColor(FLAG_COLOR[flag])) : sessionIcon(live?.attention, !!managed?.processAlive);
+    // A flag shows as the icon; the status stays in the description ("needs you", "running"…).
+    item.iconPath = flag ? new vscode.ThemeIcon(FLAG_INFO[flag].icon, new vscode.ThemeColor(FLAG_COLOR[flag])) : sessionIcon(live?.attention, !!managed?.processAlive);
     const tip = new vscode.MarkdownString(undefined, true);
     tip.supportThemeIcons = true;
     tip.appendMarkdown(`**${escapeMd(title)}**\n\n`);

@@ -543,7 +543,11 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand('claudeProjects.flagSession', { sessionId: hubA!.sessionId, cwd: repo }, 'review');
     assert.equal(api.flags.get(hubA!.sessionId), 'review');
     const node = api.tree.searchNodes().find((n): n is SessionNode => n.kind === 'session' && n.sessionId === hubA!.sessionId);
-    if (node) assert.match(String(api.tree.getTreeItem(node).description ?? ''), /Review/, 'tree shows the flag');
+    if (node) {
+      const item = api.tree.getTreeItem(node);
+      assert.match(String(item.description ?? ''), /Review/, 'tree shows the flag');
+      assert.equal((item.iconPath as vscode.ThemeIcon).id, 'eye', 'an open flagged session shows the flag icon');
+    }
     else log('hub A not in the tree yet (no transcript indexed); skipped the tree part');
     const dash = (api.dashboard as unknown as { state(): { sessions: { key: string; flag?: string }[] } }).state();
     assert.equal(dash.sessions.find((v) => v.key === hubA!.key)?.flag, 'review', 'dashboard row carries the flag');
