@@ -1261,11 +1261,11 @@
             "panel"
           ],
           "enumDescriptions": [
-            "Open as a tab in the editor area, next to your Claude sessions.",
-            "Open in the bottom terminal panel."
+            "A tab at the top, in the editor area, next to your chats.",
+            "The bottom terminal panel (Problems, Output, Terminal…)."
           ],
           "default": "editor",
-          "description": "Where terminals opened from Claude Projects (Files and Projects views) appear."
+          "markdownDescription": "Where **Open in Integrated Terminal** (Projects and Files views) and **Open Project in Terminal** open the terminal: as a tab at the top, next to your chats, or in the bottom terminal panel."
         },
         "claudeProjects.notifications.enabled": {
           "type": "boolean",

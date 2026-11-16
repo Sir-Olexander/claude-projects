@@ -109,6 +109,7 @@ Windows differences:
 | `claudeProjects.chat.iconOnlyTabs` | `false` | Show chat tabs as just their icon and a number, without the session name. |
 | `claudeProjects.chat.showYoloAutoMode` | `true` | Offer "Yolo auto" in the mode picker (turn off to hide it). |
 | `claudeProjects.chat.showThinking` | `true` | Show Claude's thinking summaries. |
+| `claudeProjects.terminal.location` | `editor` | Where *Open in Integrated Terminal* opens: `editor` (a tab at the top, next to your chats) or `panel` (the bottom terminal panel). |
 | `claudeProjects.followActiveSession` | `true` | Switching chat tabs switches Source Control and Files to that session's project. |
 | `claudeProjects.notifications.*` | on | System notifications on macOS and Windows (only while VS Code is in the background, sound, turn-complete, sessions outside this window, in-app toasts). |
 | `claudeProjects.dashboard.showAllProjects` | `true` | Also show sessions from folders that are not in your project list. |
