@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.0 (2026-11-18)
+
 ### Added
 
 - **Claude Chats**: every chat you open here now opens in one tab instead of a tab each, so chats no longer scatter across the tab bar. A strip on top has two rows: your projects with open chats (each in its own colour, with counts of chats that need you, are running or finished), then the chats of the project you pick. Up to three chats show side by side.
