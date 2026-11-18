@@ -17,7 +17,7 @@ import { ChatPanelManager } from './panels/ChatPanelManager';
 import { DashboardPanel } from './panels/DashboardPanel';
 import { SessionHub } from './panels/SessionHub';
 import { SessionFlags, type SessionFlag } from './sessions/flags';
-import { announceHub } from './announce';
+import { announceHub, showWhatsNew } from './announce';
 import { Notifier } from './notify/Notifier';
 import { WindowPresence } from './notify/WindowPresence';
 import { childPath } from './claude/cliLocator';
@@ -54,7 +54,11 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
     warn: (m, ...a) => channel.warn(m, ...a),
     error: (m, ...a) => channel.error(m, ...a),
   };
-  context.subscriptions.push(channel, vscode.commands.registerCommand('claudeProjects.showLogs', () => channel.show()));
+  context.subscriptions.push(
+    channel,
+    vscode.commands.registerCommand('claudeProjects.showLogs', () => channel.show()),
+    vscode.commands.registerCommand('claudeProjects.showWhatsNew', () => showWhatsNew(context)),
+  );
 
   const storageDir = context.globalStorageUri.fsPath;
   mkdirSync(storageDir, { recursive: true });

@@ -261,6 +261,12 @@
         "category": "Claude Projects"
       },
       {
+        "command": "claudeProjects.showWhatsNew",
+        "title": "What's New",
+        "category": "Claude Projects",
+        "icon": "$(megaphone)"
+      },
+      {
         "command": "claudeProjects.scm.refresh",
         "title": "Refresh",
         "category": "Claude Projects: Source Control",
@@ -631,6 +637,11 @@
           "command": "claudeProjects.refreshUsage",
           "when": "view == claudeProjects.projects",
           "group": "2_usage@1"
+        },
+        {
+          "command": "claudeProjects.showWhatsNew",
+          "when": "view == claudeProjects.projects",
+          "group": "3_misc@0.5"
         },
         {
           "command": "claudeProjects.showLogs",

@@ -41,7 +41,7 @@ export async function announceHub(d: HubAnnounceDeps): Promise<void> {
   await context.globalState.update(HUB_ANNOUNCED_KEY, true);
   const open = 'Open Claude Chats';
   const keepTabs = 'Keep One Tab per Chat';
-  const more = 'Learn More';
+  const more = "What's New";
   const pick = await vscode.window.showInformationMessage(
     'Claude Projects: chats now open together in Claude Chats, grouped by project, with up to three side by side. Prefer a tab per chat, like before?',
     open,
@@ -52,5 +52,15 @@ export async function announceHub(d: HubAnnounceDeps): Promise<void> {
   else if (pick === keepTabs) {
     await vscode.workspace.getConfiguration('claudeProjects').update('chat.openIn', 'tab', vscode.ConfigurationTarget.Global);
     void vscode.window.showInformationMessage('Chats will open in a tab each. Change it any time with the "Chat: Open In" setting.');
-  } else if (pick === more) await vscode.commands.executeCommand('extension.open', context.extension.id);
+  } else if (pick === more) await showWhatsNew(context);
+}
+
+/** Opens the changelog (shipped with the extension) as a Markdown preview. */
+export async function showWhatsNew(context: vscode.ExtensionContext): Promise<void> {
+  const uri = vscode.Uri.joinPath(context.extensionUri, 'CHANGELOG.md');
+  try {
+    await vscode.commands.executeCommand('markdown.showPreview', uri);
+  } catch {
+    await vscode.commands.executeCommand('extension.open', context.extension.id);
+  }
 }
