@@ -17,6 +17,7 @@ import { ChatPanelManager } from './panels/ChatPanelManager';
 import { DashboardPanel } from './panels/DashboardPanel';
 import { SessionHub } from './panels/SessionHub';
 import { SessionFlags, type SessionFlag } from './sessions/flags';
+import { announceHub } from './announce';
 import { Notifier } from './notify/Notifier';
 import { WindowPresence } from './notify/WindowPresence';
 import { childPath } from './claude/cliLocator';
@@ -254,6 +255,8 @@ export function activate(context: vscode.ExtensionContext): ClaudeProjectsApi {
   usage.start();
 
   log.info(`Claude Projects activated (${store.projects.length} projects)`);
+  // People who used the extension before Claude Chats hear about it once.
+  void announceHub({ context, existingUser: store.projects.length > 0, openHub: () => panels.showHub() }).catch((err) => log.warn(`announcement failed: ${err}`));
   return { store, index, registry, sessions, attention, usage, panels, hub, flags, dashboard, handoff, tree, treeView, gitViews: getGitViewsForTesting };
 }
 
