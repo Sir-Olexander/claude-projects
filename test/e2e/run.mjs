@@ -15,7 +15,8 @@ const { runTests } = require('@vscode/test-electron');
 
 const here = dirname(fileURLToPath(import.meta.url));
 const real = process.argv.includes('--real');
-const visual = process.argv.includes('--visual') || real;
+const hubVisual = process.argv.includes('--hub');
+const visual = process.argv.includes('--visual') || real || hubVisual;
 const cdpPort = 9339;
 const root = join(here, '..', '..');
 // .native: on Windows it also expands 8.3 short names (C:\Users\RUNNER~1), like the extension does.
@@ -140,7 +141,7 @@ if (process.argv.includes('--with-official')) {
 
 // Bundle the suite.
 const suiteOut = join(base, 'suite.js');
-await esbuild.build({ entryPoints: [join(here, real ? 'real.ts' : visual ? 'visual.ts' : 'suite.ts')], bundle: true, platform: 'node', format: 'cjs', external: ['vscode'], outfile: suiteOut, logLevel: 'warning' });
+await esbuild.build({ entryPoints: [join(here, real ? 'real.ts' : hubVisual ? 'hub-visual.ts' : visual ? 'visual.ts' : 'suite.ts')], bundle: true, platform: 'node', format: 'cjs', external: ['vscode'], outfile: suiteOut, logLevel: 'warning' });
 
 // VS Code must not inherit Electron/VS Code variables from the shell that runs us.
 for (const k of Object.keys(process.env)) if (k.startsWith('VSCODE_') || k.startsWith('ELECTRON_')) delete process.env[k];

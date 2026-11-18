@@ -2,11 +2,24 @@
 
 Work on all your projects with Claude Code from one VS Code window: no more one window per project and alt-tabbing to find the session that is waiting for you.
 
-![A tour: a chat waiting for permission, forking from a reply, the shared .env, prompt presets, continuing after a usage limit, and the sessions dashboard](docs/images/tour.gif)
+![A tour: Claude Chats with two chats side by side, a chat waiting for permission, flags, forking from a reply, the shared .env, prompt presets, continuing after a usage limit, and the sessions dashboard](docs/images/tour.gif)
 
 ## What you get
 
-**Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard. Use the × on an idle card (or **Close all**) to close it: its tab closes and idle Claude processes stop and resume on your next message. Idle sessions in a terminal can be ended too, after a confirm.
+**Claude Chats** (speech-bubble button in the Projects view): one tab holds every chat you have open here, so they don't scatter across the tab bar. A strip on top has two rows: your projects with open chats, then the chats of the project you pick. Each project has its own colour, and its tab counts chats that need you, are running or finished. Up to three chats show side by side (the **1 2 3** buttons); the focused one has an orange line.
+
+![Claude Chats: a strip with four projects and the chats of the selected one, above two chats side by side, one of them asking for permission](docs/images/claude-chats.png)
+
+Chats keep their place when you switch between them (Main is pinned first); drag chats and project tabs to reorder them, and double-click a project to open the chat you were last in there. Hover a tab or chat for a × that closes it. Keys: **1–9** show a chat of the selected project, **Alt+1–9** pick a project, **Esc** stops Claude in the focused chat, middle-click closes a chat. A chat that finishes keeps its green check until you click or type in it, even if it's on screen. The **Projects** view still lists every session, closed ones included; the strip is only for open chats.
+
+- **Flags**: mark a session **Main** (pinned first in its project), **Review** (Claude is done, check the result), **Waiting** (blocked on a PR, CI or a person), **Parked** (later) or **Trash** (to delete). Right-click a chat in the strip, use the tag in the chat's header, or *Flag Session…* in the Projects view. Flags show in the strip, the Projects view and the dashboard. **Delete N trashed** deletes a project's trashed chats after one confirmation.
+
+  ![Right-clicking a chat in the strip: flags, showing it in a pane, popping it out](docs/images/flags.png)
+
+- **Pop out**: a chat's `…` menu (or right-click in the strip) moves it to a tab of its own; the button in that tab's header moves it back. To always use one tab per chat, set `claudeProjects.chat.openIn` to `tab`.
+- **What's new**: *Claude Projects: What's New* (in the Projects view's `…` menu) shows what changed in each version.
+
+**Sessions dashboard** (`pulse` button in the Projects view, or click the usage item in the status bar): every running Claude session across all projects — the ones here, in terminals, in other VS Code windows and in the Claude app — with the ones waiting for you at the top. Permission prompts can be answered right from the dashboard. Use the × on an idle card (or **Close all**) to close it: its chat closes and idle Claude processes stop and resume on your next message. Idle sessions in a terminal can be ended too, after a confirm.
 
 ![The sessions dashboard with plan usage, sessions that need you, running and recent sessions](docs/images/dashboard.png)
 
@@ -25,7 +38,7 @@ Work on all your projects with Claude Code from one VS Code window: no more one 
 
 **Sessions**
 
-Click a session to open it in a chat tab here (**Open Here**). It runs through the `claude` CLI on your machine with your own login and works like the official Claude Code extension. On top of that, it adds:
+Click a session to open it here (**Open Here**), in Claude Chats. It runs through the `claude` CLI on your machine with your own login and works like the official Claude Code extension. On top of that, it adds:
 
 - **Fork from any reply**: hover one of Claude's replies and click the fork icon. You get a new chat with the conversation up to that point, and the original stays as it was. Forks show up in Projects right away and keep their own name.
 
@@ -51,7 +64,7 @@ Click a session to open it in a chat tab here (**Open Here**). It runs through t
 
 - **Yolo auto mode** (band-aid icon in the mode picker): auto mode, and when Claude still asks for permission, the extension answers yes for you. Questions and plan reviews still wait for you, and each approval leaves a line in the chat. Hide it with `claudeProjects.chat.showYoloAutoMode`.
 - **Header shortcuts**: click the project name at the top of a chat to show its project (or worktree) in the Projects view. Click the session name to rename it right there (Enter saves, Esc cancels).
-- **Icon-only tabs**: turn on `claudeProjects.chat.iconOnlyTabs` to show chat tabs as just their icon and a number (0, 1, 2… from left to right), to fit more of them. The Claude Sessions dashboard shows the same numbers. A dot still marks a chat that is waiting for you.
+- **Icon-only tabs**: for chats in tabs of their own, turn on `claudeProjects.chat.iconOnlyTabs` to show chat tabs as just their icon and a number (0, 1, 2… from left to right), to fit more of them. The Claude Sessions dashboard shows the same numbers. A dot still marks a chat that is waiting for you.
 - **Remote Control**: a header button lets you continue the chat from claude.ai or the Claude app.
 - **Finding your way in long chats**: dots along the chat's right edge jump to each of your messages. A badge shows how many agents are running, and each reply lists the skills and agents it used.
 - **Copying**: a copy button on each reply (as Markdown), plus Cmd+C, Cmd+X and right-click for any part of the chat.
@@ -59,10 +72,10 @@ Click a session to open it in a chat tab here (**Open Here**). It runs through t
 
   ![An MCP server asking for deploy settings](docs/images/mcp-input.png)
 
-- **Names that stick**: renamed and forked chats keep their names, in the tab and after a restart.
-- **Open in Claude Extension**: opens the session in its own window, in the official Claude Code extension. This button is also in the chat tab's title bar. To make it what clicking a session does, set `claudeProjects.sessions.defaultOpenMode`.
+- **Names that stick**: renamed and forked chats keep their names, everywhere and after a restart.
+- **Open in Claude Extension**: opens the session in its own window, in the official Claude Code extension. In Claude Chats it's in the chat's `…` menu. To make it what clicking a session does, set `claudeProjects.sessions.defaultOpenMode`.
 
-**Attention**: a badge on the activity bar icon, a "waiting" item in the status bar (click it to jump to the next session that needs you), a dot in the chat tab title, and a system notification when a session needs you while VS Code is in the background. On Windows it is a toast, and clicking it opens the session. On macOS, clicking opens the session if [terminal-notifier](https://github.com/julienXX/terminal-notifier) is installed (`brew install terminal-notifier`).
+**Attention**: a badge on the activity bar icon, a "waiting" item in the status bar (click it to jump to the next session that needs you), an orange badge on the project in the Claude Chats strip, and a system notification when a session needs you while VS Code is in the background. On Windows it is a toast, and clicking it opens the session. On macOS, clicking opens the session if [terminal-notifier](https://github.com/julienXX/terminal-notifier) is installed (`brew install terminal-notifier`).
 
 **Usage bar**: your plan's 5-hour and weekly usage with reset times in the status bar (hover for details, including per-model weekly limits). The numbers come from Claude Code itself (the same as `/usage`); the extension never reads your credentials.
 
@@ -92,7 +105,7 @@ Windows differences:
 |---|---|---|
 | `claudeProjects.sessions.defaultOpenMode` | `here` | What clicking a session does (`here` or `claudeExtension`). |
 | `claudeProjects.sessions.maxPerProject` | `8` | Sessions listed per project/worktree before "Show more". |
-| `claudeProjects.sessions.idleProcessTimeoutMinutes` | `30` | Stop an idle Claude process whose tab is closed (it resumes on your next message). |
+| `claudeProjects.sessions.idleProcessTimeoutMinutes` | `30` | Stop an idle Claude process whose chat isn't on screen (it resumes on your next message). |
 | `claudeProjects.chat.defaultPermissionMode` | `default` | Mode for new sessions here. |
 | `claudeProjects.chat.defaultModel` | — | Model for new sessions here (empty = your Claude Code default). |
 | `claudeProjects.chat.defaultEffort` | — | Effort for new sessions here (empty = the model default). |
@@ -100,10 +113,12 @@ Windows differences:
 | `claudeProjects.chat.autoContinueAfterLimit` | `false` | Start new chats with *Continue automatically when limits reset* on. |
 | `claudeProjects.chat.globalEnvFile` | `~/.claude-projects/.env` | The shared `.env` file for chats. |
 | `claudeProjects.chat.allowBypassPermissions` | `false` | Offer "Bypass permissions" in the mode picker. |
+| `claudeProjects.chat.openIn` | `hub` | Where Open here chats open: `hub` (Claude Chats) or `tab` (one tab each). |
 | `claudeProjects.chat.iconOnlyTabs` | `false` | Show chat tabs as just their icon and a number, without the session name. |
 | `claudeProjects.chat.showYoloAutoMode` | `true` | Offer "Yolo auto" in the mode picker (turn off to hide it). |
 | `claudeProjects.chat.showThinking` | `true` | Show Claude's thinking summaries. |
-| `claudeProjects.followActiveSession` | `true` | Switching chat tabs switches Source Control and Files to that session's project. |
+| `claudeProjects.terminal.location` | `editor` | Where *Open in Integrated Terminal* opens: `editor` (a tab at the top, next to your chats) or `panel` (the bottom terminal panel). |
+| `claudeProjects.followActiveSession` | `true` | Switching chats switches Source Control and Files to that session's project. |
 | `claudeProjects.notifications.*` | on | System notifications on macOS and Windows (only while VS Code is in the background, sound, turn-complete, sessions outside this window, in-app toasts). |
 | `claudeProjects.dashboard.showAllProjects` | `true` | Also show sessions from folders that are not in your project list. |
 | `claudeProjects.usage.refreshIntervalMinutes` | `5` | How often usage refreshes (running sessions also update it live). |

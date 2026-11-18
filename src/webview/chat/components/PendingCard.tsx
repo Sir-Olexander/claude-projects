@@ -6,10 +6,10 @@ import { diffForTool } from '../lib/diff';
 import { highlight } from '../lib/markdown';
 import { displayPath } from '../lib/paths';
 import { permissionTitle } from '../lib/tools';
-import { openDiff, openFile, openUrl, send } from './actions';
 import { DiffStats, DiffView } from './DiffView';
 import { Markdown } from './Markdown';
 import { Clipped, Icon } from './ui';
+import { useChat } from '../instance';
 
 // eslint-disable-next-line no-control-regex
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
@@ -57,6 +57,7 @@ function Choices({
   onFeedback?: (text: string) => void;
   onEscape: () => void;
 }) {
+  const chat = useChat();
   const total = choices.length + (onFeedback ? 1 : 0);
   const [focus, setFocus] = useState(Math.min(initialFocus, total - 1));
   const [feedback, setFeedback] = useState('');
@@ -65,7 +66,8 @@ function Choices({
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Take focus when the card appears so the shortcuts work right away.
+    // Take focus when the card appears so the shortcuts work right away (not in a background pane of the hub).
+    if (!chat.active) return;
     const t = setTimeout(() => (focus < choices.length ? buttons.current[focus]?.focus() : input.current?.focus()), 30);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -163,6 +165,7 @@ function str(v: unknown): string | undefined {
 }
 
 function PermissionDetails({ req, cwd }: { req: PermissionRequestView; cwd: string }) {
+  const { openFile, openUrl, openDiff } = useChat();
   const input = req.input ?? {};
   const [showJson, setShowJson] = useState(false);
   const file = str(input.file_path) ?? str(input.notebook_path);
@@ -233,6 +236,7 @@ function PermissionDetails({ req, cwd }: { req: PermissionRequestView; cwd: stri
 }
 
 function PermissionCard({ req, cwd }: { req: PermissionRequestView; cwd: string }) {
+  const { send } = useChat();
   const title = req.title?.trim() || permissionTitle(req.toolName, req.input ?? {}, req.displayName, cwd);
   const choices: ChoiceButton[] = [
     ...req.options.map((o) => ({ id: o.id, label: o.label })),
@@ -268,6 +272,8 @@ function PermissionCard({ req, cwd }: { req: PermissionRequestView; cwd: string 
 const OTHER = '__other__';
 
 function QuestionCard({ req }: { req: QuestionRequestView }) {
+  const chat = useChat();
+  const { send } = chat;
   const qs = req.questions;
   const [selected, setSelected] = useState<string[][]>(() => qs.map(() => []));
   const [other, setOther] = useState<string[]>(() => qs.map(() => ''));
@@ -276,6 +282,7 @@ function QuestionCard({ req }: { req: QuestionRequestView }) {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!chat.active) return;
     const t = setTimeout(() => root.current?.querySelector<HTMLButtonElement>('.q-option')?.focus(), 30);
     return () => clearTimeout(t);
   }, []);
@@ -418,6 +425,7 @@ function QuestionCard({ req }: { req: QuestionRequestView }) {
 }
 
 function PlanCard({ req }: { req: PlanRequestView }) {
+  const { send, openFile } = useChat();
   const respond = (decision: 'accept-auto' | 'accept-manual' | 'reject', feedback?: string) =>
     send({ type: 'plan-response', requestId: req.requestId, decision, feedback });
   return (
@@ -566,6 +574,8 @@ function FieldInput({ f, value, error, onChange, autoFocus }: { f: ElicitationFi
 }
 
 function ElicitationCard({ req }: { req: ElicitationRequestView }) {
+  const chat = useChat();
+  const { send, openUrl } = chat;
   const [values, setValues] = useState(() => initialValues(req.fields));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tried, setTried] = useState(false);
@@ -628,7 +638,7 @@ function ElicitationCard({ req }: { req: ElicitationRequestView }) {
             <button
               type="button"
               class="btn btn-primary"
-              autoFocus
+              autoFocus={chat.active}
               onClick={() => {
                 if (req.url) openUrl(req.url);
                 respond('accept');
@@ -642,7 +652,7 @@ function ElicitationCard({ req }: { req: ElicitationRequestView }) {
         <>
           <div class="elicit-form">
             {req.fields.map((f, i) => (
-              <FieldInput key={f.name} f={f} value={values[f.name]} error={errors[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} />
+              <FieldInput key={f.name} f={f} value={values[f.name]} error={errors[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0 && chat.active} />
             ))}
           </div>
           <div class="pending-actions">

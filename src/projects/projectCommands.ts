@@ -21,6 +21,9 @@ import { shortAgo } from '../util/time';
 import type { ProjectStore } from './ProjectStore';
 import type { MoreNode, ProjectsNode, ProjectsTreeProvider, SessionNode } from './ProjectsTreeProvider';
 import { listWorktrees } from '../git/gitCli';
+import type { SessionFlags } from '../sessions/flags';
+import { FLAG_INFO, SESSION_FLAGS } from '../shared/flags';
+import type { SessionFlagName } from '../shared/protocol';
 
 export interface ProjectCommandDeps {
   context: vscode.ExtensionContext;
@@ -34,6 +37,7 @@ export interface ProjectCommandDeps {
   dashboard: DashboardPanel;
   usage: UsageService;
   tree: ProjectsTreeProvider;
+  flags: SessionFlags;
   utilityDir: string;
 }
 
@@ -44,7 +48,7 @@ function openMode(): 'here' | 'claudeExtension' {
 }
 
 export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vscode.Disposable; openExternal: OpenExternal } {
-  const { store, index, sessions, panels, handoff, attention, dashboard, usage, tree, log } = d;
+  const { store, index, sessions, panels, handoff, attention, dashboard, usage, tree, flags, log } = d;
   const reg = (id: string, fn: (...args: any[]) => unknown) =>
     vscode.commands.registerCommand(id, async (...args: unknown[]) => {
       try {
@@ -133,6 +137,32 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
     if (project) store.select(project.id, path);
     if (mode === 'claudeExtension') await handoff.openInClaudeExtension(path);
     else await panels.newSession(path);
+  };
+
+  /** Another app still has the session open: it would keep writing to the file we removed. */
+  const openElsewhere = (sessionId: string, title: string): boolean => {
+    const elsewhere = attention.bySessionId(sessionId);
+    if (!elsewhere || elsewhere.managed) return false;
+    void vscode.window.showWarningMessage(`"${title}" is open in ${SESSION_SOURCE_LABELS[elsewhere.source]}. Close it there first, then delete it.`);
+    return true;
+  };
+
+  /** Closes a session here and moves its transcript to the Trash. */
+  const deleteSessionFiles = async (s: { sessionId: string; cwd: string }): Promise<void> => {
+    const managed = sessions.findBySessionId(s.sessionId);
+    if (managed) {
+      panels.closeTab(managed.key);
+      await sessions.close(managed.key);
+    }
+    const path = index.get(s.sessionId)?.filePath ?? transcriptPathFor(s.cwd, s.sessionId);
+    // The transcript, plus the folder next to it with subagent and tool output.
+    for (const target of [path, path.replace(/\.jsonl$/, '')]) {
+      if (existsSync(target)) await vscode.workspace.fs.delete(vscode.Uri.file(target), { recursive: true, useTrash: true });
+    }
+    sessions.bookmarkStore.save(s.sessionId, []);
+    flags.set(s.sessionId, undefined);
+    index.touch(path);
+    log.info(`deleted session ${s.sessionId} (${path})`);
   };
 
   const disposable = vscode.Disposable.from(
@@ -292,12 +322,7 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
       if (!s) return;
       const managed = sessions.findBySessionId(s.sessionId);
       const title = managed?.title ?? index.get(s.sessionId)?.title ?? s.title ?? 'this session';
-      // Another app still has it open: it would keep writing to the file we removed.
-      const elsewhere = attention.bySessionId(s.sessionId);
-      if (elsewhere && !elsewhere.managed) {
-        void vscode.window.showWarningMessage(`"${title}" is open in ${SESSION_SOURCE_LABELS[elsewhere.source]}. Close it there first, then delete it.`);
-        return;
-      }
+      if (openElsewhere(s.sessionId, title)) return;
       const busy = managed && (managed.status === 'running' || managed.status === 'waiting' || managed.status === 'starting');
       const pick = opts?.skipConfirm
         ? 'Delete'
@@ -310,19 +335,61 @@ export function registerProjectCommands(d: ProjectCommandDeps): { disposable: vs
         'Delete',
       );
       if (pick !== 'Delete') return;
-      if (managed) {
-        panels.closeTab(managed.key);
-        await sessions.close(managed.key);
-      }
-      const path = index.get(s.sessionId)?.filePath ?? transcriptPathFor(s.cwd, s.sessionId);
-      // The transcript, plus the folder next to it with subagent and tool output.
-      for (const target of [path, path.replace(/\.jsonl$/, '')]) {
-        if (existsSync(target)) await vscode.workspace.fs.delete(vscode.Uri.file(target), { recursive: true, useTrash: true });
-      }
-      sessions.bookmarkStore.save(s.sessionId, []);
-      index.touch(path);
-      log.info(`deleted session ${s.sessionId} (${path})`);
+      await deleteSessionFiles(s);
     }),
+
+    // Deletes several sessions after one confirmation (the hub's "Delete N trashed").
+    reg('claudeProjects.deleteSessions', async (list?: { sessionId: string; cwd: string; title?: string }[], opts?: { skipConfirm?: boolean }) => {
+      const targets = (list ?? []).filter((s) => s?.sessionId && s.cwd);
+      if (!targets.length) return;
+      const titled = targets.map((s) => ({ ...s, title: sessions.findBySessionId(s.sessionId)?.title ?? index.get(s.sessionId)?.title ?? s.title ?? 'Untitled session' }));
+      const deletable = titled.filter((s) => !openElsewhere(s.sessionId, s.title));
+      if (!deletable.length) return;
+      const busy = deletable.filter((s) => {
+        const m = sessions.findBySessionId(s.sessionId);
+        return m && (m.status === 'running' || m.status === 'waiting' || m.status === 'starting');
+      }).length;
+      const n = deletable.length;
+      const names = deletable.slice(0, 8).map((s) => `• ${s.title}`).join('\n') + (n > 8 ? `\n… and ${n - 8} more` : '');
+      const pick = opts?.skipConfirm
+        ? 'Delete'
+        : await vscode.window.showWarningMessage(
+            n === 1 ? `Delete "${deletable[0].title}"?` : `Delete ${n} sessions?`,
+            {
+              modal: true,
+              detail: `${n > 1 ? names + '\n\n' : ''}${busy ? `Claude is working in ${busy === 1 ? 'one of them' : `${busy} of them`} and will be stopped. ` : ''}The conversations are moved to the Trash, so you can still restore them from there.`,
+            },
+            'Delete',
+          );
+      if (pick !== 'Delete') return;
+      for (const s of deletable) await deleteSessionFiles(s);
+    }),
+
+    // Puts a flag (Main, Review, Waiting, Parked, Trash) on a session, or clears it.
+    reg('claudeProjects.flagSession', async (arg?: SessionArg, flag?: SessionFlagName | null) => {
+      const s = resolveSession(arg);
+      if (!s) {
+        void vscode.window.showInformationMessage('Select a session in the Projects view, or open one, to flag it.');
+        return;
+      }
+      let next: SessionFlagName | undefined;
+      if (flag !== undefined) next = flag ?? undefined;
+      else {
+        const current = flags.get(s.sessionId);
+        type Item = vscode.QuickPickItem & { flag?: SessionFlagName };
+        const items: Item[] = [
+          ...SESSION_FLAGS.map((f): Item => ({ label: `$(${FLAG_INFO[f].icon}) ${FLAG_INFO[f].label}`, description: f === current ? '(current)' : undefined, detail: FLAG_INFO[f].description, flag: f })),
+          ...(current ? [{ label: '$(close) Clear flag' } as Item] : []),
+        ];
+        const title = sessions.findBySessionId(s.sessionId)?.title ?? index.get(s.sessionId)?.title ?? s.title;
+        const pick = await vscode.window.showQuickPick(items, { placeHolder: `Flag "${title ?? 'session'}"` });
+        if (!pick) return;
+        next = pick.flag;
+      }
+      flags.set(s.sessionId, next);
+    }),
+
+    reg('claudeProjects.openHub', () => panels.showHub()),
 
     reg('claudeProjects.openGlobalEnv', async () => {
       const path = globalEnvPath();

@@ -3,11 +3,10 @@ import { useEffect, useState } from 'preact/hooks';
 import type { AssistantTextItem, ChatItem, ImageAttachment, SystemItem, ThinkingItem, TurnEndItem, UserItem } from '../../../shared/protocol';
 import { clockTime, formatDuration } from '../lib/format';
 import { attachmentSrc } from '../lib/images';
-import { useExpanded } from '../ui';
 import { Markdown } from './Markdown';
 import { ToolCall } from './ToolCall';
-import { copyText } from './actions';
 import { Icon } from './ui';
+import { useChat, useExpanded } from '../instance';
 
 export function ImageThumbs({ images, onRemove }: { images: ImageAttachment[]; onRemove?: (index: number) => void }) {
   const [zoom, setZoom] = useState<ImageAttachment | undefined>();
@@ -36,6 +35,7 @@ export function ImageThumbs({ images, onRemove }: { images: ImageAttachment[]; o
 
 /** Copies a message's text, showing a tick for a moment. */
 export function CopyButton({ text, label, class: cls }: { text: string; label: string; class: string }) {
+  const { copyText } = useChat();
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;

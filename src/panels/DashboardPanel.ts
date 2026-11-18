@@ -5,6 +5,7 @@ import type { SessionManager } from '../sessions/SessionManager';
 import type { UsageService } from '../usage/UsageService';
 import type { ProjectStore } from '../projects/ProjectStore';
 import type { HandoffService } from '../handoff/Handoff';
+import type { SessionFlags } from '../sessions/flags';
 import { debounce } from '../util/events';
 import { errorMessage, type Logger } from '../util/log';
 import { webviewHtml } from './webviewHtml';
@@ -19,6 +20,7 @@ export interface DashboardDeps {
   usage: UsageService;
   store: ProjectStore;
   handoff: HandoffService;
+  flags: SessionFlags;
   revealSession(key: string): void;
   closeTab(key: string): void;
   closeUnloadedTab(key: string): Promise<void>;
@@ -41,6 +43,7 @@ export class DashboardPanel implements vscode.Disposable {
     this.disposables.push({ dispose: deps.attention.onDidChange(() => this.push()).dispose });
     this.disposables.push({ dispose: deps.usage.onDidChange(() => this.push()).dispose });
     this.disposables.push({ dispose: deps.store.onDidChangeProjects(() => this.push()).dispose });
+    this.disposables.push({ dispose: deps.flags.onDidChange(() => this.push()).dispose });
   }
 
   show(): void {
@@ -69,7 +72,13 @@ export class DashboardPanel implements vscode.Disposable {
   }
 
   private state(): DashboardState {
-    return { sessions: [...this.deps.attention.sessions], recent: [...this.deps.attention.recent], usage: this.deps.usage.current, projectCount: this.deps.store.projects.length };
+    const { flags } = this.deps;
+    return {
+      sessions: this.deps.attention.sessions.map((v) => ({ ...v, flag: flags.get(v.sessionId) })),
+      recent: this.deps.attention.recent.map((r) => ({ ...r, flag: flags.get(r.sessionId) })),
+      usage: this.deps.usage.current,
+      projectCount: this.deps.store.projects.length,
+    };
   }
 
   private updateTitle(): void {

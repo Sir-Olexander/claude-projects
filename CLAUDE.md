@@ -2,9 +2,20 @@
 
 VS Code extension, published on the Marketplace as `Sir-Olexander.claude-projects`.
 
+## Keep CHANGELOG.md up to date
+
+`CHANGELOG.md` is what users see under *Claude Projects: What's New* and on the Marketplace's Changelog tab.
+
+- With every change users would notice (a feature, a behaviour change, a bug fix, a renamed command or setting), add a line under `## Unreleased`, in the `### Added`, `### Changed` or `### Fixed` group. Do it in the same commit as the change.
+- Write for users, not developers: what they can do now or what works differently, in plain words, naming the command, setting or button they'd look for. No file names, class names or commit hashes.
+- Skip internal-only changes (refactors, tests, build, CLAUDE.md).
+- Keep entries short: one line each, or two if needed. Edit an existing Unreleased line instead of adding a second one when a later change refines the same feature.
+
 ## Before every PR: bump the version
 
 Every time you open a pull request, raise `"version"` first (in `package.json` and the top two `"version"` fields of `package-lock.json`) and commit it on the PR branch, right before creating the PR. The Marketplace rejects a version it already has.
+
+In the same commit, rename `## Unreleased` in `CHANGELOG.md` to `## <version> (<YYYY-MM-DD>)` and add a new, empty `## Unreleased` above it. If Unreleased is empty, write the entries for this PR's changes first.
 
 Pick the bump yourself from what the PR changes, and say which one you picked and why in the PR description:
 

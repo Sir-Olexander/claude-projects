@@ -2,13 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { EFFORT_LABELS, PERMISSION_MODE_DESCRIPTIONS, PERMISSION_MODE_LABELS, type ChatState, type EffortLevel, type ImageAttachment, type PermissionMode } from '../../../shared/protocol';
 import { fileToAttachment, isImageFile } from '../lib/images';
 import { displayPath } from '../lib/paths';
-import { store, type FileSuggestions } from '../store';
-import { getDraft, saveDraft } from '../ui';
-import { send } from './actions';
+import type { FileSuggestions } from '../store';
 import { ImageThumbs } from './items';
 import { findTrigger, type Trigger } from '../lib/trigger';
 import { Popup, type PopupItem } from './Popup';
 import { Icon } from './ui';
+import { useChat } from '../instance';
 
 export const MODE_ICONS: Record<PermissionMode, string> = {
   default: 'shield',
@@ -83,8 +82,18 @@ function ContextRing({ percent, used, max }: { percent: number; used?: number; m
 }
 
 export function Composer({ state }: { state: ChatState }) {
+  const chat = useChat();
+  const { store, send, ui } = chat;
+  const { getDraft, saveDraft } = ui;
   const [text, setText] = useState(getDraft);
-  const [images, setImages] = useState<ImageAttachment[]>([]);
+  const [images, setImagesState] = useState<ImageAttachment[]>(() => ui.draftImages);
+  // Unsent images live with the chat's UI state, so they survive switching chats in the hub.
+  const setImages = (next: ImageAttachment[] | ((cur: ImageAttachment[]) => ImageAttachment[])) =>
+    setImagesState((cur) => {
+      const v = typeof next === 'function' ? next(cur) : next;
+      ui.draftImages = v;
+      return v;
+    });
   const [menu, setMenu] = useState<MenuKind | null>(null);
   const [trigger, setTrigger] = useState<Trigger | undefined>();
   const [active, setActive] = useState(0);
@@ -132,8 +141,8 @@ export function Composer({ state }: { state: ChatState }) {
         setActive(0);
       }
     });
-    // Focus the input when the panel opens.
-    const t = setTimeout(() => ta.current?.focus(), 50);
+    // Focus the input when the panel opens (in the hub: only in the focused pane).
+    const t = setTimeout(() => chat.active && ta.current?.focus(), 50);
     return () => {
       offFocus();
       offInsert();

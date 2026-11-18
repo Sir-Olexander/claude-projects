@@ -672,17 +672,16 @@ kbd {
   }
 }
 
-/* Narrow panels (side bar) */
-@media (max-width: 460px) {
-  .messages {
-    padding: 12px 12px 16px;
-  }
-  .bottom {
-    padding: 0 8px 8px;
-  }
-  .header-title {
-    display: none;
-  }
+/* Narrow chats (side bar, or a pane of the sessions hub); set from a ResizeObserver
+   because a container query would make .app the containing block of fixed popups. */
+.app.is-narrow .messages {
+  padding: 12px 12px 16px;
+}
+.app.is-narrow .bottom {
+  padding: 0 8px 8px;
+}
+.app.is-narrow .header-title {
+  display: none;
 }
 
 /* Bookmarks menu (header) ---------------------------------------------------- */
@@ -960,4 +959,99 @@ kbd {
   height: 1em;
   flex: none;
   overflow: visible;
+}
+
+/* Session flags (header of a hub pane) ------------------------------------- */
+
+.header-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--vscode-widget-border, var(--panel-border));
+}
+
+.flag-btn.has-flag .codicon {
+  color: var(--flag-color, var(--vscode-charts-orange, #d18616));
+}
+
+.flag-main {
+  --flag-color: var(--vscode-charts-yellow, #cca700);
+}
+.flag-review {
+  --flag-color: var(--vscode-charts-blue, #3794ff);
+}
+.flag-waiting {
+  --flag-color: var(--vscode-charts-purple, #b180d7);
+}
+.flag-parked {
+  --flag-color: var(--vscode-descriptionForeground);
+}
+.flag-trash {
+  --flag-color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.flag-menu {
+  width: min(320px, 80vw);
+}
+
+.flag-item {
+  display: grid;
+  grid-template-columns: 18px auto 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flag-item:hover,
+.flag-item:focus-visible {
+  background: var(--menu-sel-bg);
+  color: var(--menu-sel-fg);
+}
+
+.flag-item .flag-icon {
+  color: var(--flag-color, var(--fg-muted));
+}
+
+.flag-label {
+  font-weight: 600;
+}
+
+.flag-desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+}
+
+.flag-item:hover .flag-desc {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.flag-clear {
+  margin-top: 2px;
+  border-top: 1px solid var(--vscode-widget-border, var(--panel-border));
+  border-radius: 0 0 4px 4px;
+}
+
+.more-menu {
+  width: min(280px, 80vw);
+}
+
+.more-item {
+  grid-template-columns: 18px 1fr;
+}
+
+.more-item.is-danger,
+.more-item.is-danger .flag-icon {
+  color: var(--vscode-errorForeground, #f14c4c);
 }

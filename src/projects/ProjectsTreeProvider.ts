@@ -14,6 +14,9 @@ import { debounce } from '../util/events';
 import { folderName, isSameOrInside, realPath, stripTrailingSep, tildify } from '../util/paths';
 import { longAgo, shortAgo } from '../util/time';
 import type { ProjectStore } from './ProjectStore';
+import type { SessionFlags } from '../sessions/flags';
+import { FLAG_INFO } from '../shared/flags';
+import type { SessionFlagName } from '../shared/protocol';
 
 export type ProjectsNode = ProjectNode | WorktreeNode | SessionNode | MoreNode | InfoNode;
 
@@ -88,6 +91,7 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     private readonly index: SessionIndex,
     private readonly sessions: SessionManager,
     private readonly attention: AttentionService,
+    private readonly flags: SessionFlags,
   ) {
     this.disposables.push(
       store.onDidChangeProjects(() => this.refreshSoon()),
@@ -97,6 +101,7 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     this.disposables.push({ dispose: index.onDidChange(() => this.refreshSoon()).dispose });
     this.disposables.push({ dispose: attention.onDidChange(() => this.refreshSoon()).dispose });
     this.disposables.push({ dispose: sessions.onDidChange(() => this.refreshSoon()).dispose });
+    this.disposables.push({ dispose: flags.onDidChange(() => this.refreshSoon()).dispose });
   }
 
   /** Re-read git info (branches, worktrees) and redraw. */
@@ -225,19 +230,21 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     }
     const list = [...rows.values()];
     const live = (n: SessionNode) => this.attention.bySessionId(n.sessionId);
-    // Opening an old session to read it must not make it jump to the top; only real activity counts.
-    const lastActive = (n: SessionNode) => {
-      const managed = n.managedKey ? this.sessions.get(n.managedKey) : undefined;
-      // A chat opened here that has no transcript yet (a new chat or fork) counts from when it was opened.
-      return Math.max(n.info?.lastModified ?? 0, live(n)?.since ?? 0, managed?.processAlive || managed?.isNew ? managed.lastActivityAt : 0);
+    // Status first: needs you, error, finished, running. Everything else (idle, open
+    // or not) shares one group, so a chat that is merely open doesn't jump ahead.
+    const rank = (n: SessionNode) => {
+      const a = live(n)?.attention;
+      return a && a !== 'idle' ? RANK[a] : 9;
     };
-    list.sort((a, b) => {
-      const la = live(a);
-      const lb = live(b);
-      const ra = la ? RANK[la.attention] : 9;
-      const rb = lb ? RANK[lb.attention] : 9;
-      return ra - rb || lastActive(b) - lastActive(a);
-    });
+    // Then the latest change to the conversation. Opening an old session to read it
+    // (or keeping it open in Claude Chats) must not move it; only real activity counts.
+    const lastActive = (n: SessionNode) => {
+      const managed = n.managedKey ? this.sessions.get(n.managedKey) : this.sessions.findBySessionId(n.sessionId);
+      const v = live(n);
+      // A chat opened here that has no transcript yet (a new chat or fork) counts from when it was opened.
+      return Math.max(n.info?.lastModified ?? 0, v && v.attention !== 'idle' ? v.since : 0, managed?.isNew ? managed.lastActivityAt : 0);
+    };
+    list.sort((a, b) => rank(a) - rank(b) || lastActive(b) - lastActive(a));
     const limit = unlimited ? Infinity : (this.limits.get(root) ?? this.maxPerGroup());
     // Always show live sessions even beyond the limit.
     const shown = list.filter((n, i) => i < limit || !!live(n));
@@ -351,6 +358,8 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     item.id = `session:${node.sessionId}`;
     const when = live?.since ?? node.info?.lastModified;
     const desc: string[] = [];
+    const flag = this.flags.get(node.sessionId);
+    if (flag) desc.push(FLAG_INFO[flag].label);
     if (live) {
       const state =
         live.attention === 'needs-input'
@@ -368,10 +377,12 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     if (when) desc.push(shortAgo(when));
     if (node.cwd !== node.parentPath) desc.push(`in ${relative(node.parentPath, node.cwd)}`);
     item.description = desc.join(' · ');
-    item.iconPath = sessionIcon(live?.attention, !!managed?.processAlive);
+    // A flag shows as the icon; the status stays in the description ("needs you", "running"…).
+    item.iconPath = flag ? new vscode.ThemeIcon(FLAG_INFO[flag].icon, new vscode.ThemeColor(FLAG_COLOR[flag])) : sessionIcon(live?.attention, !!managed?.processAlive);
     const tip = new vscode.MarkdownString(undefined, true);
     tip.supportThemeIcons = true;
     tip.appendMarkdown(`**${escapeMd(title)}**\n\n`);
+    if (flag) tip.appendMarkdown(`$(${FLAG_INFO[flag].icon}) ${FLAG_INFO[flag].label}: ${escapeMd(FLAG_INFO[flag].description)}\n\n`);
     if (node.info?.firstPrompt && node.info.firstPrompt !== title) tip.appendMarkdown(`${escapeMd(node.info.firstPrompt)}\n\n`);
     if (live) tip.appendMarkdown(`$(circle-filled) ${escapeMd(live.waitingFor ?? live.activity ?? live.attention)}${live.managed ? '' : ` · ${SESSION_SOURCE_LABELS[live.source]}`}\n\n`);
     if (node.info?.gitBranch && node.info.gitBranch !== 'HEAD') tip.appendMarkdown(`$(git-branch) ${escapeMd(node.info.gitBranch)}  `);
@@ -389,6 +400,15 @@ export class ProjectsTreeProvider implements vscode.TreeDataProvider<ProjectsNod
     this._onDidChangeTreeData.dispose();
   }
 }
+
+/** Theme colours of the flags, matching the hub. */
+const FLAG_COLOR: Record<SessionFlagName, string> = {
+  main: 'charts.yellow',
+  review: 'charts.blue',
+  waiting: 'charts.purple',
+  parked: 'descriptionForeground',
+  trash: 'errorForeground',
+};
 
 function sessionIcon(attention: AttentionState | undefined, alive: boolean): vscode.ThemeIcon {
   switch (attention) {

@@ -486,3 +486,25 @@ h2 {
     transition: none;
   }
 }
+
+/* Session flags */
+.flag-mark {
+  margin-right: 5px;
+  font-size: 12px;
+  vertical-align: -1px;
+}
+.flag-main {
+  color: var(--vscode-charts-yellow, #cca700);
+}
+.flag-review {
+  color: var(--vscode-charts-blue, #3794ff);
+}
+.flag-waiting {
+  color: var(--vscode-charts-purple, #b180d7);
+}
+.flag-parked {
+  color: var(--vscode-descriptionForeground);
+}
+.flag-trash {
+  color: var(--vscode-errorForeground, #f14c4c);
+}

@@ -8,10 +8,13 @@ import * as assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ClaudeProjectsApi } from '../../src/extension';
+import type { HubToExtMessage } from '../../src/shared/protocol';
 import type { ProjectsNode, SessionNode } from '../../src/projects/ProjectsTreeProvider';
 import { readTabTag, stripTabTag } from '../../src/panels/unloadedTabs';
 
 const log = (...a: unknown[]) => console.log('[e2e]', ...a);
+
+type ManagedSessionT = ClaudeProjectsApi['sessions']['all'][number];
 
 type Truthy<T> = Exclude<T, undefined | null | false | '' | 0>;
 
@@ -47,6 +50,10 @@ export async function run(): Promise<void> {
   const ext = vscode.extensions.getExtension('Sir-Olexander.claude-projects');
   assert.ok(ext, 'extension installed');
   const api = (await ext.activate()) as ClaudeProjectsApi;
+  /** Acts as the hub webview would (its strip buttons and menus). */
+  const postToHub = async (m: HubToExtMessage) => {
+    await (api.hub as unknown as { onMessage(m: HubToExtMessage): Promise<void> }).onMessage(m);
+  };
   assert.ok(api?.store, 'activate() returns the API');
 
   await check('every declared command is registered', async () => {
@@ -62,6 +69,9 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand('claudeProjects.scm.focus');
     await vscode.commands.executeCommand('claudeProjects.files.focus');
   });
+
+  // Most checks below are about chats in their own tabs; the hub has its own checks at the end.
+  await vscode.workspace.getConfiguration('claudeProjects').update('chat.openIn', 'tab', vscode.ConfigurationTarget.Global);
 
   const project = await api.store.add(repo);
   api.store.select(project.id);
@@ -483,6 +493,197 @@ export async function run(): Promise<void> {
   await check('refresh and next-attention commands run', async () => {
     await vscode.commands.executeCommand('claudeProjects.refresh');
     await vscode.commands.executeCommand('claudeProjects.focusNextAttention');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Claude Chats (the sessions hub), the default place for Open here chats.
+
+  await vscode.workspace.getConfiguration('claudeProjects').update('chat.openIn', undefined, vscode.ConfigurationTarget.Global);
+  const hubTabs = () => vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.hub$/.test((t.input as { viewType?: string })?.viewType ?? ''));
+  const chatTabFor = (key: string) =>
+    vscode.window.tabGroups.all.flatMap((g) => g.tabs).some((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '') && api.panels.hasPanel(key) && !api.hub.has(key));
+  let hubA: ManagedSessionT | undefined;
+  let hubB: ManagedSessionT | undefined;
+
+  await check('hub: new sessions open in Claude Chats, not in tabs of their own', async () => {
+    const chatTabsBefore = vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '')).length;
+    hubA = await api.panels.newSession(repo);
+    await waitFor('hub tab', () => hubTabs().length === 1);
+    assert.ok(api.hub.has(hubA.key), 'session is in the hub');
+    assert.ok(api.panels.hasPanel(hubA.key), 'counts as open');
+    await waitFor('chat in the hub loaded', () => api.hub.chatReady(hubA!.key), 20_000);
+    const chatTabsAfter = vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => /claudeProjects\.chat$/.test((t.input as { viewType?: string })?.viewType ?? '')).length;
+    assert.equal(chatTabsAfter, chatTabsBefore, 'no new chat tab');
+    const snap = api.hub.snapshot;
+    assert.equal(snap.panes.length, 1);
+    assert.equal(snap.panes[0], hubA.key);
+    assert.ok(snap.repos.some((r) => r.id === project.id), 'project in the strip');
+    assert.ok(snap.sessions.some((x) => x.key === hubA!.key && x.repoId === project.id), 'session in the strip under its project');
+  });
+
+  await check('hub: a turn streams into the hub chat; two panes show two chats', async () => {
+    await hubA!.send('hello hub');
+    await waitFor('hub turn done', () => hubA!.status === 'idle' && hubA!.getState().items.some((i) => i.kind === 'text' && i.text === 'Echo: hello hub'), 20_000);
+    await vscode.commands.executeCommand('claudeProjects.newSession', { path: repo, projectId: project.id });
+    hubB = await waitFor('second hub session', () => api.sessions.all.find((s) => s.key !== hubA!.key && api.hub.has(s.key) && s.status === 'new'));
+    // Opening B replaced A in the single pane; a second pane brings A back next to it.
+    assert.deepEqual(api.hub.snapshot.panes, [hubB.key]);
+    await postToHub({ type: 'set-pane-count', count: 2 });
+    await waitFor('two panes', () => api.hub.snapshot.panes.length === 2);
+    assert.deepEqual(api.hub.snapshot.panes, [hubB.key, hubA!.key], 'the spare pane gets the other open chat');
+    await waitFor('both chats loaded', () => api.hub.chatReady(hubA!.key) && api.hub.chatReady(hubB!.key), 20_000);
+    await postToHub({ type: 'focus-pane', pane: 1 });
+    await waitFor('pane B focused', () => api.hub.snapshot.focusedPane === 1);
+  });
+
+  await check('hub: flags show in the strip, the Projects view and the dashboard', async () => {
+    await postToHub({ type: 'set-flag', key: hubA!.key, flag: 'main' });
+    await waitFor('flag saved', () => api.flags.get(hubA!.sessionId) === 'main');
+    await waitFor('flag in the strip', () => api.hub.snapshot.sessions.find((x) => x.key === hubA!.key)?.flag === 'main');
+    await vscode.commands.executeCommand('claudeProjects.flagSession', { sessionId: hubA!.sessionId, cwd: repo }, 'review');
+    assert.equal(api.flags.get(hubA!.sessionId), 'review');
+    const node = api.tree.searchNodes().find((n): n is SessionNode => n.kind === 'session' && n.sessionId === hubA!.sessionId);
+    if (node) {
+      const item = api.tree.getTreeItem(node);
+      assert.match(String(item.description ?? ''), /Review/, 'tree shows the flag');
+      assert.equal((item.iconPath as vscode.ThemeIcon).id, 'eye', 'an open flagged session shows the flag icon');
+    }
+    else log('hub A not in the tree yet (no transcript indexed); skipped the tree part');
+    const dash = (api.dashboard as unknown as { state(): { sessions: { key: string; flag?: string }[] } }).state();
+    assert.equal(dash.sessions.find((v) => v.key === hubA!.key)?.flag, 'review', 'dashboard row carries the flag');
+    await vscode.commands.executeCommand('claudeProjects.flagSession', { sessionId: hubA!.sessionId, cwd: repo }, null);
+    assert.equal(api.flags.get(hubA!.sessionId), undefined, 'flag cleared');
+  });
+
+  await check('hub: pop out to a tab, then move back into the hub', async () => {
+    await postToHub({ type: 'pop-out', key: hubA!.key });
+    await waitFor('own tab', () => chatTabFor(hubA!.key));
+    assert.ok(!api.hub.has(hubA!.key), 'left the hub');
+    assert.ok(!api.hub.snapshot.panes.includes(hubA!.key), 'left its pane');
+    api.panels.moveToHub(hubA!);
+    await waitFor('back in the hub', () => api.hub.has(hubA!.key) && !chatTabFor(hubA!.key));
+    await waitFor('chat loaded again', () => api.hub.chatReady(hubA!.key), 20_000);
+  });
+
+  await check('hub: deleting the trashed chats of a project', async () => {
+    api.flags.set(hubB!.sessionId, 'trash');
+    await vscode.commands.executeCommand('claudeProjects.deleteSessions', [{ sessionId: hubB!.sessionId, cwd: repo }], { skipConfirm: true });
+    await waitFor('trashed chat gone', () => !api.hub.has(hubB!.key) && !api.sessions.get(hubB!.key));
+    assert.equal(api.flags.get(hubB!.sessionId), undefined, 'its flag is dropped');
+    assert.ok(api.hub.has(hubA!.key), 'the other chat stays');
+  });
+
+  await check('hub: a saved hub reopens its sessions (new ones as new chats)', async () => {
+    const reopened = await api.panels.restoreSession({ key: 'old-key', sessionId: 'not-started', cwd: repo, title: 'New session', isNew: true });
+    assert.ok(reopened && reopened.status === 'new', 'a new chat');
+    await api.sessions.close(reopened!.key);
+    const existing = await api.panels.restoreSession({ key: existingId, sessionId: existingId, cwd: repo, title: 'x' });
+    assert.equal(existing?.sessionId, existingId, 'an existing chat by id');
+  });
+
+  await check('hub: a chat that finishes while you are elsewhere stays Finished until you look at it', async () => {
+    const c = await api.panels.newSession(repo);
+    const d = await api.panels.newSession(repo);
+    await waitFor('d ready', () => api.hub.chatReady(d.key), 20_000);
+    log('window focused:', vscode.window.state.focused, 'panes:', JSON.stringify(api.hub.snapshot.panes), 'focusedPane:', api.hub.snapshot.focusedPane);
+    // c is out of the panes: finish a turn there.
+    await c.send('first turn in c');
+    await waitFor('c idle', () => c.status === 'idle', 20_000);
+    await new Promise((r) => setTimeout(r, 1500));
+    const view = () => api.attention.sessions.find((v) => v.key === c.key);
+    const chip = () => api.hub.snapshot.sessions.find((x) => x.key === c.key);
+    log('c out of panes: unread', c.unread, 'attention', view()?.attention, 'chip', chip()?.attention);
+    assert.equal(c.unread, true, 'c unread');
+    assert.equal(chip()?.attention, 'done', 'chip shows Finished');
+    // c in a second, unfocused pane.
+    await postToHub({ type: 'set-pane-count', count: 2 });
+    api.hub.show(c, { pane: 1 });
+    await postToHub({ type: 'focus-pane', pane: 0 });
+    api.hub.show(d);
+    await waitFor('c ready in pane 2', () => api.hub.chatReady(c.key), 20_000);
+    await new Promise((r) => setTimeout(r, 1500));
+    log('c in background pane: unread', c.unread, 'chip', chip()?.attention, 'focusedPane', api.hub.snapshot.focusedPane, 'panes', JSON.stringify(api.hub.snapshot.panes));
+    await c.send('second turn in c');
+    await waitFor('c idle again', () => c.status === 'idle' && c.getState().items.some((i) => i.kind === 'text' && i.text.includes('second turn')), 20_000);
+    await new Promise((r) => setTimeout(r, 1500));
+    log('c finished in background pane: unread', c.unread, 'chip', chip()?.attention);
+    assert.equal(chip()?.attention, 'done', 'background pane chip shows Finished');
+    await postToHub({ type: 'set-pane-count', count: 1 });
+  });
+
+  await check('hub: chats keep their place when you switch; drag reorders; Main pinned; projects can be reordered', async () => {
+    const e1 = await api.panels.newSession(repo);
+    const e2 = await api.panels.newSession(repo);
+    const e3 = await api.panels.newSession(process.env.CP_E2E_REPO2!);
+    // Same order as the strip's second row: Main first, then the open order.
+    const mine = () => {
+      const list = api.hub.snapshot.sessions.filter((x) => x.repoId === project.id);
+      return list
+        .map((x, i) => ({ x, i }))
+        .sort((a, b) => Number(b.x.flag === 'main') - Number(a.x.flag === 'main') || a.i - b.i)
+        .map(({ x }) => x.key);
+    };
+    const before = mine();
+    assert.ok(before.indexOf(e1.key) < before.indexOf(e2.key), 'opened order');
+    api.hub.show(e1);
+    assert.deepEqual(mine(), before, 'switching chats does not move them');
+    await postToHub({ type: 'reorder-sessions', keys: [e2.key, ...before.filter((k) => k !== e2.key)] });
+    assert.equal(mine()[0], e2.key, 'dragged chat first');
+    await postToHub({ type: 'set-flag', key: e1.key, flag: 'main' });
+    assert.equal(mine()[0], e1.key, 'Main pinned first');
+    api.flags.set(e1.sessionId, undefined);
+    const repos = () => api.hub.snapshot.repos.map((r) => r.id);
+    const other = repos().find((id) => id !== project.id)!;
+    assert.ok(other, 'a second project in the strip');
+    await postToHub({ type: 'reorder-repos', ids: [other, project.id] });
+    assert.deepEqual(repos().slice(0, 2), [other, project.id], 'projects reordered');
+    assert.deepEqual(api.hub.snapshot.persist.repoOrder?.slice(0, 2), [other, project.id], 'order is saved');
+    api.flags.set(e1.sessionId, undefined);
+    for (const s of [e1, e2, e3]) api.panels.closeTab(s.key);
+  });
+
+  await check('Projects view: status first, then latest activity; opening a session to read it does not move it', async () => {
+    const { mkdirSync, writeFileSync: write, utimesSync } = await import('node:fs');
+    const enc = repo.replace(/[^a-zA-Z0-9]/g, '-');
+    const dir = join(claudeHome, 'projects', enc);
+    mkdirSync(dir, { recursive: true });
+    const fresh = '55555555-5555-5555-5555-555555555555';
+    const t = new Date().toISOString();
+    const line = (o: object) => JSON.stringify(o) + '\n';
+    write(
+      join(dir, `${fresh}.jsonl`),
+      line({ type: 'user', uuid: 'f1', parentUuid: null, sessionId: fresh, cwd: repo, timestamp: t, message: { role: 'user', content: 'Fresh work' } }) +
+        line({ type: 'ai-title', aiTitle: 'Fresh session', sessionId: fresh }),
+    );
+    // The existing session was last worked on an hour ago.
+    const old = join(dir, `${existingId}.jsonl`);
+    const hourAgo = new Date(Date.now() - 3600_000);
+    utimesSync(old, hourAgo, hourAgo);
+    api.index.touch(old);
+    api.index.touch(join(dir, `${fresh}.jsonl`));
+    await waitFor('fresh indexed', () => api.index.get(fresh));
+    // Open the old one just to read it (it stays open and idle in the hub).
+    await vscode.commands.executeCommand('claudeProjects.openSessionHere', { sessionId: existingId, cwd: repo });
+    const managed = await waitFor('old session open', () => api.sessions.findBySessionId(existingId));
+    await waitFor('idle', () => managed.status === 'idle');
+    await new Promise((r) => setTimeout(r, 600));
+    const projectNode = api.tree.getChildren().find((n) => n.kind === 'project' && n.projectId === project.id)!;
+    const ids = () => api.tree.getChildren(projectNode).filter((n): n is SessionNode => n.kind === 'session').map((n) => n.sessionId);
+    const order = await waitFor('both listed', () => {
+      const o = ids();
+      return o.includes(fresh) && o.includes(existingId) ? o : undefined;
+    });
+    log('tree order:', order.map((id) => api.index.get(id)?.title ?? id).join(' | '));
+    assert.ok(order.indexOf(fresh) < order.indexOf(existingId), 'newer activity first; an open idle session does not jump ahead');
+  });
+
+  await check('hub: closing the hub closes its chats', async () => {
+    const keys = [...api.hub.keys];
+    assert.ok(keys.length > 0);
+    api.hub.webviewPanel!.dispose();
+    await waitFor('hub closed', () => hubTabs().length === 0 && !api.hub.isOpen);
+    for (const k of keys) assert.ok(!api.panels.hasPanel(k), 'chat no longer open');
+    for (const k of keys) await api.sessions.close(k);
   });
 
   if (process.env.CP_E2E_SCREENSHOT) {

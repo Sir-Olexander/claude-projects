@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { store } from '../store';
-import { copyText } from './actions';
 import { Icon } from './ui';
+import { useChat } from '../instance';
+import type { ChatStore } from '../store';
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -15,8 +15,14 @@ function selectedText(): string {
   return window.getSelection()?.toString() ?? '';
 }
 
+/** The chat (`.app`) an element belongs to; the hub shows several. */
+function chatRoot(el: Node | null | undefined): Element | null {
+  const e = el && (el.nodeType === 1 ? (el as Element) : el.parentElement);
+  return e?.closest('.app') ?? null;
+}
+
 /** Raw text of the message under an element (your prompt, or Claude's reply as Markdown). */
-function messageTextAt(el: Element | null): string | undefined {
+function messageTextAt(store: ChatStore, el: Element | null): string | undefined {
   const id = el?.closest<HTMLElement>('.bm-frame')?.dataset.itemId;
   const item = id ? store.state?.items.find((i) => i.id === id) : undefined;
   if (item && (item.kind === 'user' || item.kind === 'text') && item.text.trim()) return item.text;
@@ -37,11 +43,15 @@ interface MenuState {
  * these keys and menus to webviews isn't reliable.
  */
 export function CopyMenu() {
+  const { copyText, store } = useChat();
+  const anchor = useRef<HTMLSpanElement>(null);
   const [menu, setMenu] = useState<MenuState | undefined>();
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const mine = (n: Node | null | undefined) => !!n && chatRoot(n) === chatRoot(anchor.current);
+    const selectionIsMine = () => mine(window.getSelection()?.anchorNode);
     const onKey = (e: KeyboardEvent) => {
       const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
       if (!mod || e.altKey || e.shiftKey) return;
@@ -49,7 +59,7 @@ export function CopyMenu() {
       if (key !== 'c' && key !== 'x') return;
       if (isEditable(e.target) || isEditable(document.activeElement)) return;
       const text = selectedText();
-      if (!text) return;
+      if (!text || !selectionIsMine()) return;
       e.preventDefault();
       copyText(text);
     };
@@ -57,15 +67,16 @@ export function CopyMenu() {
       // VS Code's own Copy command runs execCommand('copy'): make sure it gets the selection.
       if (isEditable(document.activeElement)) return;
       const text = selectedText();
-      if (!text || !e.clipboardData) return;
+      if (!text || !e.clipboardData || !selectionIsMine()) return;
       e.clipboardData.setData('text/plain', text);
       e.preventDefault();
     };
     const onContext = (e: MouseEvent) => {
       if (isEditable(e.target)) return; // VS Code's menu for text fields (cut, copy, paste)
       const target = e.target as Element | null;
-      const selection = selectedText();
-      const message = messageTextAt(target);
+      if (!mine(target)) return;
+      const selection = selectionIsMine() ? selectedText() : '';
+      const message = messageTextAt(store, target);
       if (!selection && !message) return;
       e.preventDefault();
       setActive(0);
@@ -81,7 +92,7 @@ export function CopyMenu() {
       document.removeEventListener('cut', onCopy);
       document.removeEventListener('contextmenu', onContext);
     };
-  }, []);
+  }, [store]);
 
   const items = menu
     ? [
@@ -137,9 +148,10 @@ export function CopyMenu() {
     el.style.top = `${y}px`;
   }, [menu]);
 
-  if (!menu || !items.length) return null;
+  if (!menu || !items.length) return <span ref={anchor} hidden />;
   return (
     <div ref={ref} class="copy-menu" role="menu" style={{ left: `${menu.x}px`, top: `${menu.y}px` }}>
+      <span ref={anchor} hidden />
       {items.map((it, i) => (
         <button
           key={it.label}

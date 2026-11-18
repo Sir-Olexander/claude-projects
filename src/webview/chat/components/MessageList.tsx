@@ -1,16 +1,14 @@
 import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ChatItem, ChatState } from '../../../shared/protocol';
-import { store } from '../store';
-import { getScroll, saveScroll } from '../ui';
 import { ChatContext, type ChatContextValue } from './context';
 import { ItemView } from './items';
 import { Icon } from './ui';
-import { send } from './actions';
 import { CopyButton } from './items';
 import { memo } from 'preact/compat';
 import { usageByReply, type UsedEntry } from '../lib/usage';
 import { PromptRail, type RailPrompt } from './PromptRail';
+import { useChat } from '../instance';
 
 const BOOKMARKABLE = new Set(['user', 'text', 'tool']);
 
@@ -18,6 +16,7 @@ const RUNNING = new Set(['running', 'pending', 'streaming', 'waiting-permission'
 
 /** Button on a reply listing the skills and agents used since your last prompt. */
 function UsedButton({ used }: { used: UsedEntry[] }) {
+  const { store } = useChat();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -88,6 +87,7 @@ function UsedButton({ used }: { used: UsedEntry[] }) {
 
 /** A top-level item with its hover copy and bookmark buttons. */
 const Frame = memo(function Frame({ item, kids, marked, used }: { item: ChatItem; kids?: ChatItem[]; marked: boolean; used?: UsedEntry[] }) {
+  const { send } = useChat();
   const can = BOOKMARKABLE.has(item.kind) && !(item.kind === 'text' && !item.text.trim()) && !(item.kind === 'user' && item.queued);
   return (
     <div class={`bm-frame${marked ? ' is-marked' : ''}`} data-item-id={item.id}>
@@ -165,6 +165,8 @@ function useGrouped(items: ChatItem[]): Grouped {
 const BOTTOM_SLACK = 48;
 
 export function MessageList({ state, contentVersion, empty, onSeen }: { state: ChatState; contentVersion: number; empty: ComponentChildren; onSeen: () => void }) {
+  const { store, send, ui } = useChat();
+  const { getScroll, saveScroll } = ui;
   const { top, children } = useGrouped(state.items);
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
