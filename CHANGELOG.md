@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.1 (2026-11-18)
+
 ### Fixed
 
 - A session where Claude entered a git worktree opens with its full conversation again, instead of empty, and continues in that worktree. Forking such a session no longer starts empty.
