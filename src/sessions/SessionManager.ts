@@ -6,7 +6,6 @@ import { childPath, locateClaude } from '../claude/cliLocator';
 import type { LiveRegistry } from '../claude/LiveRegistry';
 import type { SessionIndex } from '../claude/SessionIndex';
 import type { InitializeResponse, ModelInfo, SdkRateLimitEvent, SlashCommand } from '../claude/sdkTypes';
-import { transcriptPathFor } from '../claude/paths';
 import type { PermissionMode, PromptPreset } from '../shared/protocol';
 import { Emitter, debounce } from '../util/events';
 import type { Logger } from '../util/log';
@@ -73,7 +72,8 @@ export class SessionManager implements vscode.Disposable {
         if (changed) void context.globalState.update('claudeProjects.sharedInit', this.sharedInit);
       },
       onRateLimit: (e) => deps.onRateLimit(e),
-      onTranscriptActivity: (sessionId, cwd) => index.touch(transcriptPathFor(cwd, sessionId)),
+      onTranscriptActivity: (_sessionId, file) => index.touch(file),
+      findTranscript: (sessionId) => index.get(sessionId),
       rememberTitle: (sessionId, title) => index.rememberTitle(sessionId, title),
       rememberedTitle: (sessionId) => index.rememberedTitle(sessionId),
       bookmarks: this.bookmarkStore,

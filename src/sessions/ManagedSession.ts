@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 import { appendFile, readFile } from 'node:fs/promises';
 import { ClaudeProcess, type ControlRequestEvent, type ExitEvent } from '../claude/ClaudeProcess';
-import { findTranscriptCwd, transcriptPathFor } from '../claude/paths';
+import { locateTranscript, runCwdFor, scanForTranscript, transcriptPathFor, type TranscriptLocation } from '../claude/paths';
+import { parseSessionInfo, readHeadTail } from '../claude/sessionInfo';
 import type {
   CanUseToolRequest,
   ContentBlock,
@@ -85,8 +86,10 @@ export interface SessionServices {
   sharedInit: { models?: ModelInfo[]; commands?: SlashCommand[] };
   onInitialized(init: InitializeResponse): void;
   onRateLimit(event: SdkRateLimitEvent): void;
-  /** Called when our process wrote to the transcript (so the session index refreshes titles). */
-  onTranscriptActivity(sessionId: string, cwd: string): void;
+  /** Called when our process wrote to a transcript file (so the session index refreshes titles). */
+  onTranscriptActivity(sessionId: string, file: string): void;
+  /** Where the session list found a session's transcript, and the folder it runs in. */
+  findTranscript?(sessionId: string): { filePath: string; cwd?: string } | undefined;
   /** Persisted message bookmarks. */
   bookmarks: BookmarkStore;
   /**
@@ -153,7 +156,11 @@ const FLUSH_MS = 40;
 export class ManagedSession {
   readonly key: string;
   sessionId: string;
-  readonly cwd: string;
+  /**
+   * Folder Claude runs in. It moves when Claude moved the session's transcript
+   * (the session entered a git worktree): Claude only finds it from there.
+   */
+  cwd: string;
   projectName: string;
   branch: string | undefined;
   isWorktree: boolean;
@@ -203,6 +210,10 @@ export class ManagedSession {
   lastAssistantText: string | undefined;
 
   private hasTranscript: boolean;
+  /** The transcript file, when it isn't where `cwd` says (see `cwd`). */
+  private transcriptFile: string | undefined;
+  /** Opened as an existing session (it has a transcript somewhere). */
+  private readonly opened: boolean;
   private historyLoaded = false;
   private historyLoading: Promise<void> | undefined;
   private historyTruncated = false;
@@ -249,8 +260,12 @@ export class ManagedSession {
     private readonly services: SessionServices,
   ) {
     // An existing session's transcript may sit under a parent folder (Claude `cd`'d
-    // into a subfolder, or an old saved tab has the subfolder): run Claude where it started.
-    this.cwd = (init.sessionId && findTranscriptCwd(init.cwd, init.sessionId)) || init.cwd;
+    // into a subfolder, or an old saved tab has the subfolder) or in a worktree's
+    // folder (Claude entered a worktree): run Claude where its transcript is.
+    const found = init.sessionId ? locateTranscript(init.sessionId, [init.cwd], services.findTranscript?.(init.sessionId)) : undefined;
+    this.cwd = found?.cwd ?? init.cwd;
+    this.transcriptFile = found?.file;
+    this.opened = !!init.sessionId;
     this.projectName = init.projectName;
     this.branch = init.branch === 'HEAD' ? undefined : init.branch;
     this.isWorktree = !!init.isWorktree;
@@ -265,7 +280,7 @@ export class ManagedSession {
     if (init.sessionId) {
       this.sessionId = init.sessionId;
       this.key = init.sessionId;
-      this.hasTranscript = existsSync(transcriptPathFor(this.cwd, init.sessionId));
+      this.hasTranscript = !!found;
       this.status = 'idle';
       this.title = init.title || 'Session';
     } else if (init.forkFrom) {
@@ -330,7 +345,48 @@ export class ManagedSession {
   }
 
   get transcriptPath(): string {
-    return transcriptPathFor(this.cwd, this.sessionId);
+    return this.transcriptFile ?? transcriptPathFor(this.cwd, this.sessionId);
+  }
+
+  /**
+   * Finds a session's transcript wherever Claude put it: the folder it was
+   * opened in, where the session list saw it, or any project folder.
+   */
+  private async findTranscript(sessionId: string): Promise<TranscriptLocation | undefined> {
+    const found = locateTranscript(sessionId, [this.cwd], this.services.findTranscript?.(sessionId));
+    if (found) return found;
+    const file = await scanForTranscript(sessionId);
+    if (!file) return undefined;
+    const ht = await readHeadTail(file);
+    const listed = ht ? parseSessionInfo(sessionId, file, ht)?.cwd : undefined;
+    return { file, cwd: runCwdFor(file, [listed, this.cwd]) ?? listed ?? this.cwd };
+  }
+
+  /**
+   * Follows this session's transcript when it's no longer where we last saw it
+   * (Claude moves it when the session enters a git worktree). True when found.
+   */
+  private async followTranscript(): Promise<boolean> {
+    if (existsSync(this.transcriptPath)) return true;
+    const found = await this.findTranscript(this.sessionId);
+    if (!found) return false;
+    this.transcriptFile = found.file;
+    this.moveTo(found.cwd);
+    return true;
+  }
+
+  /** Runs Claude in `cwd` from now on (where the transcript it resumes is). */
+  private moveTo(cwd: string): void {
+    if (cwd === this.cwd) return;
+    this.log.info(`session ${this.sessionId}: transcript is under ${cwd}, not ${this.cwd}; running Claude there`);
+    const wasWorktree = isWorktreePath(this.cwd);
+    this.cwd = cwd;
+    if (isWorktreePath(cwd)) this.isWorktree = true;
+    else if (wasWorktree) this.isWorktree = false;
+    // The branch is the one the transcript records (read with the history).
+    this.branch = undefined;
+    this.patchUi({ cwd, isWorktree: this.isWorktree, branch: undefined });
+    this._onDidChange.fire();
   }
 
   /** Name, full input and state of a tool call (pending requests carry the untruncated input). */
@@ -360,7 +416,11 @@ export class ManagedSession {
     if (this.forkFrom && !this.hasTranscript) return this.loadForkHistory(this.forkFrom);
     const builder = new ChatBuilder(this.services.imageSink);
     const started = Date.now();
-    const info = await loadTranscriptFile(this.transcriptPath, builder);
+    const info = (await this.followTranscript()) ? await loadTranscriptFile(this.transcriptPath, builder) : undefined;
+    if (!info && this.opened) {
+      this.log.warn(`no transcript found for ${this.sessionId}`);
+      this.builder.addSystem('error', "This session's saved conversation could not be found or read, so its earlier messages can't be shown.");
+    }
     if (info) {
       this.hasTranscript = true;
       // Keep anything that happened while we were loading.
@@ -618,12 +678,12 @@ export class ManagedSession {
    * (ours, the Claude extension's, claude --resume) look for it.
    */
   private async saveCustomTitle(): Promise<void> {
+    if (!(await this.followTranscript())) return;
     const path = this.transcriptPath;
-    if (!existsSync(path)) return;
     try {
       await appendFile(path, JSON.stringify({ type: 'custom-title', customTitle: this.title, sessionId: this.sessionId }) + '\n');
       this.services.rememberTitle?.(this.sessionId, this.title);
-      this.services.onTranscriptActivity(this.sessionId, this.cwd);
+      this.services.onTranscriptActivity(this.sessionId, path);
     } catch (err) {
       this.log.warn(`could not save the session name: ${errorMessage(err)}`);
     }
@@ -632,7 +692,10 @@ export class ManagedSession {
   /** The original conversation up to the fork point, shown until the fork has its own transcript. */
   private async loadForkHistory(fork: ForkSource): Promise<void> {
     const builder = new ChatBuilder(this.services.imageSink);
-    const info = await loadTranscriptFile(transcriptPathFor(this.cwd, fork.sessionId), builder);
+    // Claude copies the original to start the fork, so the fork runs where the original's transcript is.
+    const original = await this.findTranscript(fork.sessionId);
+    if (original) this.moveTo(original.cwd);
+    const info = original ? await loadTranscriptFile(original.file, builder) : undefined;
     if (!info) {
       this.builder.addSystem('error', 'The original session could not be read, so this fork starts empty.');
       this.flush();
@@ -1180,6 +1243,13 @@ export class ManagedSession {
       this.fail('Claude Code CLI not found. Install it (https://claude.com/claude-code) or set "claudeProjects.claudePath".');
       return undefined;
     }
+    // Claude finds the session (or a fork's original) only from the folder its transcript is in.
+    if (this.hasTranscript || this.opened) {
+      if (await this.followTranscript()) this.hasTranscript = true;
+    } else if (this.forkFrom) {
+      const original = await this.findTranscript(this.forkFrom.sessionId);
+      if (original) this.moveTo(original.cwd);
+    }
     const settings = this.services.settings();
     const fork = this.forkOnNextStart && this.hasTranscript;
     this.forkOnNextStart = false;
@@ -1408,7 +1478,7 @@ export class ManagedSession {
         if (model?.contextWindow) this.contextWindow = model.contextWindow;
         this.updateContextUsage();
         this.flush();
-        this.services.onTranscriptActivity(this.sessionId, this.cwd);
+        this.services.onTranscriptActivity(this.sessionId, this.transcriptPath);
         break;
       }
       case 'rate_limit_event': {
@@ -1428,6 +1498,7 @@ export class ManagedSession {
         if (m.session_id && m.session_id !== this.sessionId) {
           this.log.info(`session ${this.sessionId} continues as ${m.session_id}`);
           this.sessionId = m.session_id;
+          this.transcriptFile = undefined;
           if (this.bookmarks.length) this.services.bookmarks.save(m.session_id, this.bookmarks);
           if (this.sharedEnvChoice.length) this.services.sharedEnvChoice?.save(m.session_id, this.sharedEnvChoice);
           this.patchUi({ sessionId: m.session_id });
@@ -1779,4 +1850,9 @@ function lastMeaningfulLine(stderr: string): string | undefined {
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('at ') && !/^\s*$/.test(l));
   return lines.length ? clip(lines[lines.length - 1], 300) : undefined;
+}
+
+/** A git worktree Claude Code made (`.claude/worktrees/<name>`). */
+function isWorktreePath(p: string): boolean {
+  return /[\\/]\.claude[\\/]worktrees[\\/][^\\/]+$/.test(p);
 }

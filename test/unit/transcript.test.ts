@@ -151,6 +151,16 @@ describe('session info', () => {
     expect(parseSessionInfo('abc', '/p/-elsewhere/abc.jsonl', { head, tail, size: 10_000_000, mtimeMs: 1 })?.cwd).toBe('/work/hack/mermaid-svg');
   });
 
+  it("lists a session that entered a worktree under the worktree, even once the move record left the tail", () => {
+    // Started in the repo, then Claude entered .claude/worktrees/hub and moved the transcript to that folder.
+    const head = JSON.stringify({ type: 'user', parentUuid: null, cwd: '/work/repo', message: { content: 'build the hub' } });
+    const tail = JSON.stringify({ type: 'user', parentUuid: 'x', cwd: '/work/repo/.claude/worktrees/hub/pipeline', message: { content: 'go on' } });
+    const file = '/home/.claude/projects/-work-repo--claude-worktrees-hub/abc.jsonl';
+    expect(parseSessionInfo('abc', file, { head, tail, size: 10_000_000, mtimeMs: 1 })?.cwd).toBe('/work/repo/.claude/worktrees/hub');
+    const moved = tail + '\n' + JSON.stringify({ type: 'relocated', relocatedCwd: '/work/repo/.claude/worktrees/hub', sessionId: 'abc' });
+    expect(parseSessionInfo('abc', file, { head, tail: moved, size: 10_000_000, mtimeMs: 1 })?.cwd).toBe('/work/repo/.claude/worktrees/hub');
+  });
+
   it('ignores sidechain and empty transcripts', () => {
     const side = JSON.stringify({ type: 'user', isSidechain: true, parentUuid: null, message: { content: 'x' } });
     expect(parseSessionInfo('s', '/f', { head: side, tail: side, size: 10, mtimeMs: 1 })).toBeUndefined();
