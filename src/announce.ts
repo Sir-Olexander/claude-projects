@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** Set once the Claude Chats announcement has been shown (whatever the answer). */
 export const HUB_ANNOUNCED_KEY = 'claudeProjects.hubAnnounced.v1';
@@ -57,7 +59,9 @@ export async function announceHub(d: HubAnnounceDeps): Promise<void> {
 
 /** Opens the changelog (shipped with the extension) as a Markdown preview. */
 export async function showWhatsNew(context: vscode.ExtensionContext): Promise<void> {
-  const uri = vscode.Uri.joinPath(context.extensionUri, 'CHANGELOG.md');
+  // The packaged extension stores it as changelog.md (case matters on Linux).
+  const name = ['CHANGELOG.md', 'changelog.md'].find((n) => existsSync(join(context.extensionPath, n))) ?? 'CHANGELOG.md';
+  const uri = vscode.Uri.joinPath(context.extensionUri, name);
   try {
     await vscode.commands.executeCommand('markdown.showPreview', uri);
   } catch {
