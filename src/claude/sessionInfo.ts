@@ -1,6 +1,6 @@
 import { open } from 'node:fs/promises';
-import { normalizeDrive } from '../util/paths';
-import { cwdForTranscriptDir } from './paths';
+import { normalizeCwd } from '../util/paths';
+import { runCwdFor } from './paths';
 
 /**
  * Cheap metadata for one transcript, read from its first and last 64 KB only
@@ -116,9 +116,6 @@ export function firstStringField(text: string, key: string): string | undefined 
   return best?.value;
 }
 
-function optionalDrive(p: string | undefined): string | undefined {
-  return p === undefined ? undefined : normalizeDrive(p);
-}
 
 const COMMAND_NAME_RE = /<command-name>(.*?)<\/command-name>/;
 const SKIP_PROMPT_RE = /^(?:\s*<[a-z][\w-]*[\s>]|\[Request interrupted by user[^\]]*\])/;
@@ -205,15 +202,20 @@ function relocatedCwd(tail: string): string | undefined {
 }
 
 /**
- * The folder the session started in. The head can hold no cwd at all (a first
- * message with a big pasted image fills it), and the tail's cwd is wherever
- * Claude `cd`'d to last, so a tail cwd is checked against the transcript's folder.
+ * The folder the session runs in: the one whose transcripts folder holds the
+ * file. The head can hold no cwd at all (a first message with a big pasted image
+ * fills it), the tail's cwd is wherever Claude `cd`'d to last, and a session that
+ * entered a git worktree had its transcript moved to the worktree's folder (the
+ * "relocated" record, which can scroll out of the tail), so each cwd found is
+ * checked against the transcript's folder.
  */
-function startCwd(filePath: string, ht: HeadTail): string | undefined {
+function runCwd(filePath: string, ht: HeadTail): string | undefined {
+  const relocated = relocatedCwd(ht.tail);
+  if (relocated) return normalizeCwd(relocated);
   const head = firstStringField(ht.head, 'cwd');
-  if (head) return head;
   const tail = lastStringField(ht.tail, 'cwd');
-  return tail ? cwdForTranscriptDir(tail, filePath) ?? tail : undefined;
+  const candidates = [head, tail].filter((c): c is string => !!c).map((c) => normalizeCwd(c));
+  return runCwdFor(filePath, candidates) ?? candidates[0];
 }
 
 /** Builds SessionInfo from head/tail text, or undefined when the file is not a listable session. */
@@ -237,7 +239,7 @@ export function parseSessionInfo(sessionId: string, filePath: string, ht: HeadTa
   return {
     sessionId,
     filePath,
-    cwd: optionalDrive(relocatedCwd(ht.tail) ?? startCwd(filePath, ht)),
+    cwd: runCwd(filePath, ht),
     title: oneLine(title),
     customTitle: customTitle || undefined,
     aiTitle: aiTitle || undefined,

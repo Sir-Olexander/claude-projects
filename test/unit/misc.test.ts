@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encodeProjectDirName, findTranscriptCwd, isUuid, transcriptPathFor } from '../../src/claude/paths';
+import { cwdForTranscriptDir, encodeProjectDirName, findTranscriptCwd, isUuid, locateTranscript, scanForTranscript, transcriptPathFor } from '../../src/claude/paths';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -11,7 +11,7 @@ import { buildArgs, buildChildEnv } from '../../src/claude/ClaudeProcess';
 import { scorePath } from '../../src/panels/fileSuggestions';
 import { sourceOf } from '../../src/sessions/sources';
 import { countdown, shortAgo } from '../../src/util/time';
-import { isInHiddenFolder, normalizeDrive, stripTrailingSep } from '../../src/util/paths';
+import { isInHiddenFolder, normalizeCwd, normalizeDrive, stripTrailingSep } from '../../src/util/paths';
 
 describe('paths', () => {
   it('encodes cwd like Claude Code', () => {
@@ -56,6 +56,35 @@ describe('paths', () => {
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
+  });
+  it("finds a transcript Claude moved into a worktree's folder", async () => {
+    const home = mkdtempSync(join(tmpdir(), 'cp-paths-'));
+    try {
+      const env = { CLAUDE_CONFIG_DIR: home };
+      const wt = '/work/repo/.claude/worktrees/hub';
+      const file = transcriptPathFor(wt, 'abc', env);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, '{}\n');
+      // Opened at the repo root: not there, nor in a parent folder.
+      expect(locateTranscript('abc', ['/work/repo'], undefined, env)).toBeUndefined();
+      // Where the session list found it.
+      expect(locateTranscript('abc', ['/work/repo'], { filePath: file, cwd: wt }, env)).toEqual({ file, cwd: wt });
+      // A subfolder of the worktree as the listed cwd still runs Claude in the worktree.
+      expect(locateTranscript('abc', ['/work/repo'], { filePath: file, cwd: `${wt}/pipeline` }, env)).toEqual({ file, cwd: wt });
+      // Without the session list: a scan of every project folder.
+      expect(await scanForTranscript('abc', env)).toBe(file);
+      expect(await scanForTranscript('nope', env)).toBeUndefined();
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+  it('matches transcript folders without case (Windows drive letters)', () => {
+    expect(cwdForTranscriptDir('C:/Users/x/repo', '/h/projects/c--Users-x-repo/abc.jsonl')).toBe('C:/Users/x/repo');
+  });
+  it('spells Git Bash paths as Windows paths on Windows', () => {
+    expect(normalizeCwd('/c/Users/x/repo', 'win32')).toBe('C:\\Users\\x\\repo');
+    expect(normalizeCwd('c:\\Users\\x', 'win32')).toBe('C:\\Users\\x');
+    expect(normalizeCwd('/c/Users/x/repo', 'darwin')).toBe('/c/Users/x/repo');
   });
   it('recognizes uuids', () => {
     expect(isUuid('6e2ec9ee-ee1e-4ebf-b68c-edacd2ef5569')).toBe(true);

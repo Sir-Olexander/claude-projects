@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { transcriptPathFor } from '../../src/claude/paths';
@@ -630,6 +630,109 @@ describe('ManagedSession: forking from a reply', () => {
       if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
       else process.env.CLAUDE_CONFIG_DIR = prev;
       delete process.env.FAKE_CLAUDE_LOG;
+    }
+  });
+});
+
+describe('ManagedSession: a session that entered a git worktree', () => {
+  // Opened in the repo; Claude then entered .claude/worktrees/hub and moved the
+  // transcript into the worktree's folder (the tab still has the repo).
+  function setup() {
+    const home = tempDir();
+    const prev = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = home;
+    const log = join(tempDir(), 'args.jsonl');
+    process.env.FAKE_CLAUDE_LOG = log;
+    const repo = realpathSync(tempDir());
+    const wt = join(repo, '.claude', 'worktrees', 'hub');
+    mkdirSync(wt, { recursive: true });
+    const sessionId = '77777777-7777-7777-7777-777777777777';
+    const file = transcriptPathFor(wt, sessionId);
+    mkdirSync(dirname(file), { recursive: true });
+    const t = '2026-11-17T10:00:00.000Z';
+    writeFileSync(
+      file,
+      [
+        { type: 'user', uuid: 'u1', parentUuid: null, sessionId, cwd: repo, timestamp: t, message: { role: 'user', content: 'Build the hub' } },
+        { type: 'relocated', relocatedCwd: wt, sessionId },
+        { type: 'worktree-state', worktreeSession: { originalCwd: repo, worktreePath: wt }, sessionId },
+        { type: 'assistant', uuid: 'a1', parentUuid: 'u1', sessionId, cwd: wt, gitBranch: 'worktree-hub', timestamp: t, message: { id: 'm1', role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Working in the worktree' }] } },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join('\n') + '\n',
+    );
+    const restore = () => {
+      if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = prev;
+      delete process.env.FAKE_CLAUDE_LOG;
+    };
+    return { repo, wt, sessionId, file, log, restore };
+  }
+
+  it("shows its history and resumes it in the worktree", async () => {
+    const { repo, wt, sessionId, log, restore } = setup();
+    try {
+      const s = new ManagedSession({ cwd: repo, projectName: 'T', sessionId, branch: 'main', title: 'Hub' }, services());
+      sessions.push(s);
+      await s.ensureHistory();
+      const texts = s.getState().items.filter((i) => i.kind === 'text').map((i) => (i as { text: string }).text);
+      expect(texts).toEqual(['Working in the worktree']);
+      expect(s.cwd).toBe(wt);
+      expect(s.isWorktree).toBe(true);
+      expect(s.branch).toBe('worktree-hub');
+
+      await s.send('Go on');
+      await waitFor(() => s.getState().items.some((i) => i.kind === 'text' && i.text === 'Echo: Go on'));
+      const run = JSON.parse(readFileSync(log, 'utf8').trim().split('\n').pop()!) as { args: string[]; cwd: string };
+      expect(run.args[run.args.indexOf('--resume') + 1]).toBe(sessionId);
+      expect(run.cwd).toBe(wt);
+    } finally {
+      restore();
+    }
+  });
+
+  it('finds it right away when the session list knows where it is', async () => {
+    const { repo, wt, sessionId, file, restore } = setup();
+    try {
+      const s = new ManagedSession({ cwd: repo, projectName: 'T', sessionId }, services({ findTranscript: (id) => (id === sessionId ? { filePath: file, cwd: wt } : undefined) }));
+      sessions.push(s);
+      expect(s.cwd).toBe(wt);
+      expect(s.transcriptPath).toBe(file);
+    } finally {
+      restore();
+    }
+  });
+
+  it('forks it from a tab that still has the repo', async () => {
+    const { repo, wt, sessionId, log, restore } = setup();
+    try {
+      const fork = new ManagedSession({ cwd: repo, projectName: 'T', forkFrom: { sessionId, at: 'a1', title: 'Hub' } }, services());
+      sessions.push(fork);
+      await fork.ensureHistory();
+      const items = fork.getState().items;
+      expect(items.some((i) => i.kind === 'system' && /could not be read/.test((i as { text: string }).text))).toBe(false);
+      expect(items.some((i) => i.kind === 'text' && (i as { text: string }).text === 'Working in the worktree')).toBe(true);
+      expect(fork.cwd).toBe(wt);
+
+      await fork.send('Branch off');
+      await waitFor(() => fork.getState().items.some((i) => i.kind === 'text' && i.text === 'Echo: Branch off'));
+      const run = JSON.parse(readFileSync(log, 'utf8').trim().split('\n').pop()!) as { args: string[]; cwd: string };
+      expect(run.args[run.args.indexOf('--resume') + 1]).toBe(sessionId);
+      expect(run.cwd).toBe(wt);
+    } finally {
+      restore();
+    }
+  });
+
+  it('says so when the transcript is nowhere', async () => {
+    const { repo, restore } = setup();
+    try {
+      const s = new ManagedSession({ cwd: repo, projectName: 'T', sessionId: '66666666-6666-6666-6666-666666666666' }, services());
+      sessions.push(s);
+      await s.ensureHistory();
+      expect(s.getState().items.some((i) => i.kind === 'system' && /could not be found/.test((i as { text: string }).text))).toBe(true);
+    } finally {
+      restore();
     }
   });
 });

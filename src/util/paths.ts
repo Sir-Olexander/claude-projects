@@ -11,6 +11,17 @@ export function normalizeDrive(p: string, platform: NodeJS.Platform = process.pl
   return platform === 'win32' && /^[a-z]:/.test(p) ? p[0].toUpperCase() + p.slice(1) : p;
 }
 
+/**
+ * A working directory from a transcript, spelled the way the rest of the extension
+ * spells paths. On Windows, Claude Code run from Git Bash can record "/c/Users/…"
+ * for "C:\Users\…".
+ */
+export function normalizeCwd(p: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== 'win32') return p;
+  const m = /^\/([a-zA-Z])(?:\/(.*))?$/.exec(p);
+  return normalizeDrive(m ? `${m[1]}:\\${(m[2] ?? '').replace(/\//g, '\\')}` : p, platform);
+}
+
 /** A file: Uri's path, spelled the way the rest of the extension spells paths. */
 export function fsPathOf(uri: { fsPath: string }): string {
   return normalizeDrive(uri.fsPath);
