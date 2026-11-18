@@ -82,7 +82,7 @@ export async function run(): Promise<void> {
   await api.store.add(process.env.CP_E2E_REPO2!);
   await api.store.add(mobile);
   await api.store.add(infra);
-  await api.store.rename(p1.id, 'FeBundi');
+  await api.store.rename(p1.id, 'shop-api');
   api.store.select(p1.id);
   await vscode.commands.executeCommand('workbench.view.extension.claudeProjects');
   await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
